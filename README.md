@@ -36,6 +36,14 @@ python -m uvicorn src.app:app --reload
 
 The database is stored locally at `data/app.db`. Use `python scripts/db_migrate.py status` to inspect migration state or `python scripts/db_migrate.py down` to remove the application tables.
 
+Upload a supported PDF, Markdown, or TXT document with:
+
+```bash
+curl -X POST http://localhost:8000/ingest -F "title=Project guide" -F "file=@path/to/guide.txt"
+```
+
+The response contains a `job_id`. Poll its progress with `GET /status/{job_id}`. On completion, the document chunks are stored in SQLite and the FAISS index is written to `data/vectors/{document_id}.index`.
+
 Available checks:
 
 ```bash
