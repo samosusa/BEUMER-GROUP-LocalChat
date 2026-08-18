@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+
+MSG_FILE="$1"
+FIRST_LINE=$(head -n 1 "$MSG_FILE")
+
+case "$FIRST_LINE" in
+  LCHAT-[0-9]*)
+    exit 0
+    ;;
+  *)
+    echo "ERROR: Commit message must start with Jira key like LCHAT-123" >&2
+    echo "Example: LCHAT-123 Update README" >&2
+    exit 1
+    ;;
+esac

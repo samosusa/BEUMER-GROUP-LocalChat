@@ -1,4 +1,4 @@
-# BEUMER-GROUP-LocalChat  brbrbr
+# BEUMER-GROUP-LocalChat
 
 ## Jira & GitHub workflow
 
@@ -15,6 +15,7 @@ Workflows added:
 - `.github/workflows/jira-pr-link.yml` — adds Jira link/summary to PRs.
 - `.github/workflows/enforce-jira-key.yml` — validates branch name and PR title.
 - `.github/workflows/enforce-commit-jira-key.yml` — validates PR commit messages start with the Jira key.
+- `.github/workflows/enforce-push-commit-jira-key.yml` — validates pushed commit messages start with the Jira key.
 - `.github/workflows/jira-auto-transition.yml` — transitions Jira issues on PR open/merge.
 
 Quick branch / PR commands:
@@ -31,7 +32,7 @@ Enable branch protection (one-time):
 1. Go to the GitHub repository → Settings → Branches.
 2. Edit the `main` branch protection rule.
 3. Enable **Require status checks to pass before merging**.
-4. Select the checks named `Enforce Jira Key / validate` and `Enforce Jira Commit Key / validate-commits` (they appear after the actions run once).
+4. Select the checks named `Enforce Jira Key / validate`, `Enforce Jira Commit Key / validate-commits`, and `Enforce Jira Commit Key On Push / validate-push-commits` (they appear after the actions run once).
 
 Jira connection (one-time):
 
@@ -43,3 +44,13 @@ Customization:
 
 - To change transition names, edit `.github/workflows/jira-auto-transition.yml` and replace `In Review` / `Done` with your Jira workflow transitions.
 - To require different commit/branch patterns, edit the respective workflow regexes in the `.github/workflows` folder.
+
+Local commit-time enforcement (recommended):
+
+To enforce Jira commit prefixes on every local commit, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-git-hooks.ps1
+```
+
+This enables the committed hook at `.githooks/commit-msg`, which blocks commits unless the first line starts with `LCHAT-123`.
