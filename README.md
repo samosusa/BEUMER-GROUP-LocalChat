@@ -7,12 +7,12 @@ This repository includes GitHub Actions that enforce and integrate Jira issue ke
 - **Branch naming:** Branches must be named like `LCHAT-123-short-description` (lowercase, dashes).
 - **PR titles:** PR titles must contain the Jira key (e.g. `LCHAT-123`).
 - **Commit messages:** Commits in a PR should start with the Jira key (e.g. `LCHAT-123 Fix typo`).
-- **Automatic PR enrichment:** PR bodies are automatically updated with a clickable Jira link and optional summary.
+- **Automatic PR enrichment:** PR bodies are automatically updated with a clickable Jira link.
 - **Automatic transitions:** Jira issues are transitioned to `In Review` on PR open and to `Done` on merge (edit transitions in the workflow if your board uses different names).
 
 Workflows added:
 
-- `.github/workflows/jira-pr-link.yml` — adds Jira link/summary to PRs.
+- `.github/workflows/jira-pr-link.yml` — adds Jira link to PRs.
 - `.github/workflows/enforce-jira-key.yml` — validates branch name and PR title.
 - `.github/workflows/enforce-commit-jira-key.yml` — validates PR commit messages start with the Jira key.
 - `.github/workflows/enforce-push-commit-jira-key.yml` — validates pushed commit messages start with the Jira key.
