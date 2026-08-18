@@ -1,5 +1,38 @@
 # BEUMER-GROUP-LocalChat
 
+## Local service
+
+This repository includes a minimal HTTP service with a health endpoint.
+
+### Run locally
+
+```bash
+npm install
+npm start
+```
+
+The service listens on `http://localhost:8000` by default. Verify it with:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Expected response:
+
+```json
+{"status":"ok"}
+```
+
+Available checks:
+
+```bash
+npm test
+npm run lint
+npm run bench
+```
+
+Set `PORT` in the environment to use a different port. See `.env.example` for the available setting.
+
 ## Jira & GitHub workflow
 
 This repository includes GitHub Actions that enforce and integrate Jira issue keys across branches, PRs and commits.

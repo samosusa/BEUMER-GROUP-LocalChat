@@ -158,6 +158,13 @@ env.bak/
 venv.bak/
 
 # Spyder project settings
+
+# Node.js
+node_modules/
+npm-debug.log*
+
+# Local environment
+.env
 .spyderproject
 .spyproject
 
