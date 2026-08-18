@@ -1,7 +1,0 @@
-services:
-  app:
-    build: .
-    ports:
-      - "${PORT:-8000}:8000"
-    environment:
-      PORT: 8000
