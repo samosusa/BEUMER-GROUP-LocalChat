@@ -1,0 +1,100 @@
+name: Jira Auto Transition
+
+on:
+  pull_request:
+    types: [opened, closed]
+
+permissions:
+  contents: read
+
+jobs:
+  transition:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find Jira issue key
+        id: issue
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE="${{ github.head_ref }} ${{ github.event.pull_request.title }}"
+          ISSUE=$(echo "$SOURCE" | grep -Eo 'LCHAT-[0-9]+' | head -n1 || true)
+          echo "issue=$ISSUE" >> "$GITHUB_OUTPUT"
+          echo "Detected issue key: ${ISSUE:-<none>}"
+
+      - name: Transition to In Review
+        if: ${{ github.event.action == 'opened' && steps.issue.outputs.issue != '' }}
+        env:
+          JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          ISSUE: ${{ steps.issue.outputs.issue }}
+          TRANSITION_NAME: ${{ vars.JIRA_TRANSITION_IN_REVIEW }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${TRANSITION_NAME:=In Review}"
+
+          if [ -z "${JIRA_BASE_URL:-}" ] || [ -z "${JIRA_EMAIL:-}" ] || [ -z "${JIRA_API_TOKEN:-}" ]; then
+            echo "::warning::Jira transition skipped. Missing JIRA_BASE_URL variable or JIRA_EMAIL/JIRA_API_TOKEN secrets."
+            exit 0
+          fi
+
+          BASE="${JIRA_BASE_URL%/}"
+          TRANSITIONS=$(curl -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+            -H "Accept: application/json" \
+            "$BASE/rest/api/3/issue/$ISSUE/transitions")
+
+          ID=$(echo "$TRANSITIONS" | jq -r --arg NAME "$TRANSITION_NAME" '.transitions[]? | select(.name == $NAME) | .id' | head -n1)
+          if [ -z "${ID:-}" ] || [ "$ID" = "null" ]; then
+            echo "::error::Transition '$TRANSITION_NAME' not found for issue $ISSUE"
+            echo "Available transitions:"
+            echo "$TRANSITIONS" | jq -r '.transitions[]?.name'
+            exit 1
+          fi
+
+          curl -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -X POST \
+            --data "{\"transition\":{\"id\":\"$ID\"}}" \
+            "$BASE/rest/api/3/issue/$ISSUE/transitions" >/dev/null
+
+          echo "Transitioned $ISSUE to '$TRANSITION_NAME'"
+
+      - name: Transition to Done on merge
+        if: ${{ github.event.action == 'closed' && github.event.pull_request.merged == true && steps.issue.outputs.issue != '' }}
+        env:
+          JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          ISSUE: ${{ steps.issue.outputs.issue }}
+          TRANSITION_NAME: ${{ vars.JIRA_TRANSITION_DONE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${TRANSITION_NAME:=Done}"
+
+          if [ -z "${JIRA_BASE_URL:-}" ] || [ -z "${JIRA_EMAIL:-}" ] || [ -z "${JIRA_API_TOKEN:-}" ]; then
+            echo "::warning::Jira transition skipped. Missing JIRA_BASE_URL variable or JIRA_EMAIL/JIRA_API_TOKEN secrets."
+            exit 0
+          fi
+
+          BASE="${JIRA_BASE_URL%/}"
+          TRANSITIONS=$(curl -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+            -H "Accept: application/json" \
+            "$BASE/rest/api/3/issue/$ISSUE/transitions")
+
+          ID=$(echo "$TRANSITIONS" | jq -r --arg NAME "$TRANSITION_NAME" '.transitions[]? | select(.name == $NAME) | .id' | head -n1)
+          if [ -z "${ID:-}" ] || [ "$ID" = "null" ]; then
+            echo "::error::Transition '$TRANSITION_NAME' not found for issue $ISSUE"
+            echo "Available transitions:"
+            echo "$TRANSITIONS" | jq -r '.transitions[]?.name'
+            exit 1
+          fi
+
+          curl -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -X POST \
+            --data "{\"transition\":{\"id\":\"$ID\"}}" \
+            "$BASE/rest/api/3/issue/$ISSUE/transitions" >/dev/null
+
+          echo "Transitioned $ISSUE to '$TRANSITION_NAME'"

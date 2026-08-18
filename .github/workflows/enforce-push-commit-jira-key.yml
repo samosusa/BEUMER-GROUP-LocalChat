@@ -1,0 +1,31 @@
+name: Enforce Jira Commit Key On Push
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  validate-push-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pushed commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check pushed commit message
+        run: |
+          set -euo pipefail
+          CURRENT_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
+          if [ -z "$CURRENT_SHA" ]; then
+            echo "No current pushed commit available"
+            exit 0
+          fi
+
+          MSG=$(git log -1 --pretty=format:%s "$CURRENT_SHA")
+          echo "Current pushed commit $CURRENT_SHA: $MSG"
+          if [[ ! "$MSG" =~ ^LCHAT-[0-9]+ ]]; then
+            echo "::error::Current pushed commit $CURRENT_SHA message must start with a Jira key like LCHAT-123"
+            exit 1
+          fi

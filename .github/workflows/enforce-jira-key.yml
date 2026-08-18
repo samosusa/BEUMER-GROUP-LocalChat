@@ -1,0 +1,27 @@
+name: Enforce Jira Key
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch name
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          echo "Branch: $BRANCH"
+          if [[ ! "$BRANCH" =~ ^LCHAT-[0-9]+-[a-z0-9-]+$ ]]; then
+            echo "::error::Branch must match LCHAT-123-description"
+            exit 1
+          fi
+
+      - name: Check PR title
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          echo "Title: $TITLE"
+          if [[ ! "$TITLE" =~ LCHAT-[0-9]+ ]]; then
+            echo "::error::PR title must contain a Jira key like LCHAT-123"
+            exit 1
+          fi
