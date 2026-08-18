@@ -1,0 +1,33 @@
+name: Jira Auto Transition
+
+on:
+  pull_request:
+    types: [opened, closed]
+
+permissions:
+  contents: read
+
+jobs:
+  transition:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to Jira
+        uses: atlassian/gajira-login@v3
+
+      - name: Find Jira issue key
+        id: issue
+        uses: atlassian/gajira-find-issue-key@v3
+
+      - name: Transition to In Review
+        if: ${{ github.event.action == 'opened' && steps.issue.outputs.issue != '' }}
+        uses: atlassian/gajira-transition-issue@v3
+        with:
+          issue: ${{ steps.issue.outputs.issue }}
+          transition: 'In Review'
+
+      - name: Transition to Done on merge
+        if: ${{ github.event.action == 'closed' && github.event.pull_request.merged == true && steps.issue.outputs.issue != '' }}
+        uses: atlassian/gajira-transition-issue@v3
+        with:
+          issue: ${{ steps.issue.outputs.issue }}
+          transition: 'Done'

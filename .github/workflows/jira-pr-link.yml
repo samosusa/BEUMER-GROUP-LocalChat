@@ -1,0 +1,27 @@
+name: Add Jira info to PR
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  jira:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to Jira
+        uses: atlassian/gajira-login@v3
+        continue-on-error: true
+
+      - name: Find Jira issue key
+        id: issue
+        uses: atlassian/gajira-find-issue-key@v3
+
+      - name: Add Jira info to PR
+        if: ${{ steps.issue.outputs.issue != '' }}
+        uses: atlassian/gajira-add-jira-info@v3
+        with:
+          issue: ${{ steps.issue.outputs.issue }}
