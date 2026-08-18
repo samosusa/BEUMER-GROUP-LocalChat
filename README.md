@@ -40,6 +40,13 @@ Jira connection (one-time):
 2. Connect your GitHub organization/repository.
 3. Verify branches, commits and PRs appear in the Jira Development panel.
 
+GitHub repository configuration (for Jira workflows):
+
+1. Add repository variable `JIRA_BASE_URL` (example: `https://your-company.atlassian.net`).
+2. Add repository secret `JIRA_EMAIL` (Jira account email).
+3. Add repository secret `JIRA_API_TOKEN` (Jira API token).
+4. Optional: add repository variables `JIRA_TRANSITION_IN_REVIEW` and `JIRA_TRANSITION_DONE` if your Jira transition names differ from defaults.
+
 Customization:
 
 - To change transition names, edit `.github/workflows/jira-auto-transition.yml` and replace `In Review` / `Done` with your Jira workflow transitions.

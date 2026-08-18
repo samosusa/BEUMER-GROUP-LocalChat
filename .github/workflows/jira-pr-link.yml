@@ -14,7 +14,13 @@ jobs:
     steps:
       - name: Find Jira issue key
         id: issue
-        uses: atlassian/gajira-find-issue-key@v3
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE="${{ github.head_ref }} ${{ github.event.pull_request.title }}"
+          ISSUE=$(echo "$SOURCE" | grep -Eo 'LCHAT-[0-9]+' | head -n1 || true)
+          echo "issue=$ISSUE" >> "$GITHUB_OUTPUT"
+          echo "Detected issue key: ${ISSUE:-<none>}"
 
       - name: Add Jira info to PR
         if: ${{ steps.issue.outputs.issue != '' }}
