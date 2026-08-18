@@ -37,7 +37,7 @@ Set `PORT` in the environment to use a different port. See `.env.example` for th
 
 This repository includes GitHub Actions that enforce and integrate Jira issue keys across branches, PRs and commits.
 
-- **Branch naming:** Branches must be named like `LCHAT-123-short-description` (lowercase, dashes).
+- **Branch naming:** Branches must be named like `LCHAT-123-short-description` (case-insensitive letters, dashes).
 - **PR titles:** PR titles must contain the Jira key (e.g. `LCHAT-123`).
 - **Commit messages:** Commits in a PR should start with the Jira key (e.g. `LCHAT-123 Fix typo`).
 - **Automatic PR enrichment:** PR bodies are automatically updated with a clickable Jira link.
