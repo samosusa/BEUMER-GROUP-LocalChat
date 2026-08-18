@@ -44,6 +44,14 @@ curl -X POST http://localhost:8000/ingest -F "title=Project guide" -F "file=@pat
 
 The response contains a `job_id`. Poll its progress with `GET /status/{job_id}`. On completion, the document chunks are stored in SQLite and the FAISS index is written to `data/vectors/{document_id}.index`.
 
+Query the indexed documents with:
+
+```bash
+curl -X POST http://localhost:8000/query -H "Content-Type: application/json" -d "{\"q\":\"What is in the project guide?\"}"
+```
+
+Place the Phi-4 Mini Q4_K_M GGUF at `data/models/Phi-4-mini-instruct-Q4_K_M.gguf`, or set `LOCALCHAT_LLM_MODEL` to its local path before starting the API. The model is loaded once at startup and runs with `n_gpu_layers=0`.
+
 Available checks:
 
 ```bash

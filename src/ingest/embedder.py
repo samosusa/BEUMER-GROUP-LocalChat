@@ -29,9 +29,24 @@ class NomicEmbedder:
         )
         return vectors.tolist() if hasattr(vectors, "tolist") else vectors
 
+    def embed_query(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        vectors = self._get_model().encode(
+            [f"search_query: {text}" for text in texts],
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+            show_progress_bar=False,
+        )
+        return vectors.tolist() if hasattr(vectors, "tolist") else vectors
+
 
 embedder = NomicEmbedder()
 
 
 def embed(texts: list[str]) -> list[list[float]]:
     return embedder.embed(texts)
+
+
+def embed_query(texts: list[str]) -> list[list[float]]:
+    return embedder.embed_query(texts)
