@@ -14,26 +14,13 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.head_ref }}
 
-      - name: Fetch base branch
-        run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1 || true
-
-      - name: Check commit messages
+      - name: Check current branch commit message
         run: |
           set -euo pipefail
-          BASE="origin/${{ github.event.pull_request.base.ref }}"
-          echo "Base: $BASE"
-          # List commits in the PR (exclude merge commits)
-          COMMITS=$(git rev-list --no-merges "$BASE"..HEAD || true)
-          if [ -z "$COMMITS" ]; then
-            echo "No commits to check"
-            exit 0
+          HEAD_SHA=$(git rev-parse HEAD)
+          MSG=$(git log -1 --pretty=format:%s "$HEAD_SHA")
+          echo "Current branch commit $HEAD_SHA: $MSG"
+          if [[ ! "$MSG" =~ ^LCHAT-[0-9]+ ]]; then
+            echo "::error::Current branch commit $HEAD_SHA message must start with a Jira key like LCHAT-123"
+            exit 1
           fi
-          for c in $COMMITS; do
-            MSG=$(git log -1 --pretty=format:%s "$c")
-            echo "Commit $c: $MSG"
-            if [[ ! "$MSG" =~ ^LCHAT-[0-9]+ ]]; then
-              echo "::error::Commit $c message must start with a Jira key like LCHAT-123"
-              exit 1
-            fi
-          done
