@@ -23,6 +23,19 @@ Expected response:
 {"status":"ok"}
 ```
 
+## Python API and database
+
+Install the Python dependencies, apply the SQLite migrations, and run the FastAPI service:
+
+```bash
+python -m pip install -r requirements.txt
+python scripts/db_migrate.py up
+pytest
+python -m uvicorn src.app:app --reload
+```
+
+The database is stored locally at `data/app.db`. Use `python scripts/db_migrate.py status` to inspect migration state or `python scripts/db_migrate.py down` to remove the application tables.
+
 Available checks:
 
 ```bash
