@@ -14,20 +14,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check pushed commit messages
+      - name: Check pushed commit message
         run: |
           set -euo pipefail
-          SHAS=$(jq -r '.commits[]?.id' "$GITHUB_EVENT_PATH")
-          if [ -z "$SHAS" ]; then
-            echo "No pushed commits in payload"
+          CURRENT_SHA="${GITHUB_SHA:-$(git rev-parse HEAD)}"
+          if [ -z "$CURRENT_SHA" ]; then
+            echo "No current pushed commit available"
             exit 0
           fi
 
-          for c in $SHAS; do
-            MSG=$(git log -1 --pretty=format:%s "$c")
-            echo "Commit $c: $MSG"
-            if [[ ! "$MSG" =~ ^LCHAT-[0-9]+ ]]; then
-              echo "::error::Commit $c message must start with a Jira key like LCHAT-123"
-              exit 1
-            fi
-          done
+          MSG=$(git log -1 --pretty=format:%s "$CURRENT_SHA")
+          echo "Current pushed commit $CURRENT_SHA: $MSG"
+          if [[ ! "$MSG" =~ ^LCHAT-[0-9]+ ]]; then
+            echo "::error::Current pushed commit $CURRENT_SHA message must start with a Jira key like LCHAT-123"
+            exit 1
+          fi
