@@ -7,7 +7,8 @@
     "start": "node src/app.js",
     "test": "node --test",
     "lint": "node --check src/app.js && node --check src/routes/health.js && node --check tests/health.test.js && node --check scripts/bench.js",
-    "bench": "node scripts/bench.js"
+    "bench": "node scripts/bench.js",
+    "demo": "py scripts/demo_workflow.py"
   },
   "engines": {
     "node": ">=18"

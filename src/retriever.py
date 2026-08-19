@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 
 import faiss
@@ -24,12 +25,13 @@ def retrieve(
     query: str,
     db: Session,
     top_k: int = 5,
-    vector_dir: Path = VECTOR_DIR,
+    vector_dir: Path | None = None,
 ) -> list[RetrievedChunk]:
     if top_k <= 0 or not query.strip():
         return []
 
     query_vector = np.asarray(embed_query([query]), dtype="float32")
+    vector_dir = vector_dir or Path(os.getenv("LOCALCHAT_VECTOR_DIR", VECTOR_DIR))
     results: list[RetrievedChunk] = []
     for index_path in vector_dir.glob("*.index"):
         try:

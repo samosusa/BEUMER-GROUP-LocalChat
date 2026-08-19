@@ -50,7 +50,17 @@ Query the indexed documents with:
 curl -X POST http://localhost:8000/query -H "Content-Type: application/json" -d "{\"q\":\"What is in the project guide?\"}"
 ```
 
-Place the Phi-4 Mini Q4_K_M GGUF at `data/models/Phi-4-mini-instruct-Q4_K_M.gguf`, or set `LOCALCHAT_LLM_MODEL` to its local path before starting the API. The model is loaded once at startup and runs with `n_gpu_layers=0`.
+Place the Llama-3.2-3B-Instruct Q5_K_M GGUF at `data/models/Llama-3.2-3B-Instruct-Q5_K_M.gguf`, or set `LOCALCHAT_LLM_MODEL` to its local path before starting the API. The model is loaded once at startup and runs with `n_gpu_layers=0`.
+
+Run the opt-in real end-to-end workflow test after installing `llama-cpp-python` and placing the GGUF model:
+
+```powershell
+$env:LOCALCHAT_RUN_REAL_E2E = "1"
+$env:LOCALCHAT_LLM_MODEL = "C:\path\to\Llama-3.2-3B-Instruct-Q5_K_M.gguf"
+py -m pytest tests/integration/test_real_workflow_e2e.py -s
+```
+
+This test uses real SQLite, chunking, Nomic embeddings, FAISS retrieval, and Llama-3.2 generation. It is skipped unless explicitly enabled because it loads the local multi-gigabyte model.
 
 Available checks:
 
@@ -58,7 +68,26 @@ Available checks:
 npm test
 npm run lint
 npm run bench
+npm run demo
 ```
+
+The demo command runs an isolated end-to-end simulation and prints each stage clearly: health check, document ingestion, ingestion status, database and FAISS vector verification, relevant query answer, and unrelated query fallback. Artifacts are written to `data/demo_runs/<timestamp>/`.
+
+You can pass your own questions when running the demo:
+
+```bash
+npm run demo -- --relevant-question "How often do emergency stop checks run?" --unrelated-question "Who won the World Cup in 2018?"
+```
+
+For this built-in demo document, a relevant question is one about conveyor speed or emergency stop checks.
+
+You can also run the same demo flow on your own file (.pdf, .md, .txt):
+
+```bash
+npm run demo -- --demo-file "data/demo-inputs/site-guide.txt" --demo-title "Site Guide" --relevant-question "What is the emergency protocol?"
+```
+
+If `--relevant-question` is omitted for a custom file, the demo asks: `What are the main points in this document?`
 
 Set `PORT` in the environment to use a different port. See `.env.example` for the available setting.
 

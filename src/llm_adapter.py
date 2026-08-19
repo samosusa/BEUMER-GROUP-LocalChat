@@ -7,7 +7,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_MODEL_PATH = ROOT / "data" / "models" / "Phi-4-mini-instruct-Q4_K_M.gguf"
+DEFAULT_MODEL_PATH = ROOT / "data" / "models" / "Llama-3.2-3B-Instruct-Q5_K_M.gguf"
 
 
 class LLMAdapter:
@@ -22,7 +22,7 @@ class LLMAdapter:
                 if self._model is None:
                     if not self.model_path.is_file():
                         raise FileNotFoundError(
-                            f"Phi-4 Mini model not found at {self.model_path}. "
+                            f"Llama-3.2-3B-Instruct model not found at {self.model_path}. "
                             "Set LOCALCHAT_LLM_MODEL to the GGUF file path."
                         )
                     from llama_cpp import Llama
