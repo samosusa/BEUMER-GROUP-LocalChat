@@ -64,6 +64,7 @@ data/app.db
 data/app.db-journal
 data/vectors/
 data/models/
+eval_results/
 
 # Flask stuff:
 instance/

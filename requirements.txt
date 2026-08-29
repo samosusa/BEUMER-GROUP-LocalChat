@@ -2,8 +2,6 @@ fastapi>=0.110,<1
 faiss-cpu>=1.8,<2
 einops>=0.8,<1
 httpx>=0.27,<1
-# Prefer the prebuilt Windows CPU wheel; source builds require MSVC/CMake.
---extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 llama-cpp-python>=0.3,<1
 pypdf>=5,<7
 pytest>=8,<9
