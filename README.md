@@ -1,8 +1,28 @@
 # BEUMER-GROUP-LocalChat
 
+An offline, confidential document assistant for BEUMER Group. Documents, embeddings, model
+and chat history all stay on the employee's machine.
+
+## Repository layout
+
+```
+apps/renderer         The desktop interface (React). See docs/frontend.md.
+apps/desktop          The Electron shell: window, tray, quick-ask, hardened bridge.
+apps/health-service   The minimal HTTP service with the /health endpoint.
+packages/contracts    The HTTP contract with the RAG service, as runtime schemas.
+packages/tokens       The design system as CSS custom properties.
+docker/               Review container for the interface.
+```
+
+This is an npm workspaces monorepo. `npm install` at the root installs everything.
+
+**Desktop client:** see [docs/frontend.md](docs/frontend.md) for how the interface is built,
+how to run it against its mock service, and the Electron security posture.
+
 ## Local service
 
-This repository includes a minimal HTTP service with a health endpoint.
+This repository includes a minimal HTTP service with a health endpoint. It lives in
+`apps/health-service`, and the root `npm start` / `npm run bench` scripts delegate to it.
 
 ### Run locally
 
@@ -20,15 +40,16 @@ curl http://localhost:8000/health
 Expected response:
 
 ```json
-{"status":"ok"}
+{ "status": "ok" }
 ```
 
 Available checks:
 
 ```bash
-npm test
-npm run lint
+npm test          # service tests + interface tests
+npm run lint      # eslint over the client, node --check over the service
 npm run bench
+npm run verify    # everything CI runs: format, lint, typecheck, test, build
 ```
 
 Set `PORT` in the environment to use a different port. See `.env.example` for the available setting.
