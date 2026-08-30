@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 192" width="300" height="192" role="img" aria-label="Schematic of the tilt-tray discharge sequence: a carrier line above three chutes, with the active chute highlighted.">
+  <rect width="300" height="192" fill="#052836"/>
+  <text x="48" y="40" fill="#7FA5B1" font-family="monospace" font-size="12">carrier line</text>
+  <rect x="28" y="52" width="244" height="24" rx="3" fill="none" stroke="#2C7C99" stroke-width="2"/>
+  <rect x="28" y="52" width="40" height="24" fill="#0E4257"/>
+  <rect x="96" y="52" width="40" height="24" fill="#0E4257"/>
+  <rect x="164" y="52" width="40" height="24" fill="#0E4257"/>
+  <path d="M60 88 L48 132 L88 132 Z" fill="none" stroke="#4FC3F0" stroke-width="2"/>
+  <path d="M128 88 L116 132 L156 132 Z" fill="none" stroke="#2C7C99" stroke-width="2"/>
+  <path d="M196 88 L184 132 L224 132 Z" fill="none" stroke="#2C7C99" stroke-width="2"/>
+  <line x1="28" y1="152" x2="272" y2="152" stroke="#1B5B72" stroke-width="2"/>
+  <text x="44" y="176" fill="#7FA5B1" font-family="monospace" font-size="12">chutes 01–03</text>
+</svg>
