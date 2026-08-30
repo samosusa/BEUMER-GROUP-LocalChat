@@ -1,0 +1,82 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      ['apps/**', 'packages/**', 'docker/**', 'package*.json', '.github/workflows/frontend-ci.yml']
+  pull_request:
+    paths:
+      ['apps/**', 'packages/**', 'docker/**', 'package*.json', '.github/workflows/frontend-ci.yml']
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Format, lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # The Electron binary is a ~100 MB download this job never runs.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      # Each step reports separately, so a red build names what actually broke.
+      - name: Formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm run test
+
+      - name: Build renderer
+        run: npm run build
+
+      - name: Build desktop shell
+        run: npm run build --workspace @localchat/desktop
+
+  container:
+    name: Review container builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          load: true
+          tags: localchat-ui:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # A container that builds but serves nothing is a green build hiding a broken deploy.
+      - name: Smoke test
+        run: |
+          docker run -d --rm --name localchat-ui -p 8080:8080 localchat-ui:ci
+          for i in $(seq 1 20); do
+            if curl -fsS http://localhost:8080/ > /dev/null; then
+              echo "UI is serving"; docker stop localchat-ui; exit 0
+            fi
+            sleep 1
+          done
+          echo "UI did not come up"; docker logs localchat-ui; docker stop localchat-ui; exit 1
