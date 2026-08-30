@@ -16,6 +16,10 @@ docker/               Review container for the interface.
 
 This is an npm workspaces monorepo. `npm install` at the root installs everything.
 
+**Node 22 is required** — `.nvmrc` pins it, and CI reads the same file. On Node 20 the test
+runner's jsdom dependency crashes on a missing platform API, so the install is refused
+outright rather than half-working. `nvm use` (or `nvm install 22`) is enough.
+
 **Desktop client:** see [docs/frontend.md](docs/frontend.md) for how the interface is built,
 how to run it against its mock service, and the Electron security posture.
 

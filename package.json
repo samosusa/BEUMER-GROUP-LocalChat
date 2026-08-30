@@ -6,7 +6,7 @@
   "description": "BEUMER Group LocalChat \u2014 offline, confidential document assistant. Desktop client and local services.",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.22.2"
   },
   "workspaces": [
     "packages/*",

@@ -65,18 +65,30 @@ describe('formatCitationRef', () => {
 });
 
 describe('day bucketing', () => {
-  const now = new Date('2026-08-30T14:00:00.000Z');
+  /**
+   * These fixtures are built from LOCAL calendar components, deliberately.
+   *
+   * "Yesterday" means the engineer's calendar day, not UTC's — someone in Copenhagen at
+   * 01:30 expects the previous evening to read as yesterday. Writing the fixtures as UTC
+   * instants made the midnight-boundary case pass in UTC and fail at UTC+2, which is a
+   * property of the test, not of the code.
+   */
+  const at = (year: number, month: number, day: number, hour: number, minute = 0) =>
+    new Date(year, month - 1, day, hour, minute);
+
+  const now = at(2026, 8, 30, 14);
 
   it('counts calendar days, not elapsed hours', () => {
-    // 23:30 yesterday is one day ago even though it is 14.5 hours back.
-    expect(daysBetween('2026-08-29T23:30:00.000Z', now)).toBe(1);
-    expect(daysBetween('2026-08-30T01:00:00.000Z', now)).toBe(0);
+    // 23:30 the previous evening is one day ago, though only 14.5 hours have passed.
+    expect(daysBetween(at(2026, 8, 29, 23, 30).toISOString(), now)).toBe(1);
+    // 01:00 the same morning is zero days ago, though 13 hours have passed.
+    expect(daysBetween(at(2026, 8, 30, 1).toISOString(), now)).toBe(0);
   });
 
   it('groups into the sections the history screen renders', () => {
-    expect(historyBucket('2026-08-30T09:00:00.000Z', now)).toBe('today');
-    expect(historyBucket('2026-08-27T09:00:00.000Z', now)).toBe('week');
-    expect(historyBucket('2026-08-10T09:00:00.000Z', now)).toBe('month');
-    expect(historyBucket('2026-01-10T09:00:00.000Z', now)).toBe('older');
+    expect(historyBucket(at(2026, 8, 30, 9).toISOString(), now)).toBe('today');
+    expect(historyBucket(at(2026, 8, 27, 9).toISOString(), now)).toBe('week');
+    expect(historyBucket(at(2026, 8, 10, 9).toISOString(), now)).toBe('month');
+    expect(historyBucket(at(2026, 1, 10, 9).toISOString(), now)).toBe('older');
   });
 });

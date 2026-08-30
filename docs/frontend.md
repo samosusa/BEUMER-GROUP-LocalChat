@@ -13,7 +13,7 @@ promise visible in the interface.
 ## Getting started
 
 ```bash
-npm install          # Node 20.19+ or 22+
+npm install          # Node 22 — see .nvmrc; `nvm use` picks it up
 npm run dev          # UI at http://localhost:5173, against the mock service
 npm run dev:desktop  # the same UI inside the Electron shell
 ```
