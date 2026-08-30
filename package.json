@@ -1,15 +1,44 @@
 {
-  "name": "beumer-group-localchat",
-  "version": "1.0.0",
+  "name": "beumer-localchat",
+  "version": "0.4.1",
   "private": true,
-  "description": "Minimal local HTTP service for BEUMER-GROUP-LocalChat",
-  "scripts": {
-    "start": "node src/app.js",
-    "test": "node --test",
-    "lint": "node --check src/app.js && node --check src/routes/health.js && node --check tests/health.test.js && node --check scripts/bench.js",
-    "bench": "node scripts/bench.js"
-  },
+  "type": "module",
+  "description": "BEUMER Group LocalChat \u2014 offline, confidential document assistant. Desktop client and local services.",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
-    "node": ">=18"
+    "node": ">=20.19"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @localchat/renderer",
+    "dev:desktop": "npm run dev --workspace @localchat/desktop",
+    "start": "npm start --workspace @localchat/health-service",
+    "bench": "npm run bench --workspace @localchat/health-service",
+    "build:contracts": "npm run build --workspace @localchat/contracts",
+    "build": "npm run build:contracts && npm run build --workspace @localchat/renderer",
+    "build:desktop": "npm run build && npm run build --workspace @localchat/desktop",
+    "package": "npm run build:desktop && npm run package --workspace @localchat/desktop",
+    "package:win": "npm run build:desktop && npm run package:win --workspace @localchat/desktop",
+    "typecheck": "tsc --build",
+    "lint": "eslint . && npm run lint --workspace @localchat/health-service",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,css,json,md,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,css,json,md,yaml,yml}\"",
+    "test": "npm run build:contracts && npm run test --workspace @localchat/renderer && npm run test --workspace @localchat/health-service",
+    "test:watch": "npm run test --workspace @localchat/renderer -- --watch",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^7.1.0",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "prettier": "^3.9.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.68.0"
   }
 }

@@ -1,0 +1,8 @@
+dist
+out
+release
+coverage
+package-lock.json
+dist-types
+node_modules
+apps/renderer/public/mockServiceWorker.js
