@@ -1,7 +1,43 @@
+# Local development and review stack.
+#
+#   docker compose up --build ui    → the desktop interface at http://localhost:8080
+#   docker compose up --build app   → the health service at http://localhost:8000
+#
+# Neither is the shipping artefact. The product ships as the Windows installer built by
+# `npm run package`; these exist so the interface and the service can be reviewed by anyone
+# without a Node toolchain, a model or a GPU.
 services:
+  # The existing minimal HTTP service. Placeholder until the FastAPI RAG service lands.
   app:
-    build: .
+    build:
+      context: ./apps/health-service
+    image: localchat-health:dev
+    container_name: localchat-health
     ports:
-      - "${PORT:-8000}:8000"
+      - '${PORT:-8000}:8000'
     environment:
       PORT: 8000
+    restart: unless-stopped
+
+  # The desktop interface, built against its in-process mock service.
+  ui:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: localchat-ui:dev
+    container_name: localchat-ui
+    ports:
+      - '${UI_PORT:-8080}:8080'
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://127.0.0.1:8080/']
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    # Nothing in this image should ever reach out; the UI is offline by design.
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
