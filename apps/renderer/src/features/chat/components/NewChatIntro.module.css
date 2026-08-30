@@ -1,0 +1,183 @@
+.intro {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) 0;
+}
+
+.column {
+  width: var(--chat-column-width);
+  max-width: calc(100% - var(--space-9));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-9);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.title {
+  font-size: var(--text-hero);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-title);
+  color: var(--text-primary);
+  text-wrap: pretty;
+}
+
+.subtitle {
+  font-size: var(--text-chat);
+  line-height: var(--leading-normal);
+  color: var(--text-tertiary);
+}
+
+/* ----- scope cards ------------------------------------------------------- */
+
+.scopes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.scope {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-6);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  text-align: left;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+}
+
+.scope:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.scope:disabled {
+  opacity: 0.5;
+}
+
+.scopeSelected {
+  border-color: var(--accent);
+  border-width: 1.5px;
+  background: var(--surface-active);
+}
+
+.scopeHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.scopeIcon {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.scopeSelected .scopeIcon {
+  color: var(--accent-text);
+}
+
+.scopeTitle {
+  flex: 1;
+  font-size: var(--text-chat);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.scopeCheck {
+  color: var(--accent);
+}
+
+.scopeDescription {
+  font-size: var(--text-row);
+  line-height: var(--leading-normal);
+  color: var(--text-tertiary);
+}
+
+.scopeCount {
+  font-size: var(--text-meta);
+  color: var(--text-label);
+}
+
+.scopeSelected .scopeCount {
+  color: var(--accent-text);
+}
+
+/* ----- lower half -------------------------------------------------------- */
+
+.lower {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.dropzone {
+  width: 250px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-8) var(--space-6);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  color: var(--accent-text);
+  text-align: center;
+}
+
+.dropzone:hover {
+  border-color: var(--accent);
+}
+
+.dropTitle {
+  font-size: var(--text-ui);
+  font-weight: var(--weight-medium);
+  color: var(--text-body);
+}
+
+.dropHint {
+  font-size: var(--text-meta);
+  color: var(--text-label);
+}
+
+.starters {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.starter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  font-size: var(--text-ui);
+  color: var(--text-body);
+  text-align: left;
+}
+
+.starter:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.starterIcon {
+  flex-shrink: 0;
+  color: var(--accent-text);
+}

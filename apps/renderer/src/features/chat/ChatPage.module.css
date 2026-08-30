@@ -1,0 +1,80 @@
+.page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.topbar {
+  height: var(--topbar-height);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: 0 var(--space-7);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.topbarPlaceholder {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 34px;
+  padding: 0 var(--space-5);
+  border: 1px dashed var(--border-strong);
+  border-radius: 7px;
+  font-size: var(--text-row);
+  color: var(--text-secondary);
+}
+
+.topbarRight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  flex-shrink: 0;
+}
+
+.topbarDivider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-subtle);
+}
+
+/* ----- drop overlay ------------------------------------------------------ */
+
+.dropOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--surface-canvas) 82%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.dropCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-9) var(--space-10);
+  border: 1.5px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--surface-active);
+  color: var(--accent-text);
+  text-align: center;
+}
+
+.dropTitle {
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+
+.dropHint {
+  font-size: var(--text-meta);
+  color: var(--text-tertiary);
+}
