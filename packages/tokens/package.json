@@ -1,0 +1,14 @@
+{
+  "name": "@localchat/tokens",
+  "version": "0.4.1",
+  "private": true,
+  "type": "module",
+  "description": "The LocalChat design system as CSS custom properties. Single source of truth for colour, type, spacing and radii.",
+  "exports": {
+    "./tokens.css": "./src/tokens.css",
+    "./reset.css": "./src/reset.css"
+  },
+  "files": [
+    "src"
+  ]
+}
