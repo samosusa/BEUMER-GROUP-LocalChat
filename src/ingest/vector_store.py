@@ -13,7 +13,7 @@ VECTOR_DIR = ROOT / "data" / "vectors"
 
 
 class FaissVectorStore:
-    def __init__(self, vector_dir: Path | None = None):
+    def __init__(self, vector_dir: Path | None = None) -> None:
         configured_dir = os.getenv("LOCALCHAT_VECTOR_DIR")
         self.vector_dir = vector_dir or Path(configured_dir or VECTOR_DIR)
         self._indexes: dict[int, Any] = {}

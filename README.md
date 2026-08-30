@@ -36,7 +36,7 @@ python -m uvicorn src.app:app --reload
 
 The database is stored locally at `data/app.db`. Use `python scripts/db_migrate.py status` to inspect migration state or `python scripts/db_migrate.py down` to remove the application tables.
 
-Upload a supported PDF, Markdown, or TXT document with:
+Upload a supported PDF, Word (.docx), Markdown, or TXT document with:
 
 ```bash
 curl -X POST http://localhost:8000/ingest -F "title=Project guide" -F "file=@path/to/guide.txt"
@@ -81,7 +81,7 @@ npm run demo -- --relevant-question "How often do emergency stop checks run?" --
 
 For this built-in demo document, a relevant question is one about conveyor speed or emergency stop checks.
 
-You can also run the same demo flow on your own file (.pdf, .md, .txt):
+You can also run the same demo flow on your own file (.pdf, .docx, .md, .txt):
 
 ```bash
 npm run demo -- --demo-file "data/demo-inputs/site-guide.txt" --demo-title "Site Guide" --relevant-question "What is the emergency protocol?"

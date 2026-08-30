@@ -220,7 +220,7 @@ def build_messages(top_k: int, question: str) -> list[dict[str, str]]:
 class ResourceSampler:
     """Polls process RSS (and GPU VRAM used, if requested) on a background thread."""
 
-    def __init__(self, sample_vram: bool):
+    def __init__(self, sample_vram: bool) -> None:
         self._sample_vram = sample_vram
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -262,6 +262,95 @@ def estimate_gpu_fit(model_path: Path, gpu: dict[str, Any]) -> tuple[bool, str]:
     return True, ""
 
 
+def _gpu_skip_reason(model_path: Path, llama_cpp_module: Any) -> str | None:
+    if not llama_cpp_module.llama_supports_gpu_offload():
+        return "installed llama-cpp-python build has no GPU offload support"
+    gpu = get_gpu_info()
+    if gpu is None:
+        return "no NVIDIA GPU detected (nvidia-smi unavailable)"
+    fits, reason = estimate_gpu_fit(model_path, gpu)
+    return None if fits else reason
+
+
+def _load_llm(model_path: Path, n_gpu_layers: int, args: argparse.Namespace) -> tuple[Any, float]:
+    from llama_cpp import Llama
+
+    t0 = time.perf_counter()
+    llm = Llama(
+        model_path=str(model_path),
+        n_gpu_layers=n_gpu_layers,
+        n_threads=args.n_threads,
+        n_ctx=args.n_ctx,
+        # chat_format left as None: llama-cpp-python auto-detects and applies the
+        # chat template embedded in each GGUF's metadata, so every model family
+        # gets its own correct prompt format without hand-coding one per family.
+        chat_format=None,
+        verbose=False,
+    )
+    return llm, time.perf_counter() - t0
+
+
+def _run_warmup(llm: Any, messages: list[dict[str, str]], args: argparse.Namespace) -> None:
+    for _ in range(args.warmup):
+        llm.reset()  # force a full prompt re-eval instead of reusing cached KV state
+        for _chunk in llm.create_chat_completion(
+            messages=messages, max_tokens=args.max_tokens,
+            temperature=TEMPERATURE, top_p=TOP_P, stream=True,
+        ):
+            pass
+
+
+@dataclass
+class GenerationStats:
+    ttfts: list[float]
+    gen_wall_s: list[float]
+    prompt_tok_total: int = 0
+    prompt_s_total: float = 0.0
+    gen_tok_total: int = 0
+    gen_s_total: float = 0.0
+
+
+def _time_generation_runs(
+    llm: Any, llama_cpp_module: Any, messages: list[dict[str, str]], args: argparse.Namespace
+) -> GenerationStats:
+    stats = GenerationStats(ttfts=[], gen_wall_s=[])
+    for _ in range(args.runs):
+        llm.reset()  # force a full prompt re-eval instead of reusing cached KV state
+        llm._ctx.reset_timings()
+        t_start = time.perf_counter()
+        first_token_t: float | None = None
+        for chunk in llm.create_chat_completion(
+            messages=messages, max_tokens=args.max_tokens,
+            temperature=TEMPERATURE, top_p=TOP_P, stream=True,
+        ):
+            delta = chunk["choices"][0]["delta"].get("content")
+            if delta and first_token_t is None:
+                first_token_t = time.perf_counter()
+        t_end = time.perf_counter()
+
+        perf = llama_cpp_module.llama_perf_context(llm._ctx.ctx)
+        stats.ttfts.append((first_token_t or t_end) - t_start)
+        stats.gen_wall_s.append(t_end - t_start)
+        stats.prompt_tok_total += perf.n_p_eval
+        stats.prompt_s_total += perf.t_p_eval_ms / 1000
+        stats.gen_tok_total += perf.n_eval
+        stats.gen_s_total += perf.t_eval_ms / 1000
+    return stats
+
+
+def _apply_generation_stats(result: RunResult, stats: GenerationStats, args: argparse.Namespace) -> None:
+    result.status = "ok"
+    result.runs = args.runs
+    result.ttft_s = sum(stats.ttfts) / len(stats.ttfts)
+    result.prompt_tokens = round(stats.prompt_tok_total / args.runs)
+    result.prompt_eval_s = stats.prompt_s_total / args.runs
+    result.prompt_tok_s = (stats.prompt_tok_total / stats.prompt_s_total) if stats.prompt_s_total else None
+    result.gen_tokens = round(stats.gen_tok_total / args.runs)
+    result.gen_eval_s = stats.gen_s_total / args.runs
+    result.gen_tok_s = (stats.gen_tok_total / stats.gen_s_total) if stats.gen_s_total else None
+    result.total_s = (result.load_s or 0.0) + (sum(stats.gen_wall_s) / len(stats.gen_wall_s))
+
+
 def run_one(model_path: Path, device: str, device_name: str, args: argparse.Namespace) -> RunResult:
     result = RunResult(
         model=model_path.name,
@@ -274,19 +363,10 @@ def run_one(model_path: Path, device: str, device_name: str, args: argparse.Name
     import llama_cpp
 
     if device == "gpu":
-        if not llama_cpp.llama_supports_gpu_offload():
+        skip_reason = _gpu_skip_reason(model_path, llama_cpp)
+        if skip_reason is not None:
             result.status = "skipped"
-            result.detail = "installed llama-cpp-python build has no GPU offload support"
-            return result
-        gpu = get_gpu_info()
-        if gpu is None:
-            result.status = "skipped"
-            result.detail = "no NVIDIA GPU detected (nvidia-smi unavailable)"
-            return result
-        fits, reason = estimate_gpu_fit(model_path, gpu)
-        if not fits:
-            result.status = "skipped"
-            result.detail = reason
+            result.detail = skip_reason
             return result
 
     n_gpu_layers = args.gpu_layers if device == "gpu" else 0
@@ -301,71 +381,11 @@ def run_one(model_path: Path, device: str, device_name: str, args: argparse.Name
     sampler.start()
     llm = None
     try:
-        from llama_cpp import Llama
-
-        t0 = time.perf_counter()
-        llm = Llama(
-            model_path=str(model_path),
-            n_gpu_layers=n_gpu_layers,
-            n_threads=args.n_threads,
-            n_ctx=args.n_ctx,
-            # chat_format left as None: llama-cpp-python auto-detects and applies the
-            # chat template embedded in each GGUF's metadata, so every model family
-            # gets its own correct prompt format without hand-coding one per family.
-            chat_format=None,
-            verbose=False,
-        )
-        result.load_s = time.perf_counter() - t0
-
+        llm, result.load_s = _load_llm(model_path, n_gpu_layers, args)
         messages = build_messages(args.top_k, args.question)
-
-        for _ in range(args.warmup):
-            llm.reset()  # force a full prompt re-eval instead of reusing cached KV state
-            for _chunk in llm.create_chat_completion(
-                messages=messages, max_tokens=args.max_tokens,
-                temperature=TEMPERATURE, top_p=TOP_P, stream=True,
-            ):
-                pass
-
-        ttfts: list[float] = []
-        gen_wall_s: list[float] = []
-        prompt_tok_total = 0
-        prompt_s_total = 0.0
-        gen_tok_total = 0
-        gen_s_total = 0.0
-
-        for _ in range(args.runs):
-            llm.reset()  # force a full prompt re-eval instead of reusing cached KV state
-            llm._ctx.reset_timings()
-            t_start = time.perf_counter()
-            first_token_t: float | None = None
-            for chunk in llm.create_chat_completion(
-                messages=messages, max_tokens=args.max_tokens,
-                temperature=TEMPERATURE, top_p=TOP_P, stream=True,
-            ):
-                delta = chunk["choices"][0]["delta"].get("content")
-                if delta and first_token_t is None:
-                    first_token_t = time.perf_counter()
-            t_end = time.perf_counter()
-
-            perf = llama_cpp.llama_perf_context(llm._ctx.ctx)
-            ttfts.append((first_token_t or t_end) - t_start)
-            gen_wall_s.append(t_end - t_start)
-            prompt_tok_total += perf.n_p_eval
-            prompt_s_total += perf.t_p_eval_ms / 1000
-            gen_tok_total += perf.n_eval
-            gen_s_total += perf.t_eval_ms / 1000
-
-        result.status = "ok"
-        result.runs = args.runs
-        result.ttft_s = sum(ttfts) / len(ttfts)
-        result.prompt_tokens = round(prompt_tok_total / args.runs)
-        result.prompt_eval_s = prompt_s_total / args.runs
-        result.prompt_tok_s = (prompt_tok_total / prompt_s_total) if prompt_s_total else None
-        result.gen_tokens = round(gen_tok_total / args.runs)
-        result.gen_eval_s = gen_s_total / args.runs
-        result.gen_tok_s = (gen_tok_total / gen_s_total) if gen_s_total else None
-        result.total_s = result.load_s + (sum(gen_wall_s) / len(gen_wall_s))
+        _run_warmup(llm, messages, args)
+        stats = _time_generation_runs(llm, llama_cpp, messages, args)
+        _apply_generation_stats(result, stats, args)
     except Exception as exc:
         result.status = "error"
         result.detail = str(exc)

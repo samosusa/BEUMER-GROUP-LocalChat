@@ -1,0 +1,13 @@
+# Warehouse Racking Safety
+
+## Overview
+Pallet racking in the main warehouse must be inspected and load-rated before use. Only trained personnel may load or reconfigure racking bays.
+
+## Load Limits
+Each bay is rated for a maximum of 2,200 kg evenly distributed across the pallet footprint. Load limit placards are mounted on the end frame of every aisle and must never be exceeded.
+
+## Inspection Schedule
+Racking is inspected monthly by the warehouse supervisor and annually by a certified racking inspector. Inspection dates are logged in the facility maintenance system.
+
+## Damage Reporting
+Any bent beam, cracked weld, or leaning upright must be reported immediately and the bay taken out of service with red tape until repaired.

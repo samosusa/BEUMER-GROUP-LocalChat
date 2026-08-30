@@ -10,14 +10,13 @@ from sqlalchemy.orm import Session
 
 from src.db import SessionLocal, get_db
 from src.errors import AppError
-from src.ingest.loader import load_file
+from src.ingest.loader import SUPPORTED_SUFFIXES, load_file
 from src.ingest.pipeline import run_pipeline
 from src.models.ingestion_job import IngestionJob
 from src.validation import ROOT, validate_against_schema
 
 
 router = APIRouter()
-SUPPORTED_SUFFIXES = {".pdf", ".md", ".txt"}
 
 
 class IngestResponse(BaseModel):
@@ -37,6 +36,39 @@ def process_upload(job_id: int, title: str, path: str) -> None:
     Path(path).unlink(missing_ok=True)
 
 
+def _validate_suffix(filename: str) -> str:
+    suffix = Path(filename).suffix.lower()
+    if suffix not in SUPPORTED_SUFFIXES:
+        raise AppError(
+            "ERR_UNSUPPORTED_FORMAT",
+            "Only PDF, Word, Markdown, and TXT files are supported",
+            {"file": filename or "unknown"},
+        )
+    return suffix
+
+
+def _ensure_parseable(path: str, filename: str) -> None:
+    try:
+        load_file(path)
+    except Exception as error:
+        raise AppError(
+            "ERR_PARSE_FAILED",
+            "The uploaded file could not be parsed",
+            {"file": filename, "reason": str(error)},
+            status_code=422,
+        ) from error
+
+
+def _create_queued_job(db: Session) -> IngestionJob:
+    job = IngestionJob(status="queued", offset=0, total_chunks=0, created_at=datetime.utcnow())
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    job.status = "running"
+    db.commit()
+    return job
+
+
 @router.post("/ingest", response_model=IngestResponse, status_code=status.HTTP_202_ACCEPTED)
 async def ingest_document(
     background_tasks: BackgroundTasks,
@@ -51,33 +83,14 @@ async def ingest_document(
     )
     if file is None:
         raise AppError("ERR_MISSING_FILE", "An upload file is required", {"file": "is required"})
-    suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in SUPPORTED_SUFFIXES:
-        raise AppError(
-            "ERR_UNSUPPORTED_FORMAT",
-            "Only PDF, Markdown, and TXT files are supported",
-            {"file": file.filename or "unknown"},
-        )
+    suffix = _validate_suffix(file.filename or "")
 
     temporary_file = NamedTemporaryFile(delete=False, suffix=suffix)
     try:
         temporary_file.write(await file.read())
         temporary_file.close()
-        try:
-            load_file(temporary_file.name)
-        except Exception as error:
-            raise AppError(
-                "ERR_PARSE_FAILED",
-                "The uploaded file could not be parsed",
-                {"file": file.filename or "unknown", "reason": str(error)},
-                status_code=422,
-            ) from error
-        job = IngestionJob(status="queued", offset=0, total_chunks=0, created_at=datetime.utcnow())
-        db.add(job)
-        db.commit()
-        db.refresh(job)
-        job.status = "running"
-        db.commit()
+        _ensure_parseable(temporary_file.name, file.filename or "unknown")
+        job = _create_queued_job(db)
         background_tasks.add_task(process_upload, job.id, title, temporary_file.name)
         return IngestResponse(job_id=job.id)
     except Exception:

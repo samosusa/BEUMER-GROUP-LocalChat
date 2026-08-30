@@ -8,10 +8,11 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL_PATH = ROOT / "data" / "models" / "Llama-3.2-3B-Instruct-Q5_K_M.gguf"
+DEFAULT_N_CTX = 4096
 
 
 class LLMAdapter:
-    def __init__(self, model_path: str | Path | None = None):
+    def __init__(self, model_path: str | Path | None = None) -> None:
         self.model_path = Path(model_path or os.getenv("LOCALCHAT_LLM_MODEL", DEFAULT_MODEL_PATH))
         self._model: Any = None
         self._lock = Lock()
@@ -30,6 +31,7 @@ class LLMAdapter:
                     self._model = Llama(
                         model_path=str(self.model_path),
                         n_gpu_layers=0,
+                        n_ctx=DEFAULT_N_CTX,
                         verbose=False,
                     )
         return self._model

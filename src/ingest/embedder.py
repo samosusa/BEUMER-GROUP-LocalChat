@@ -7,7 +7,7 @@ MODEL_NAME = "nomic-ai/nomic-embed-text-v1.5"
 
 
 class NomicEmbedder:
-    def __init__(self, model_name: str = MODEL_NAME):
+    def __init__(self, model_name: str = MODEL_NAME) -> None:
         self.model_name = model_name
         self._model: Any = None
 
