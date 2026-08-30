@@ -78,6 +78,11 @@ def create_document(payload: DocumentCreate, db: Session = Depends(get_db)) -> D
     return document
 
 
+@router.get("/docs", response_model=list[DocumentResponse])
+def list_documents(db: Session = Depends(get_db)) -> list[Document]:
+    return db.query(Document).order_by(Document.id.desc()).all()
+
+
 @router.get("/docs/{document_id}", response_model=DocumentResponse)
 def get_document(document_id: int, db: Session = Depends(get_db)) -> Document:
     document = db.get(Document, document_id)

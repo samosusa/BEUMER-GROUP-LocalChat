@@ -31,6 +31,21 @@ def test_create_read_delete_document(tmp_path: Path):
     assert client.get(f"/docs/{created['id']}").status_code == 404
 
 
+def test_list_documents_includes_created_document(tmp_path: Path):
+    document_path = tmp_path / "listed.txt"
+    document_path.write_text("LocalChat documentation", encoding="utf-8")
+
+    created = client.post("/docs", json={"title": "Listed Guide", "path": str(document_path)}).json()
+
+    try:
+        list_response = client.get("/docs")
+        assert list_response.status_code == 200
+        ids = [doc["id"] for doc in list_response.json()]
+        assert created["id"] in ids
+    finally:
+        client.delete(f"/docs/{created['id']}")
+
+
 def test_missing_document_returns_404():
     assert client.get("/docs/999999").status_code == 404
 

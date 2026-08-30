@@ -10,6 +10,11 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL_PATH = ROOT / "data" / "models" / "Llama-3.2-3B-Instruct-Q5_K_M.gguf"
 DEFAULT_N_CTX = 4096
 
+# Stops generation before the model starts hallucinating extra turns: small models
+# tend to keep going past a real answer by falling back into "Question: ... Answer:
+# ..." style completions once the real content runs out.
+STOP_SEQUENCES = ["\nQuestion:", "\nQ:"]
+
 
 class LLMAdapter:
     def __init__(self, model_path: str | Path | None = None) -> None:
@@ -37,7 +42,17 @@ class LLMAdapter:
         return self._model
 
     def generate(self, prompt: str, max_tokens: int = 512) -> str:
-        result = self.load_model()(prompt, max_tokens=max_tokens, temperature=0.1, top_p=0.9)
+        result = self.load_model()(
+            prompt,
+            max_tokens=max_tokens,
+            temperature=0.1,
+            top_p=0.9,
+            # At this low a temperature, small models easily fall into repeating the
+            # same sentence block once they run out of real content; this penalizes
+            # re-using recently generated tokens to break that loop.
+            repeat_penalty=1.3,
+            stop=STOP_SEQUENCES,
+        )
         return str(result["choices"][0]["text"]).strip()
 
 

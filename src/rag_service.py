@@ -19,7 +19,9 @@ def build_prompt(question: str, retrieved: list[RetrievedChunk]) -> str:
     return (
         "You answer questions using only the provided documentation. "
         "If the documentation does not contain the answer, say that it is not available. "
-        "Cite supporting source numbers like [1].\n\n"
+        "Answer directly in plain prose: no source numbers, citations, or "
+        "'Question:'/'Answer:' labels in your reply, since sources are already "
+        "shown separately.\n\n"
         f"Documentation:\n{context}\n\nQuestion: {question}\nAnswer:"
     )
 

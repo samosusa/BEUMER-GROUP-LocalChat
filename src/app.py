@@ -17,6 +17,9 @@ from src.llm_adapter import load_model
 
 app = FastAPI(
     title="LocalChat",
+    # FastAPI's interactive Swagger UI defaults to GET /docs, which collides with
+    # this app's own /docs document-management resource; move it out of the way.
+    docs_url="/api-docs",
     exception_handlers={
         AppError: app_error_handler,
         RequestValidationError: request_validation_handler,

@@ -48,7 +48,10 @@ def test_query_retrieves_and_cites_ingested_document(monkeypatch):
     assert result["answer"]
     assert result["not_found"] is False
     assert result["citations"]
-    assert result["citations"][0]["title"] == title
+    # Not necessarily citations[0]: other tests ingest identically-worded content into
+    # this same shared dev database with the same fake embedder, so ties on score are
+    # possible and their order isn't (and shouldn't be) a guarantee this test relies on.
+    assert any(citation["title"] == title for citation in result["citations"])
 
     unrelated_response = client.post("/query", json={"q": "Unrelated content question"})
     assert unrelated_response.status_code == 200
