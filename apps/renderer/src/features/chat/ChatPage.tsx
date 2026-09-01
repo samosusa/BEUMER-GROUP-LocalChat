@@ -66,7 +66,11 @@ export function ChatPage() {
         paths: chosen.paths,
         files: chosen.files,
       });
-      if (chatId && result.accepted.length > 0) {
+      // Attaching is skipped against the live service: it has no per-chat context, so the
+      // next refetch of the chat wipes attachmentIds and the pin silently disappears. The
+      // document is in the general corpus and is searched either way — the corpus list in
+      // the context panel is where it shows up.
+      if (!__LIVE_SERVICE__ && chatId && result.accepted.length > 0) {
         updateContext.mutate({
           attachmentIds: [
             ...(chat.data?.attachmentIds ?? []),

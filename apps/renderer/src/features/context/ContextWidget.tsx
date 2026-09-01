@@ -29,6 +29,9 @@ const FORMAT_ICON: Record<Document['format'], IconName> = {
   image: 'image',
 };
 
+/** Enough to recognise the corpus without turning a popover into a file manager. */
+const CORPUS_PREVIEW = 6;
+
 interface ContextWidgetProps {
   chat: Chat;
   project: Project | undefined;
@@ -91,25 +94,38 @@ export function ContextWidget({
   }
 
   const empty = attached.length === 0;
+  /** Nothing pinned AND nothing indexed: the only state where there is truly no context. */
+  const nothingToSearch = empty && available.length === 0;
 
   return (
     <div className={styles.root} ref={rootRef}>
       <button
         type="button"
-        className={cn(styles.trigger, empty && styles.triggerEmpty, open && styles.triggerOpen)}
+        className={cn(
+          styles.trigger,
+          nothingToSearch && styles.triggerEmpty,
+          open && styles.triggerOpen,
+        )}
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-controls={panelId}
       >
         <Icon name="database" size={15} className={styles.triggerIcon} />
-        {empty ? (
-          <span className={styles.triggerEmptyLabel}>No context yet</span>
+        {nothingToSearch ? (
+          <span className={styles.triggerEmptyLabel}>No documents yet</span>
         ) : (
           <>
             <span className={styles.triggerLabel}>Context</span>
             <Mono className={styles.scopeBadge}>{SCOPE_LABEL[chat.scope]}</Mono>
+            {/*
+              With nothing pinned the chat still searches the whole corpus, so counting
+              only pinned files reported "no context" while the answer was being drawn
+              out of an indexed document. Say what is actually being searched.
+            */}
             <span className={styles.triggerCount}>
-              {attached.length} {attached.length === 1 ? 'file' : 'files'}
+              {empty
+                ? `${available.length} ${available.length === 1 ? 'document' : 'documents'}`
+                : `${attached.length} ${attached.length === 1 ? 'file' : 'files'}`}
             </span>
           </>
         )}
@@ -200,6 +216,44 @@ export function ContextWidget({
             )}
           </section>
 
+          <section className={styles.panelSection}>
+            <SectionLabel action={<Mono className={styles.attachedCount}>{available.length}</Mono>}>
+              {chat.scope === 'project' && project ? `${project.name} corpus` : 'General corpus'}
+            </SectionLabel>
+
+            {available.length === 0 ? (
+              <p className={styles.panelEmpty}>
+                Nothing indexed yet. Add a file and it becomes searchable from here.
+              </p>
+            ) : (
+              <>
+                <ul className={styles.fileList}>
+                  {available.slice(0, CORPUS_PREVIEW).map((document) => (
+                    <li key={document.id} className={styles.fileRow}>
+                      <Icon
+                        name={FORMAT_ICON[document.format]}
+                        size={15}
+                        className={cn(styles.fileIcon, styles[`format_${document.format}`])}
+                      />
+                      <span className={styles.fileText}>
+                        <span className={styles.fileName}>{document.filename}</span>
+                        <Mono className={styles.fileMeta}>{describeDocument(document)}</Mono>
+                      </span>
+                      {document.status === 'indexing' && document.progress !== null && (
+                        <div className={styles.fileProgress}>
+                          <ProgressBar value={document.progress} thickness={2} label="Indexing" />
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {available.length > CORPUS_PREVIEW && (
+                  <p className={styles.panelEmpty}>and {available.length - CORPUS_PREVIEW} more</p>
+                )}
+              </>
+            )}
+          </section>
+
           <footer className={styles.panelFooter}>
             <Button variant="accent" size="sm" icon="plus" onClick={onAddFiles}>
               Add files
@@ -235,9 +289,14 @@ function describeDocument(document: Document): string {
   if (document.status === 'indexing') return 'indexing…';
   if (document.format === 'image') return '1 figure · described on retrieval';
 
-  const parts = [`${formatCount(document.chunkCount)} chunks`];
+  // A backend that does not report chunk counts or file sizes sends zeroes. Printing
+  // "0 chunks · 0 B" beside a document that just answered a question reads as a fault in
+  // the index rather than a gap in what the service tells us, so those are dropped.
+  const parts: string[] = [];
+  if (document.chunkCount > 0) parts.push(`${formatCount(document.chunkCount)} chunks`);
   if (document.revision) parts.push(document.revision);
-  parts.push(formatBytes(document.sizeBytes));
+  if (document.sizeBytes > 0) parts.push(formatBytes(document.sizeBytes));
+  if (parts.length === 0) parts.push(document.indexedAt ? 'indexed' : 'not indexed yet');
   return parts.join(' · ');
 }
 
