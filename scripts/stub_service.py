@@ -61,6 +61,8 @@ class State:
         self.conversations: list[dict] = []
         self.messages: list[dict] = []
         self.jobs: dict[int, dict] = {}
+        # document id -> parsed sections, so answers can come out of the real file
+        self.sections: dict[int, list] = {}
         self.active = {"model": None, "device": None}
         self._next = {"document": 1, "conversation": 1, "message": 1, "job": 1}
 
@@ -72,13 +74,49 @@ class State:
 
 state = State()
 
+REFUSAL = {
+    "answer": None,
+    "citations": [],
+    "not_found": True,
+    "suggestion": "Try a more specific question about the ingested project documentation.",
+}
+
 MODELS = [
     {"name": "Llama-3.2-3B-Instruct-Q5_K_M.gguf", "size_bytes": 2_483_000_000, "family": "llama"},
     {"name": "Qwen2.5-0.5B-Instruct-Q5_K_M.gguf", "size_bytes": 420_000_000, "family": "qwen"},
 ]
 
 
-def run_ingestion(job_id: int, title: str, filename: str) -> None:
+SECTION = re.compile(r"^#{1,6}\s+(.*)$", re.M)
+
+
+def split_sections(text: str) -> list[dict]:
+    """Splits markdown into (heading, body) sections; unheaded text becomes one section."""
+    headings = list(SECTION.finditer(text))
+    if not headings:
+        return [{"heading": None, "body": text.strip()}]
+
+    sections = []
+    for index, match in enumerate(headings):
+        end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
+        body = text[match.end() : end].strip()
+        if body:
+            sections.append({"heading": match.group(1).strip(), "body": body})
+    return sections
+
+
+STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "do", "for", "from", "how", "in", "is",
+    "it", "of", "on", "or", "que", "the", "to", "what", "when", "where", "which", "who",
+    "why", "with", "does", "did", "can", "should", "must", "any", "there", "this", "that",
+}
+
+
+def words(text: str) -> set:
+    return {w for w in re.findall(r"[a-z]{3,}", text.lower()) if w not in STOPWORDS}
+
+
+def run_ingestion(job_id: int, title: str, filename: str, text: str = "") -> None:
     """Mirrors the real pipeline's shape: chunk count discovered, then offset advances."""
     job = state.jobs[job_id]
     time.sleep(0.4)
@@ -93,9 +131,10 @@ def run_ingestion(job_id: int, title: str, filename: str) -> None:
 
     with state.lock:
         job["status"] = "complete"
+        document_id = state.id_for("document")
         state.documents.append(
             {
-                "id": state.id_for("document"),
+                "id": document_id,
                 "title": title,
                 "path": f"/Users/engineer/Documents/{filename}",
                 "checksum": f"{job_id:064x}",
@@ -104,40 +143,54 @@ def run_ingestion(job_id: int, title: str, filename: str) -> None:
                 "indexed_at": now(),
             }
         )
+        state.sections[document_id] = split_sections(text)
 
 
 def answer_for(question: str) -> dict:
     """
-    Refuses anything with no document ingested, and anything containing "xyzzy", so both
-    branches of the no-evidence panel can be seen on demand.
-    """
-    if not state.documents or "xyzzy" in question.lower():
-        return {
-            "answer": None,
-            "citations": [],
-            "not_found": True,
-            "suggestion": "Try a more specific question about the ingested project documentation.",
-        }
+    Extractive retrieval over the ingested text.
 
-    citations = [
-        {
-            "title": document["title"],
-            "section": section,
-            "page": page,
-            "score": score,
-        }
-        for document, section, page, score in zip(
-            state.documents[:3],
-            ["4.2 Belt drive", "7.1 Emergency stop", "Appendix B"],
-            [41, 88, 133],
-            [0.82, 0.61, 0.44],
-        )
-    ]
-    body = (
-        "The belt runs at 2.2 m/s with 600 mm spacing, giving 13,200 items per hour [1]. "
-        "Emergency stop checks are logged weekly [2]."
-    )
-    return {"answer": body, "citations": citations, "not_found": False}
+    This is NOT what the real service does — there is no embedding model and no LLM here,
+    just word overlap and a slice of the best-matching section. The point is that a
+    question about the corpus produces an answer *from* the corpus, with citations that
+    name the section it came from, so the interface can be exercised against something
+    truthful. Judge answer quality on the real service, never on this.
+    """
+    asked = words(question)
+    if not asked or "xyzzy" in question.lower():
+        return REFUSAL
+
+    scored = []
+    for document in state.documents:
+        for position, section in enumerate(state.sections.get(document["id"], []), start=1):
+            overlap = asked & words(f"{section['heading'] or ''} {section['body']}")
+            if not overlap:
+                continue
+            # Heading matches count double: a question usually names the topic, not prose.
+            heading_hits = asked & words(section["heading"] or "")
+            score = (len(overlap) + len(heading_hits)) / len(asked)
+            scored.append((min(score, 0.99), document, section, position))
+
+    scored.sort(key=lambda row: row[0], reverse=True)
+    if not scored or scored[0][0] < MIN_SIMILARITY:
+        return REFUSAL
+
+    best = scored[0]
+    sentences = re.split(r"(?<=[.!?])\s+", best[2]["body"])
+    return {
+        "answer": " ".join(sentences[:3]).strip(),
+        "citations": [
+            {
+                "title": document["title"],
+                "section": section["heading"],
+                # The stub has no paginator; section order stands in for a page number.
+                "page": position,
+                "score": round(score, 2),
+            }
+            for score, document, section, position in scored[:3]
+        ],
+        "not_found": False,
+    }
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -179,22 +232,37 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             return {}
 
-    def _multipart_fields(self) -> dict:
+    def _multipart(self) -> dict:
         """
-        Pulls `title` and the upload's filename out of a multipart body.
+        Splits a multipart body into `title`, the upload's filename, and its text.
 
-        Deliberately crude: the stub never reads the file's contents, so there is no need
-        for a real parser (and `cgi` is gone in 3.13). It only has to agree with the
-        client about what it sent.
+        `cgi` is gone in 3.13 and there is no stdlib replacement, so this splits on the
+        boundary by hand. It only has to understand what this one client sends.
+
+        The file's text is kept so answers can actually come out of the document. Binary
+        formats decode to noise here — the stub has no PDF parser — so retrieval in the
+        stub is only meaningful for .md and .txt.
         """
         raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
         text = raw.decode("utf-8", errors="replace")
-        title = re.search(r'name="title"\r?\n\r?\n(.*?)\r?\n--', text, re.S)
-        filename = re.search(r'filename="([^"]*)"', text)
-        return {
-            "title": title.group(1).strip() if title else "",
-            "filename": filename.group(1) if filename else "",
-        }
+
+        match = re.search(r"boundary=(.+)$", self.headers.get("Content-Type", ""))
+        if not match:
+            return {"title": "", "filename": "", "text": ""}
+
+        fields = {"title": "", "filename": "", "text": ""}
+        for part in text.split("--" + match.group(1).strip('"')):
+            if "\r\n\r\n" not in part:
+                continue
+            headers, _, body = part.partition("\r\n\r\n")
+            body = body.rstrip("\r\n-")
+            if 'name="title"' in headers:
+                fields["title"] = body.strip()
+            elif "filename=" in headers:
+                name = re.search(r'filename="([^"]*)"', headers)
+                fields["filename"] = name.group(1) if name else ""
+                fields["text"] = body
+        return fields
 
     def do_OPTIONS(self) -> None:  # noqa: N802
         self._send(204, None)
@@ -247,7 +315,7 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
 
         if path == "/ingest":
-            fields = self._multipart_fields()
+            fields = self._multipart()
             if not fields["filename"]:
                 return self._error(400, "ERR_MISSING_FILE", "An upload file is required")
             job_id = state.id_for("job")
@@ -259,7 +327,12 @@ class Handler(BaseHTTPRequestHandler):
             }
             threading.Thread(
                 target=run_ingestion,
-                args=(job_id, fields["title"] or fields["filename"], fields["filename"]),
+                args=(
+                    job_id,
+                    fields["title"] or fields["filename"],
+                    fields["filename"],
+                    fields["text"],
+                ),
                 daemon=True,
             ).start()
             return self._send(202, {"job_id": job_id})
