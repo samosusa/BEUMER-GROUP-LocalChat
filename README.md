@@ -47,6 +47,13 @@ npm run verify    # everything CI runs: format, lint, typecheck, test, build
 npm run demo      # Python end-to-end demo workflow, see below
 ```
 
+To run the interface against the real Python service instead of its mock, see
+[docs/backend-wiring.md](docs/backend-wiring.md):
+
+```bash
+npm run dev:live
+```
+
 ## Node health service
 
 A minimal HTTP service with a health endpoint, in `apps/health-service`. The root

@@ -12,15 +12,72 @@ promise visible in the interface.
 
 ## Getting started
 
+### 1. Node 22
+
+Required, not advisory. On Node 20 the test runner's jsdom dependency crashes on a missing
+platform API, so `.npmrc` sets `engine-strict` and the install is refused outright rather
+than producing a tree that half-works. A wrong version fails with `EBADENGINE`.
+
 ```bash
-npm install          # Node 22 — see .nvmrc; `nvm use` picks it up
-npm run dev          # UI at http://localhost:5173, against the mock service
-npm run dev:desktop  # the same UI inside the Electron shell
+node --version        # must be v22.x
 ```
 
-There is no backend to run. In development the renderer boots an in-process mock of the RAG
-service (MSW), so the whole interface — streaming answers, ingestion progress, benchmarks —
-is exercisable on any laptop with no model and no GPU.
+- **Windows:** install [nvm-windows](https://github.com/coreybutler/nvm-windows/releases),
+  then `nvm install 22` and `nvm use 22`. (nvm-windows does not read `.nvmrc` — name the
+  version.) Or use the Node 22 LTS installer from nodejs.org.
+- **macOS / Linux:** `nvm install 22 && nvm use` — `nvm use` reads `.nvmrc`.
+
+### 2. Install
+
+```bash
+git clone https://github.com/samosusa/BEUMER-GROUP-LocalChat.git
+cd BEUMER-GROUP-LocalChat
+npm install
+```
+
+One `npm install` at the repository root installs every workspace; do not run it inside
+`apps/` or `packages/`. It downloads the Electron binary, about 100 MB, so the first run is
+slow. Do not set `ELECTRON_SKIP_BINARY_DOWNLOAD` — CI sets it because CI never launches the
+app, but you need the binary.
+
+### 3. Run it in a browser
+
+```bash
+npm run dev           # http://localhost:5173
+```
+
+This is enough to see and click the entire interface.
+
+### 4. Run it as the desktop app
+
+Electron needs the dev server already running, so this takes **two terminals**:
+
+```bash
+npm run dev           # terminal 1 — leave it running
+npm run dev:desktop   # terminal 2
+```
+
+A native window opens, with a tray icon and a global hotkey. Closing the window leaves it in
+the tray; quit from the tray menu.
+
+### Running against the real service
+
+```bash
+npm run dev:live      # points chats, documents, ingestion and models at 127.0.0.1:8000
+```
+
+Which backend is in use is baked in at build time, never auto-detected: an interface that
+silently falls back to fixtures when the service is down looks like it works while showing
+invented numbers. [docs/backend-wiring.md](backend-wiring.md) lists exactly what is wired,
+what is not, and why.
+
+### No backend required
+
+There is nothing to start and nothing to configure. In development the renderer boots an
+in-process mock of the RAG service (MSW), so the whole interface — streaming answers,
+citations, ingestion progress, benchmarks — is exercisable on any laptop with no Python, no
+model and no GPU. The Python service at `src/` is a separate program with its own setup; see
+the root README.
 
 ### Review container
 
@@ -31,6 +88,15 @@ docker compose up --build ui     # http://localhost:8080
 Serves a production build with the mock service still in it, so a supervisor or a product
 owner can open the interface in a browser without installing anything. It is a review target,
 not the shipping artefact — the product ships as the installer from `npm run package`.
+
+### If it goes wrong
+
+| Symptom                                          | Cause                                                                                                                                         |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EBADENGINE` / install refused                   | Node is not 22. See step 1.                                                                                                                   |
+| `Cannot find module '@localchat/contracts'`      | `npm install` was run inside a workspace instead of the root, or `npm run build:contracts` has not run. `npm install` at the root fixes both. |
+| Electron window is blank or "connection refused" | `npm run dev` is not running in another terminal.                                                                                             |
+| Port 5173 in use                                 | Another Vite server is running; stop it, or set `--port`.                                                                                     |
 
 ### Everything else
 
