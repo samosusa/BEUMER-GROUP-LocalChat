@@ -1,29 +1,74 @@
 # BEUMER-GROUP-LocalChat
 
-## Local service
+An offline, confidential document assistant for BEUMER Group. Documents, embeddings, model
+and chat history all stay on the employee's machine.
 
-This repository includes a minimal HTTP service with a health endpoint.
+## Repository layout
 
-### Run locally
+```
+apps/renderer         The desktop interface (React). See docs/frontend.md.
+apps/desktop          The Electron shell: window, tray, quick-ask, hardened bridge.
+apps/health-service   The minimal Node HTTP service with the /health endpoint.
+packages/contracts    The HTTP contract with the RAG service, as runtime schemas.
+packages/tokens       The design system as CSS custom properties.
+src/                  The Python RAG service (FastAPI, SQLite, FAISS).
+scripts/              Migrations, benchmarks and the end-to-end demo workflow.
+docker/               Review container for the interface.
+```
+
+Two runtimes live side by side: a Node/TypeScript desktop client and a Python RAG service.
+The client is an npm workspaces monorepo — `npm install` at the root installs all of it.
+The service is installed separately with `pip`.
+
+**Node 22 is required** — `.nvmrc` pins it, and CI reads the same file. On Node 20 the test
+runner's jsdom dependency crashes on a missing platform API, so the install is refused
+outright rather than half-working. `nvm use` (or `nvm install 22`) is enough.
+
+**Desktop client:** see [docs/frontend.md](docs/frontend.md) for how the interface is built,
+how to run it against its mock service, and the Electron security posture.
+
+---
+
+# Desktop client
 
 ```bash
 npm install
-npm start
+npm run dev          # interface at http://localhost:5173, no backend needed
+npm run dev:desktop  # Electron shell, in a second terminal
 ```
 
-The service listens on `http://localhost:8000` by default. Verify it with:
+Available checks:
 
 ```bash
+npm test          # service tests + interface tests
+npm run lint      # eslint over the client, node --check over the Node service
+npm run bench
+npm run verify    # everything CI runs: format, lint, typecheck, test, build
+npm run demo      # Python end-to-end demo workflow, see below
+```
+
+## Node health service
+
+A minimal HTTP service with a health endpoint, in `apps/health-service`. The root
+`npm start` / `npm run bench` scripts delegate to it.
+
+```bash
+npm start
 curl http://localhost:8000/health
 ```
 
 Expected response:
 
 ```json
-{"status":"ok"}
+{ "status": "ok" }
 ```
 
-## Python API and database
+Set `PORT` in the environment to use a different port. See `.env.example` for the
+available setting.
+
+---
+
+# Python API and database
 
 Install the Python dependencies, apply the SQLite migrations, and run the FastAPI service:
 
@@ -34,7 +79,11 @@ pytest
 python -m uvicorn src.app:app --reload
 ```
 
-The database is stored locally at `data/app.db`. Use `python scripts/db_migrate.py status` to inspect migration state or `python scripts/db_migrate.py down` to remove the application tables.
+The database is stored locally at `data/app.db`. Use `python scripts/db_migrate.py status`
+to inspect migration state or `python scripts/db_migrate.py down` to remove the application
+tables.
+
+## Ingestion
 
 Upload a supported PDF, Word (.docx), Markdown, or TXT document with:
 
@@ -42,19 +91,26 @@ Upload a supported PDF, Word (.docx), Markdown, or TXT document with:
 curl -X POST http://localhost:8000/ingest -F "title=Project guide" -F "file=@path/to/guide.txt"
 ```
 
-The response contains a `job_id`. Poll its progress with `GET /status/{job_id}`. On completion, the document chunks are stored in SQLite and the FAISS index is written to `data/vectors/{document_id}.index`.
+The response contains a `job_id`. Poll its progress with `GET /status/{job_id}`. On
+completion, the document chunks are stored in SQLite and the FAISS index is written to
+`data/vectors/{document_id}.index`.
 
-Query the indexed documents with:
+## Querying
 
 ```bash
 curl -X POST http://localhost:8000/query -H "Content-Type: application/json" -d "{\"q\":\"What is in the project guide?\"}"
 ```
 
-Place the Llama-3.2-3B-Instruct Q5_K_M GGUF at `data/models/Llama-3.2-3B-Instruct-Q5_K_M.gguf`, or set `LOCALCHAT_LLM_MODEL` to its local path before starting the API. The model is loaded once at startup and runs with `n_gpu_layers=0`.
+Place the Llama-3.2-3B-Instruct Q5_K_M GGUF at
+`data/models/Llama-3.2-3B-Instruct-Q5_K_M.gguf`, or set `LOCALCHAT_LLM_MODEL` to its local
+path before starting the API. The model is loaded once at startup and runs with
+`n_gpu_layers=0`.
 
-### Chat history (conversations)
+## Chat history (conversations)
 
-Questions and answers can be persisted as threaded conversations, each holding its own ordered sequence of user/assistant messages (title auto-generated from the first question, or renamed explicitly):
+Questions and answers can be persisted as threaded conversations, each holding its own
+ordered sequence of user/assistant messages (title auto-generated from the first question,
+or renamed explicitly):
 
 ```bash
 # Start a new conversation (title is optional; omit it to auto-generate from the first question)
@@ -77,9 +133,14 @@ curl -X PATCH http://localhost:8000/conversations/1 -H "Content-Type: applicatio
 curl -X DELETE http://localhost:8000/conversations/1
 ```
 
-Conversations and messages are stored in the same SQLite database (`conversations` and `messages` tables) as everything else in `data/app.db`; they are pure persistence around the existing RAG pipeline and do not change how answers are generated.
+Conversations and messages are stored in the same SQLite database (`conversations` and
+`messages` tables) as everything else in `data/app.db`; they are pure persistence around the
+existing RAG pipeline and do not change how answers are generated.
 
-Run the opt-in real end-to-end workflow test after installing `llama-cpp-python` and placing the GGUF model:
+## End-to-end workflow test
+
+Run the opt-in real end-to-end workflow test after installing `llama-cpp-python` and placing
+the GGUF model:
 
 ```powershell
 $env:LOCALCHAT_RUN_REAL_E2E = "1"
@@ -87,11 +148,15 @@ $env:LOCALCHAT_LLM_MODEL = "C:\path\to\Llama-3.2-3B-Instruct-Q5_K_M.gguf"
 py -m pytest tests/integration/test_real_workflow_e2e.py -s
 ```
 
-This test uses real SQLite, chunking, Nomic embeddings, FAISS retrieval, and Llama-3.2 generation. It is skipped unless explicitly enabled because it loads the local multi-gigabyte model.
+This test uses real SQLite, chunking, Nomic embeddings, FAISS retrieval, and Llama-3.2
+generation. It is skipped unless explicitly enabled because it loads the local
+multi-gigabyte model.
 
-### Model selection and device (research/eval tooling)
+## Model selection and device (research/eval tooling)
 
-`/query` and `/conversations/*/messages` always answer using whatever model is currently active, not a per-request choice. List the GGUF files available in `data/models/` and manage the active model with:
+`/query` and `/conversations/*/messages` always answer using whatever model is currently
+active, not a per-request choice. List the GGUF files available in `data/models/` and manage
+the active model with:
 
 ```bash
 # List available GGUF models
@@ -107,11 +172,14 @@ curl -X POST http://localhost:8000/models/active -H "Content-Type: application/j
   -d "{\"model\":\"Qwen2.5-0.5B-Instruct-Q5_K_M.gguf\",\"device\":\"cpu\"}"
 ```
 
-`device` is `"cpu"` or `"gpu"`. Requesting `"gpu"` returns `422 ERR_GPU_UNAVAILABLE` with a clear message when the installed `llama-cpp-python` build has no CUDA/GPU offload support, instead of silently falling back to CPU. An unknown model name returns `404 ERR_NOT_FOUND`.
+`device` is `"cpu"` or `"gpu"`. Requesting `"gpu"` returns `422 ERR_GPU_UNAVAILABLE` with a
+clear message when the installed `llama-cpp-python` build has no CUDA/GPU offload support,
+instead of silently falling back to CPU. An unknown model name returns `404 ERR_NOT_FOUND`.
 
-### Benchmarking (research/eval tooling)
+## Benchmarking (research/eval tooling)
 
-Benchmarks run as a background job, mirroring `/ingest`'s job pattern (kick off, poll status, fetch results) rather than blocking a request:
+Benchmarks run as a background job, mirroring `/ingest`'s job pattern (kick off, poll
+status, fetch results) rather than blocking a request:
 
 ```bash
 # Kick off a benchmark. "models" is optional - omit it to benchmark every GGUF in data/models/.
@@ -128,30 +196,34 @@ curl http://localhost:8000/benchmark/results/1
 curl http://localhost:8000/benchmark/results
 ```
 
-Each result row records `model`, `device`, `device_name`, `load_s`, `ttft_s`, `gen_tokens`, `tok_s`, `total_s`, `peak_mem_mb`, and `peak_vram_mb` (GPU rows only). Rows are written to the `eval_results` table (via the `EvalResult` model), keyed by `benchmark_job_id`, so results are queryable and persist across restarts instead of living in loose CSV/JSON files.
+Each result row records `model`, `device`, `device_name`, `load_s`, `ttft_s`, `gen_tokens`,
+`tok_s`, `total_s`, `peak_mem_mb`, and `peak_vram_mb` (GPU rows only). Rows are written to
+the `eval_results` table (via the `EvalResult` model), keyed by `benchmark_job_id`, so
+results are queryable and persist across restarts instead of living in loose CSV/JSON files.
 
-Before benchmarking, the job unloads whatever model `/models/active` currently has loaded, so the two features don't compete for the same RAM/VRAM - re-select a model with `POST /models/active` afterward if you need `/query` live again.
+Before benchmarking, the job unloads whatever model `/models/active` currently has loaded,
+so the two features don't compete for the same RAM/VRAM - re-select a model with
+`POST /models/active` afterward if you need `/query` live again.
 
-Model-switching and benchmarking are research/evaluation tooling for comparing local models, not part of the deployed staff-facing assistant surface - they're deliberately functional-over-polished.
+Model-switching and benchmarking are research/evaluation tooling for comparing local models,
+not part of the deployed staff-facing assistant surface - they're deliberately
+functional-over-polished.
 
-Available checks:
+## Demo workflow
 
-```bash
-npm test
-npm run lint
-npm run bench
-npm run demo
-```
+`npm run demo` runs an isolated end-to-end simulation and prints each stage clearly: health
+check, document ingestion, ingestion status, database and FAISS vector verification,
+relevant query answer, and unrelated query fallback. Artifacts are written to
+`data/demo_runs/<timestamp>/`.
 
-The demo command runs an isolated end-to-end simulation and prints each stage clearly: health check, document ingestion, ingestion status, database and FAISS vector verification, relevant query answer, and unrelated query fallback. Artifacts are written to `data/demo_runs/<timestamp>/`.
-
-You can pass your own questions when running the demo:
+You can pass your own questions:
 
 ```bash
 npm run demo -- --relevant-question "How often do emergency stop checks run?" --unrelated-question "Who won the World Cup in 2018?"
 ```
 
-For this built-in demo document, a relevant question is one about conveyor speed or emergency stop checks.
+For the built-in demo document, a relevant question is one about conveyor speed or emergency
+stop checks.
 
 You can also run the same demo flow on your own file (.pdf, .docx, .md, .txt):
 
@@ -159,22 +231,29 @@ You can also run the same demo flow on your own file (.pdf, .docx, .md, .txt):
 npm run demo -- --demo-file "data/demo-inputs/site-guide.txt" --demo-title "Site Guide" --relevant-question "What is the emergency protocol?"
 ```
 
-If `--relevant-question` is omitted for a custom file, the demo asks: `What are the main points in this document?`
+If `--relevant-question` is omitted for a custom file, the demo asks:
+`What are the main points in this document?`
 
-Set `PORT` in the environment to use a different port. See `.env.example` for the available setting.
+> The `demo` script invokes `py`, the Windows Python launcher. On macOS and Linux run
+> `python3 scripts/demo_workflow.py` directly until the script is made portable.
 
-## Jira & GitHub workflow
+---
 
-This repository includes GitHub Actions that enforce and integrate Jira issue keys across branches, PRs and commits.
+# Jira & GitHub workflow
+
+This repository includes GitHub Actions that enforce and integrate Jira issue keys across
+branches, PRs and commits.
 
 - **Branch naming:** Branches must be named like `LCHAT-123-short-description` (case-insensitive letters, dashes).
-- **PR titles:** PR titles must contain the Jira key (e.g. `LCHAT-123`).
+- **PR titles:** PR titles must contain the Jira key (e.g. `LCHAT-123`). This check is case-sensitive — `Lchat-123` fails.
 - **Commit messages:** Commits in a PR should start with the Jira key (e.g. `LCHAT-123 Fix typo`).
 - **Automatic PR enrichment:** PR bodies are automatically updated with a clickable Jira link.
 - **Automatic transitions:** Jira issues are transitioned to `In Review` on PR open and to `Done` on merge (edit transitions in the workflow if your board uses different names).
 
-Workflows added:
+Workflows:
 
+- `.github/workflows/ci.yml` — installs dependencies, lints, tests and benchmarks.
+- `.github/workflows/frontend.yml` — format, lint, typecheck, test and build the desktop client.
 - `.github/workflows/jira-pr-link.yml` — adds Jira link to PRs.
 - `.github/workflows/enforce-jira-key.yml` — validates branch name and PR title.
 - `.github/workflows/enforce-commit-jira-key.yml` — validates PR commit messages start with the Jira key.
@@ -217,10 +296,15 @@ Customization:
 
 Local commit-time enforcement (recommended):
 
-To enforce Jira commit prefixes on every local commit, run:
-
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\setup-git-hooks.ps1
 ```
 
-This enables the committed hook at `.githooks/commit-msg`, which blocks commits unless the first line starts with `LCHAT-123`.
+On macOS and Linux:
+
+```bash
+git config core.hooksPath .githooks && chmod +x .githooks/commit-msg
+```
+
+This enables the committed hook at `.githooks/commit-msg`, which blocks commits unless the
+first line starts with `LCHAT-123`.

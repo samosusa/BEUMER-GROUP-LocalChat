@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <!--
+      The renderer must never reach the network. This CSP is the belt to the Electron
+      session's braces (see apps/desktop/src/main/security.ts): scripts and styles come
+      from the bundle only, and connect-src allows just the loopback service.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: http://127.0.0.1:8000; connect-src 'self' http://127.0.0.1:8000 ws://localhost:5173 ws://127.0.0.1:5173; form-action 'none'; base-uri 'none'"
+    />
+    <title>BEUMER LocalChat</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

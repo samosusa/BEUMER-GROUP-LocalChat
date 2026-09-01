@@ -1,0 +1,132 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  border-radius: var(--radius-md);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+}
+
+.label {
+  line-height: 1;
+}
+
+.button:disabled {
+  opacity: 0.45;
+}
+
+/* ----- sizes ------------------------------------------------------------- */
+
+.sm {
+  height: 28px;
+  padding: 0 var(--space-4);
+  font-size: var(--text-meta);
+}
+
+.md {
+  height: 34px;
+  padding: 0 var(--space-5);
+  font-size: var(--text-row);
+}
+
+.lg {
+  height: 38px;
+  padding: 0 var(--space-6);
+  font-size: var(--text-ui);
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+/* ----- variants ---------------------------------------------------------- */
+
+.cta {
+  background: var(--cta);
+  color: var(--cta-text);
+}
+
+.cta:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.accent {
+  background: var(--accent);
+  color: var(--accent-on);
+}
+
+.accent:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.outline {
+  border: 1px solid var(--border-strong);
+  color: var(--text-body);
+}
+
+.outline:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.ghost {
+  color: var(--text-secondary);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-body);
+}
+
+.danger {
+  color: var(--danger-text);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+/* The refresh glyph doubles as the spinner, so a loading button keeps its width. */
+.loading svg {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ----- icon-only --------------------------------------------------------- */
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--hit-target-min);
+  height: var(--hit-target-min);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.iconButton:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-body);
+}
+
+.iconButton.accent {
+  background: var(--surface-accent-strong);
+  color: var(--accent-bright);
+}
+
+.iconButton.outline {
+  border: 1px solid var(--border-default);
+}

@@ -1,0 +1,429 @@
+/* ----- transcript -------------------------------------------------------- */
+
+.transcript {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-8) 0 var(--space-6);
+}
+
+.column {
+  width: var(--chat-column-width);
+  max-width: calc(100% - var(--space-9));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+}
+
+/* ----- user turn --------------------------------------------------------- */
+
+.userTurn {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.userBubble {
+  max-width: 560px;
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-xl) var(--radius-xl) 3px var(--radius-xl);
+  background: var(--surface-user-bubble);
+  color: var(--text-primary);
+  font-size: var(--text-chat);
+  line-height: var(--leading-normal);
+}
+
+/* ----- assistant turn ---------------------------------------------------- */
+
+.turn {
+  display: flex;
+  gap: var(--space-5);
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  background: var(--brand-cerulean);
+  color: var(--surface-sunken);
+}
+
+.turnBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.prose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  font-size: var(--text-chat);
+  line-height: var(--leading-chat);
+  color: var(--text-body);
+}
+
+.prose strong {
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-accent-soft);
+  color: var(--text-secondary);
+}
+
+.prose sup {
+  font-family: var(--font-mono);
+  font-size: 0.72em;
+  padding-left: 2px;
+  color: var(--accent-text);
+}
+
+.prose sup button {
+  color: inherit;
+  font: inherit;
+}
+
+.prose sup button:hover {
+  color: var(--accent-bright);
+  text-decoration: underline;
+}
+
+.bullets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.bullets li {
+  position: relative;
+  padding-left: var(--space-6);
+}
+
+.bullets li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+/* Blinking block that marks where the next token lands. */
+.caret {
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  animation: blink 1s steps(2, start) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ----- sources ----------------------------------------------------------- */
+
+.sources {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  overflow: hidden;
+}
+
+.sourcesHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--accent-text);
+}
+
+.sourcesTitle {
+  flex: 1;
+  font-size: var(--text-micro);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.sourcesTimings {
+  font-size: var(--text-meta);
+  color: var(--text-label);
+}
+
+.sourceRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  transition: background var(--duration-base) var(--ease-out);
+}
+
+.sourceRow + .sourceRow {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.sourceRow:hover {
+  background: var(--surface-hover);
+}
+
+.sourceFlash {
+  background: var(--surface-active);
+}
+
+.sourceMarker {
+  width: 20px;
+  flex-shrink: 0;
+  font-size: var(--text-micro);
+  color: var(--accent-text);
+}
+
+.sourceIcon {
+  flex-shrink: 0;
+  color: var(--text-label);
+}
+
+.sourceTitle {
+  font-size: var(--text-row);
+  color: var(--text-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sourceSection {
+  font-size: var(--text-meta);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.sourceRef {
+  margin-left: auto;
+  padding-left: var(--space-4);
+  font-size: var(--text-meta);
+  color: var(--text-label);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ----- figure ------------------------------------------------------------ */
+
+.figure {
+  display: flex;
+  gap: var(--space-5);
+  align-items: stretch;
+}
+
+.figureThumb {
+  width: 150px;
+  height: 96px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-accent-soft);
+  object-fit: cover;
+}
+
+.figureBody {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.figureHeading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.figureTag {
+  padding: 2px var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--surface-accent-soft);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  color: var(--accent-text);
+}
+
+.figureCaption {
+  font-size: var(--text-row);
+  font-weight: var(--weight-medium);
+  color: var(--text-body);
+}
+
+.figureText {
+  font-size: var(--text-meta);
+  line-height: var(--leading-normal);
+  color: var(--text-tertiary);
+}
+
+.figureRef {
+  font-size: var(--text-meta);
+  color: var(--text-label);
+}
+
+/* ----- tool result ------------------------------------------------------- */
+
+.tool {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-accent-soft);
+  overflow: hidden;
+}
+
+.toolHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-default);
+  color: var(--accent-text);
+}
+
+.toolTitle {
+  flex: 1;
+  font-size: var(--text-micro);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.toolServer {
+  font-size: var(--text-meta);
+  color: var(--text-tertiary);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.toolBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.toolCall {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.toolName {
+  padding: 3px var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  font-size: var(--text-meta);
+  color: var(--accent-text);
+}
+
+.toolArgs {
+  font-size: var(--text-meta);
+  color: var(--text-tertiary);
+}
+
+.toolResult {
+  font-size: var(--text-ui);
+  line-height: var(--leading-normal);
+  color: var(--text-body);
+}
+
+.toolCaveat {
+  font-size: var(--text-meta);
+  line-height: var(--leading-normal);
+  color: var(--warning);
+}
+
+/* ----- suggestions and reactions ----------------------------------------- */
+
+.suggestion {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 28px;
+  padding: 0 var(--space-5);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  font-size: var(--text-meta);
+  font-weight: var(--weight-medium);
+  color: var(--warning-text);
+}
+
+.suggestion:hover {
+  background: var(--surface-hover);
+}
+
+.reactions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: calc(var(--space-3) * -1);
+}
+
+/* ----- pending turn ------------------------------------------------------ */
+
+.pending {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: var(--text-ui);
+  color: var(--text-tertiary);
+}
+
+.pendingDots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.pendingDots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1.1s var(--ease-out) infinite;
+}
+
+.pendingDots span:nth-child(2) {
+  animation-delay: 150ms;
+}
+
+.pendingDots span:nth-child(3) {
+  animation-delay: 300ms;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}

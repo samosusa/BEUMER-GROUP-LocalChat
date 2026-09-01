@@ -1,0 +1,53 @@
+.strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  height: 100%;
+  padding: 0 var(--space-7);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  /* The frameless window has no title bar, so the whole strip is the drag handle —
+     except the input, or the caret would never land. */
+  -webkit-app-region: drag;
+}
+
+.mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: var(--brand-cerulean);
+  color: var(--surface-sunken);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  font-size: 1rem;
+  color: var(--text-body);
+  -webkit-app-region: no-drag;
+}
+
+.scope {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 26px;
+  padding: 0 var(--space-4);
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  background: var(--surface-accent-soft);
+  font-size: var(--text-meta);
+  color: var(--accent-text);
+}
+
+.hint {
+  flex-shrink: 0;
+  font-size: var(--text-meta);
+  color: var(--text-faint);
+}

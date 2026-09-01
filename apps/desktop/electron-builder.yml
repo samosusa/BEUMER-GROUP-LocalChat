@@ -1,0 +1,45 @@
+appId: com.beumergroup.localchat
+productName: BEUMER LocalChat
+copyright: BEUMER Group
+
+directories:
+  output: release
+  buildResources: resources
+
+# Only the built output ships. Source, tests and the mock service stay out of the installer.
+files:
+  - out/**/*
+  - resources/**/*
+  - '!**/*.map'
+
+extraResources:
+  - from: ../renderer/dist
+    to: renderer
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: BEUMER-LocalChat-${version}-${arch}.${ext}
+
+# macOS is a development target only — the deliverable BEUMER installs is the Windows
+# installer. Building that from a Mac needs Wine, so the real .exe is produced on a
+# windows-latest runner, not on a developer machine.
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  category: public.app-category.productivity
+  artifactName: BEUMER-LocalChat-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: BEUMER LocalChat
+
+# Unsigned for now. Windows SmartScreen will warn on first run until BEUMER provides a
+# code-signing certificate — worth raising with the product owner before any pilot rollout.
+forceCodeSigning: false

@@ -1,0 +1,22 @@
+{
+  "name": "@localchat/contracts",
+  "version": "0.4.1",
+  "private": true,
+  "type": "module",
+  "description": "Shared domain types, runtime schemas and the HTTP contract between the LocalChat client and the local RAG service.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "zod": "^4.5.0"
+  }
+}

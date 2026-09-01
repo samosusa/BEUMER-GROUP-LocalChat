@@ -1,0 +1,220 @@
+/*
+ * BEUMER LocalChat — design tokens
+ * ---------------------------------------------------------------------------
+ * The single source of truth for the visual system. Components never hard-code a
+ * colour: they consume a semantic token, and the theme swap is one attribute on
+ * <html>. Ported verbatim from the design canvas.
+ *
+ * Layer 1 — brand:    fixed BEUMER Group identity colours, identical in both themes.
+ * Layer 2 — palette:  the tonal ramps each theme is built from.
+ * Layer 3 — semantic: what components actually reference (surface, text, border...).
+ */
+
+:root {
+  /* ----- Layer 1: brand -------------------------------------------------- */
+  --brand-cerulean: #009fe3;
+  --brand-cta-orange: #ff5500;
+  --brand-cyprus: #00303f;
+
+  /* ----- Type ------------------------------------------------------------ */
+  --font-sans: 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  /* Anything the system asserts as fact — paths, counts, page refs, revisions —
+     is set in mono. The split is load-bearing, not decorative. */
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  --text-hero: 1.875rem; /* 30px */
+  --text-title: 1.5rem; /* 24px */
+  --text-heading: 1.375rem; /* 22px */
+  --text-card-title: 0.9375rem; /* 15px */
+  --text-chat: 0.90625rem; /* 14.5px */
+  --text-ui: 0.8125rem; /* 13px */
+  --text-row: 0.78125rem; /* 12.5px */
+  --text-meta: 0.71875rem; /* 11.5px */
+  --text-micro: 0.65625rem; /* 10.5px */
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  --leading-tight: 1.3;
+  --leading-normal: 1.55;
+  --leading-chat: 1.65;
+
+  --tracking-title: -0.025em;
+  --tracking-label: 0.065em;
+
+  /* ----- Space ----------------------------------------------------------- */
+  --space-1: 0.25rem;
+  --space-2: 0.375rem;
+  --space-3: 0.5rem;
+  --space-4: 0.625rem;
+  --space-5: 0.875rem;
+  --space-6: 1rem;
+  --space-7: 1.25rem;
+  --space-8: 1.5rem;
+  --space-9: 2rem;
+  --space-10: 2.5rem;
+
+  /* ----- Shape ----------------------------------------------------------- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 9px;
+  --radius-xl: 11px;
+  --radius-pill: 999px;
+
+  /* ----- Layout ---------------------------------------------------------- */
+  --sidebar-width: 272px;
+  --topbar-height: 56px;
+  --chat-column-width: 760px;
+  --context-panel-width: 420px;
+  /* Windows accessibility floor for a pointer target. */
+  --hit-target-min: 32px;
+
+  /* ----- Motion ---------------------------------------------------------- */
+  --duration-fast: 90ms;
+  --duration-base: 160ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ----- Elevation ------------------------------------------------------- */
+  --z-dropdown: 100;
+  --z-overlay: 200;
+  --z-toast: 300;
+
+  /* ----- Layer 2 + 3: dark theme (default) -------------------------------- */
+  color-scheme: dark;
+
+  --surface-sunken: #00141b; /* sidebar, deepest */
+  --surface-canvas: #001c25; /* app background */
+  --surface-card: #021d26; /* resting card */
+  --surface-raised: #041f28; /* panels, composer, source blocks */
+  --surface-hover: #06242e;
+  --surface-active: #06303e; /* selected, cerulean-tinted */
+  --surface-accent-soft: #052836; /* chips, inline code */
+  --surface-accent-strong: #0a4256; /* icon buttons, secondary actions */
+  --surface-user-bubble: #0a3b4c;
+
+  --border-subtle: #0a3543;
+  --border-default: #0f3d4b;
+  --border-strong: #12556b;
+
+  --text-primary: #ffffff;
+  --text-body: #dce9ed;
+  --text-secondary: #93aeb8;
+  --text-tertiary: #7fa5b1;
+  --text-label: #5a7883;
+  --text-faint: #4a6873;
+  --text-placeholder: #55747f;
+
+  --accent: #009fe3;
+  --accent-text: #4fc3f0; /* accent legible on dark surfaces */
+  --accent-bright: #7fd4f5;
+  --accent-on: #00141b; /* foreground on a filled accent surface */
+
+  --cta: #ff5500;
+  --cta-text: #ffffff;
+
+  --success: #2fbf71;
+  --success-text: #9bd9b7;
+  --warning: #d99a4e;
+  --warning-text: #e8b77c;
+  --warning-surface: #211607;
+  --warning-border: #5a3a14;
+  --danger-text: #b08a8a;
+
+  --shadow-panel: 0 18px 40px rgb(0 0 0 / 45%);
+  --shadow-overlay: 0 24px 50px rgb(0 0 0 / 50%);
+
+  --focus-ring: 0 0 0 2px var(--surface-canvas), 0 0 0 4px var(--accent);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --surface-sunken: #ecf1f3;
+  --surface-canvas: #f7f9fa;
+  --surface-card: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-hover: #eef3f5;
+  --surface-active: #dcebf2;
+  --surface-accent-soft: #e9f4fa;
+  --surface-accent-strong: #cfe8f5;
+  --surface-user-bubble: #dcebf2;
+
+  --border-subtle: #e2e9ec;
+  --border-default: #d5dfe3;
+  --border-strong: #a9d8ee;
+
+  --text-primary: #002a36;
+  --text-body: #123642;
+  --text-secondary: #5c757f;
+  --text-tertiary: #64808a;
+  --text-label: #7d949c;
+  --text-faint: #9badb4;
+  --text-placeholder: #93a7ae;
+
+  --accent: #0079ad; /* darkened for contrast on white */
+  --accent-text: #00658f;
+  --accent-bright: #0079ad;
+  --accent-on: #ffffff;
+
+  --cta: #e64d00; /* darkened for contrast on white */
+  --cta-text: #ffffff;
+
+  --success: #1e8b4e;
+  --success-text: #146b3b;
+  --warning: #b4661a;
+  --warning-text: #7a4210;
+  --warning-surface: #fdf6ee;
+  --warning-border: #e9c9a4;
+  --danger-text: #9a4b4b;
+
+  --shadow-panel: 0 12px 28px rgb(0 42 54 / 12%);
+  --shadow-overlay: 0 20px 44px rgb(0 42 54 / 18%);
+}
+
+/* Respect the OS when the engineer has not chosen a theme explicitly. */
+@media (prefers-color-scheme: light) {
+  :root[data-theme='system'] {
+    color-scheme: light;
+
+    --surface-sunken: #ecf1f3;
+    --surface-canvas: #f7f9fa;
+    --surface-card: #ffffff;
+    --surface-raised: #ffffff;
+    --surface-hover: #eef3f5;
+    --surface-active: #dcebf2;
+    --surface-accent-soft: #e9f4fa;
+    --surface-accent-strong: #cfe8f5;
+    --surface-user-bubble: #dcebf2;
+
+    --border-subtle: #e2e9ec;
+    --border-default: #d5dfe3;
+    --border-strong: #a9d8ee;
+
+    --text-primary: #002a36;
+    --text-body: #123642;
+    --text-secondary: #5c757f;
+    --text-tertiary: #64808a;
+    --text-label: #7d949c;
+    --text-faint: #9badb4;
+    --text-placeholder: #93a7ae;
+
+    --accent: #0079ad;
+    --accent-text: #00658f;
+    --accent-bright: #0079ad;
+    --accent-on: #ffffff;
+
+    --cta: #e64d00;
+
+    --success: #1e8b4e;
+    --success-text: #146b3b;
+    --warning: #b4661a;
+    --warning-text: #7a4210;
+    --warning-surface: #fdf6ee;
+    --warning-border: #e9c9a4;
+    --danger-text: #9a4b4b;
+
+    --shadow-panel: 0 12px 28px rgb(0 42 54 / 12%);
+    --shadow-overlay: 0 20px 44px rgb(0 42 54 / 18%);
+  }
+}

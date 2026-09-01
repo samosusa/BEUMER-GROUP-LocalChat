@@ -1,0 +1,212 @@
+/* ----- chip -------------------------------------------------------------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  border-radius: var(--radius-md);
+  background: var(--surface-accent-soft);
+  color: var(--text-secondary);
+  font-size: var(--text-meta);
+  overflow: hidden;
+}
+
+.chip.accent {
+  background: var(--surface-active);
+  color: var(--accent-text);
+}
+
+.chip.warning {
+  background: var(--warning-surface);
+  color: var(--warning);
+  border: 1px solid var(--warning-border);
+}
+
+.chipBody {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 100%;
+  padding: 0 var(--space-3) 0 var(--space-4);
+  min-width: 0;
+  color: inherit;
+  text-align: left;
+}
+
+button.chipBody:hover {
+  background: var(--surface-hover);
+}
+
+.chipIcon {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.chipLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 100%;
+  padding-right: var(--space-1);
+  color: var(--text-label);
+}
+
+.chipRemove:hover {
+  color: var(--text-body);
+}
+
+/* ----- segmented control ------------------------------------------------- */
+
+.segmented {
+  display: flex;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.segment {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.segmented_md .segment {
+  height: 34px;
+  padding: 0 var(--space-5);
+  font-size: var(--text-row);
+}
+
+.segmented_sm .segment {
+  height: 28px;
+  padding: 0 var(--space-4);
+  font-size: var(--text-meta);
+}
+
+.segment + .segment {
+  border-left: 1px solid var(--border-default);
+}
+
+.segment:hover:not(.segmentSelected) {
+  background: var(--surface-hover);
+  color: var(--text-body);
+}
+
+.segmentSelected {
+  background: var(--accent);
+  color: var(--accent-on);
+  font-weight: var(--weight-semibold);
+}
+
+/* ----- search field ------------------------------------------------------ */
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 34px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.search:focus-within {
+  border-color: var(--border-strong);
+}
+
+.searchIcon {
+  color: var(--text-label);
+  flex-shrink: 0;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-row);
+  color: var(--text-body);
+}
+
+.searchInput::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+/* ----- toggle ------------------------------------------------------------ */
+
+.toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+  cursor: pointer;
+}
+
+.toggleInput {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggleTrack {
+  flex-shrink: 0;
+  width: 34px;
+  height: 20px;
+  margin-top: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--border-default);
+  transition: background var(--duration-base) var(--ease-out);
+  display: flex;
+  align-items: center;
+  padding: 0 3px;
+}
+
+.toggleThumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface-card);
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+.toggleInput:checked + .toggleTrack {
+  background: var(--accent);
+}
+
+.toggleInput:checked + .toggleTrack .toggleThumb {
+  transform: translateX(14px);
+  background: #fff;
+}
+
+.toggleInput:focus-visible + .toggleTrack {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.toggleText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.toggleLabel {
+  font-size: var(--text-row);
+  font-weight: var(--weight-medium);
+  color: var(--text-body);
+}
+
+.toggleDescription {
+  font-size: var(--text-meta);
+  color: var(--text-tertiary);
+  line-height: var(--leading-normal);
+}
