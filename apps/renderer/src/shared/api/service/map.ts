@@ -1,4 +1,6 @@
 import type {
+  BenchmarkJobStatus,
+  BenchmarkRowStatus,
   Chat,
   Citation,
   Document,
@@ -6,10 +8,15 @@ import type {
   IngestionStatus,
   Message,
   Model,
+  ModelBenchmarkRow,
+  ModelBenchmarkRun,
   NoEvidenceReason,
 } from '@localchat/contracts';
 import type {
   ServiceAnswer,
+  ServiceBenchmarkResults,
+  ServiceBenchmarkRow,
+  ServiceBenchmarkStatus,
   ServiceCitation,
   ServiceConversation,
   ServiceConversationDetail,
@@ -323,5 +330,70 @@ export function modelFromService(dto: ServiceModel): Model {
     medianLatencyMs: null,
     // Every entry is a file already on disk in data/models.
     installed: true,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Model benchmark
+// ---------------------------------------------------------------------------
+
+/** The service reports seconds as floats; the interface formats milliseconds. */
+const toMs = (seconds: number | null): number | null => (seconds === null ? null : seconds * 1000);
+
+/** And megabytes as floats, where the formatter wants bytes. */
+const toBytes = (mb: number | null): number | null => (mb === null ? null : mb * 1024 * 1024);
+
+const ROW_STATUS: Record<string, BenchmarkRowStatus> = {
+  ok: 'ok',
+  success: 'ok',
+  completed: 'ok',
+  failed: 'failed',
+  error: 'failed',
+  skipped: 'skipped',
+};
+
+const JOB_STATUS: Record<string, BenchmarkJobStatus> = {
+  running: 'running',
+  queued: 'running',
+  completed: 'completed',
+  failed: 'failed',
+};
+
+export function benchmarkRowFromService(dto: ServiceBenchmarkRow): ModelBenchmarkRow {
+  return {
+    modelId: dto.model,
+    // The same filename-derived name the model picker shows, so a row in this table and an
+    // entry in the model list are recognisably the same thing.
+    modelName: modelFromService({ name: dto.model, size_bytes: 0, family: '' }).name,
+    compute: dto.device === 'gpu' ? 'gpu' : 'cpu',
+    deviceName: dto.device_name,
+    // An unknown status is treated as a failure rather than as success: a row that did not
+    // clearly succeed must not be read as a measurement.
+    status: ROW_STATUS[dto.status.toLowerCase()] ?? 'failed',
+    detail: dto.detail,
+    loadMs: toMs(dto.load_s),
+    timeToFirstTokenMs: toMs(dto.ttft_s),
+    generatedTokens: dto.gen_tokens,
+    tokensPerSecond: dto.tok_s,
+    totalMs: toMs(dto.total_s),
+    peakMemoryBytes: toBytes(dto.peak_mem_mb),
+    peakVramBytes: toBytes(dto.peak_vram_mb),
+    ranAt: toIso(dto.run_at),
+  };
+}
+
+export function benchmarkRunFromService(
+  results: ServiceBenchmarkResults,
+  meta: { startedAt: string; finishedAt: string | null; status?: ServiceBenchmarkStatus },
+): ModelBenchmarkRun {
+  const rows = results.results.map(benchmarkRowFromService);
+  return {
+    id: toId(results.benchmark_job_id),
+    status: JOB_STATUS[(meta.status?.status ?? results.status).toLowerCase()] ?? 'running',
+    progress: meta.status?.progress ?? null,
+    current: meta.status?.current ?? null,
+    rows,
+    startedAt: toIso(meta.startedAt),
+    finishedAt: toIsoOrNull(meta.finishedAt),
   };
 }

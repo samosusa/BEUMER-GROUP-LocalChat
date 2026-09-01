@@ -3,6 +3,7 @@ import type {
   CreateChatRequest,
   CreateProjectRequest,
   ReindexRequest,
+  RunBenchmarkRequest,
   UpdateChatContextRequest,
   UpdateSettingsRequest,
 } from '@localchat/contracts';
@@ -149,12 +150,19 @@ export function useModels() {
   });
 }
 
+/**
+ * Polls only while a run is in flight. A benchmark loads several multi-gigabyte models in
+ * sequence, so a fixed interval would keep asking long after the last one finished.
+ */
 export function useBenchmark() {
   return useQuery({
     queryKey: keys.benchmark,
     queryFn: ({ signal }) => api.getBenchmark(signal),
     select: (data) => data.run,
     ...STATIC,
+    // Loading a multi-gigabyte model takes tens of seconds, so this is slow on purpose:
+    // a tighter interval would add nothing and a fixed one would keep asking forever.
+    refetchInterval: (query) => (query.state.data?.run?.status === 'running' ? 3_000 : false),
   });
 }
 
@@ -255,7 +263,7 @@ export function useUpdateSettings() {
 export function useRunBenchmark() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: () => api.runBenchmark(),
+    mutationFn: (body: RunBenchmarkRequest) => api.runBenchmark(body),
     onSuccess: (data) => client.setQueryData(keys.benchmark, data),
   });
 }

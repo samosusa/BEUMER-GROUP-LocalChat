@@ -4,6 +4,7 @@ import {
   CreateChatRequest,
   CreateProjectRequest,
   IngestDocumentsRequest,
+  RunBenchmarkRequest,
   ReindexRequest,
   UpdateChatContextRequest,
   UpdateSettingsRequest,
@@ -372,10 +373,20 @@ export const handlers = [
     return HttpResponse.json({ run: catalogue.benchmark });
   }),
 
-  http.post(route(routes.benchmark()), async () => {
-    // A real run takes minutes; two seconds is enough to exercise the pending state.
+  http.post(route(routes.benchmark()), async ({ request }) => {
+    const parsed = RunBenchmarkRequest.safeParse(await request.json());
+    if (!parsed.success) return badRequest('Choose at least one device to benchmark.');
+
+    // A real run loads several multi-gigabyte models in sequence and takes minutes; two
+    // seconds is enough to exercise the pending state without making the mock tedious.
     await delay(2_000);
-    return HttpResponse.json({ run: { ...catalogue.benchmark, ranAt: new Date().toISOString() } });
+    const finishedAt = new Date().toISOString();
+    const rows = catalogue.benchmark.rows.filter((row) =>
+      parsed.data.devices.includes(row.compute),
+    );
+    return HttpResponse.json({
+      run: { ...catalogue.benchmark, rows, startedAt: finishedAt, finishedAt },
+    });
   }),
 ];
 

@@ -333,6 +333,29 @@
   color: var(--warning);
 }
 
+/* Six columns of figures do not fit a narrow window; the table scrolls, the page does not. */
+.benchScroll {
+  overflow-x: auto;
+}
+
+/* The model name column reads as a label, so it keeps its left edge while figures align right. */
+.benchModel {
+  white-space: nowrap;
+  padding-right: var(--space-5);
+}
+
+.benchTable thead th:first-child,
+.benchTable tbody th {
+  text-align: left;
+}
+
+/* A combination that could not run states why, in place of the figures it has none of. */
+.benchSkipped {
+  text-align: left;
+  color: var(--text-label);
+  font-size: var(--text-meta);
+}
+
 .benchWarning {
   padding: var(--space-4) var(--space-5);
   border: 1px solid var(--border-default);

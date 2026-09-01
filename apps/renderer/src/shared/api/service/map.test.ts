@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { ServiceDocument, ServiceMessage } from './dto';
+import type { ServiceBenchmarkRow, ServiceDocument, ServiceMessage } from './dto';
 import {
+  benchmarkRowFromService,
+  benchmarkRunFromService,
   chatFromService,
   citationsFromService,
   createDocumentIndex,
@@ -245,5 +247,87 @@ describe('models', () => {
   it('leaves context length null, because the service never opens the GGUF header', () => {
     const mapped = modelFromService({ name: 'a-Q4_0.gguf', size_bytes: 1, family: 'llama' });
     expect(mapped.contextTokens).toBeNull();
+  });
+});
+
+describe('model benchmark', () => {
+  const row = (over: Partial<ServiceBenchmarkRow> = {}): ServiceBenchmarkRow => ({
+    model: 'Qwen2.5-0.5B-Instruct-Q5_K_M.gguf',
+    device: 'cpu',
+    device_name: 'Apple M2 Pro',
+    status: 'ok',
+    detail: null,
+    load_s: 1.25,
+    ttft_s: 0.4,
+    gen_tokens: 128,
+    tok_s: 31.4,
+    total_s: 5.3,
+    peak_mem_mb: 1024,
+    peak_vram_mb: null,
+    run_at: '2026-08-30T09:20:00',
+    ...over,
+  });
+
+  it('converts seconds to milliseconds and megabytes to bytes', () => {
+    // The service reports seconds and MB; the formatters take ms and bytes. Getting this
+    // wrong yields "1 ms" beside a model that took a second and a quarter to load.
+    const mapped = benchmarkRowFromService(row());
+    expect(mapped.loadMs).toBe(1250);
+    expect(mapped.timeToFirstTokenMs).toBe(400);
+    expect(mapped.peakMemoryBytes).toBe(1_048_576 * 1024);
+  });
+
+  it('keeps a missing timing null rather than reporting zero', () => {
+    // Zero would render as "0 ms", which reads as an instant load rather than no data.
+    const mapped = benchmarkRowFromService(row({ load_s: null, peak_mem_mb: null }));
+    expect(mapped.loadMs).toBeNull();
+    expect(mapped.peakMemoryBytes).toBeNull();
+  });
+
+  it('names the model the way the model picker does', () => {
+    expect(benchmarkRowFromService(row()).modelName).toBe('Qwen2.5-0.5B-Instruct');
+  });
+
+  it('treats an unrecognised row status as a failure, never as a measurement', () => {
+    expect(benchmarkRowFromService(row({ status: 'weird' })).status).toBe('failed');
+    expect(benchmarkRowFromService(row({ status: 'skipped' })).status).toBe('skipped');
+  });
+
+  it('carries the reason a combination could not run', () => {
+    const mapped = benchmarkRowFromService(
+      row({ device: 'gpu', status: 'skipped', detail: 'No CUDA build installed.' }),
+    );
+    expect(mapped.compute).toBe('gpu');
+    expect(mapped.detail).toBe('No CUDA build installed.');
+  });
+
+  it('joins the three endpoints into one run, preferring live status over the stored one', () => {
+    // /benchmark/results/{id} keeps reporting the stored status; while a job is running,
+    // /benchmark/status/{id} is the fresher of the two.
+    const run = benchmarkRunFromService(
+      { benchmark_job_id: 4, status: 'completed', results: [row()] },
+      {
+        startedAt: '2026-08-30T09:00:00',
+        finishedAt: null,
+        status: { status: 'running', progress: '3 of 6', current: 'Qwen on cpu' },
+      },
+    );
+    expect(run.id).toBe('4');
+    expect(run.status).toBe('running');
+    expect(run.progress).toBe('3 of 6');
+    expect(run.current).toBe('Qwen on cpu');
+    expect(run.startedAt).toBe('2026-08-30T09:00:00Z');
+    expect(run.finishedAt).toBeNull();
+    expect(run.rows).toHaveLength(1);
+  });
+
+  it('falls back to the stored status when no live status was fetched', () => {
+    const run = benchmarkRunFromService(
+      { benchmark_job_id: 4, status: 'completed', results: [] },
+      { startedAt: '2026-08-30T09:00:00', finishedAt: '2026-08-30T09:06:00' },
+    );
+    expect(run.status).toBe('completed');
+    expect(run.progress).toBeNull();
+    expect(run.finishedAt).toBe('2026-08-30T09:06:00Z');
   });
 });

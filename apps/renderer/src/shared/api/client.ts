@@ -18,6 +18,7 @@ import {
   type Message,
   ProjectResponse,
   type ReindexRequest,
+  type RunBenchmarkRequest,
   SettingsResponse,
   type UpdateChatContextRequest,
   type UpdateProjectRequest,
@@ -216,10 +217,22 @@ export const api = {
       ? { models: await service.listModels(signal) }
       : request(routes.models(), { schema: ListModelsResponse, signal }),
 
-  getBenchmark: (signal?: AbortSignal) =>
-    request(routes.benchmark(), { schema: BenchmarkResponse, signal }),
+  getBenchmark: async (signal?: AbortSignal): Promise<BenchmarkResponse> =>
+    LIVE
+      ? { run: await service.latestBenchmark(signal) }
+      : request(routes.benchmark(), { schema: BenchmarkResponse, signal }),
 
-  runBenchmark: () => request(routes.benchmark(), { method: 'POST', schema: BenchmarkResponse }),
+  /**
+   * Starts a run. Against the live service this returns as soon as the job is accepted —
+   * the rows arrive through `getBenchmark` polling, the same way ingestion progress does.
+   */
+  runBenchmark: async (body: RunBenchmarkRequest): Promise<BenchmarkResponse> => {
+    if (!LIVE) {
+      return request(routes.benchmark(), { method: 'POST', body, schema: BenchmarkResponse });
+    }
+    await service.startBenchmark(body.devices, body.models);
+    return { run: await service.latestBenchmark() };
+  },
 
   ask: (chatId: string, body: AskRequest, signal?: AbortSignal) =>
     LIVE ? askLive(chatId, body, signal) : streamAnswer(chatId, body, signal),

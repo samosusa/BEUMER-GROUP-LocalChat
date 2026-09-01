@@ -78,12 +78,27 @@ that page cannot show it.
 **So in live mode, add documents from the chat screen's context widget, not from a project.**
 That is the general corpus, and it is the one backed by `POST /ingest`.
 
-**Benchmarks.** The two sides measure different things. The service measures generation
-throughput per model and device — load time, time to first token, tokens per second. The
-domain type describes answer quality over a fixed question set — median and p95 answer
-latency, share of answers carrying a citation. Neither is derivable from the other, and
-mapping `total_s` onto `medianAnswerMs` would put a fabricated number into the report. This
-needs a decision about which measurement the product actually reports, not a mapping.
+**Retrieval evaluation.** The benchmark that _is_ wired measures models, not retrieval:
+`src/benchmark.py` uses one hardcoded question with its context pasted inline, and never
+touches the index, the corpus or FAISS. It answers "which model can this machine run, and
+how fast", which is what decides the model we ship.
+
+It does not answer "does the system find the right passage", and nothing on screen should
+be read as if it did. That measurement — answers carrying a citation, whether the expected
+document was retrieved, latency over a real question set — needs three things the project
+does not yet have:
+
+1. **A question set.** Roughly 30 questions over a frozen corpus, each with the document
+   that should be cited. This is the long pole and it is not code; it can be written now,
+   in parallel with everything else.
+2. **An endpoint** that runs each question through `answer()` and records retrieval time,
+   generation time, whether a citation came back, and whether the expected document was in
+   the top-k.
+3. **Somewhere to put the rows.** `eval_results` was the natural home, but migration 0008
+   repurposed it for benchmark throughput rows, so this needs its own table.
+
+Keep the two named apart — **model benchmark** and **retrieval evaluation** — or the report
+will conflate them.
 
 **Most of settings.** Theme, hotkey, launch-on-startup, retrieval parameters and hardware
 have no server-side home. Only the model and device swap reaches the service.
@@ -154,5 +169,9 @@ does not send them.
    reports the weaker of the two, because asserting the stronger one would be false on an
    empty corpus.
 
-5. **Return the chunk text on a citation.** Without it there is no "show me the source
+5. **Report benchmark progress as numbers.** `/benchmark/status/{id}` returns `progress`
+   pre-formatted as `"3 of 6"`, so the client renders the string verbatim rather than a
+   progress bar. `completed_runs` and `total_runs` as integers would be a two-line change.
+
+6. **Return the chunk text on a citation.** Without it there is no "show me the source
    passage" affordance, only a page reference.

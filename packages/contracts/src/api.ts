@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import {
   ApprovedToolSchema,
-  BenchmarkRunSchema,
+  ComputeMode,
+  ModelBenchmarkRunSchema,
   ChatSchema,
   CitationSchema,
   DocumentSchema,
@@ -174,8 +175,16 @@ export type UpdateSettingsRequest = z.infer<typeof UpdateSettingsRequest>;
 export const ListModelsResponse = z.object({ models: z.array(ModelSchema) });
 export type ListModelsResponse = z.infer<typeof ListModelsResponse>;
 
-export const BenchmarkResponse = z.object({ run: BenchmarkRunSchema.nullable() });
+export const BenchmarkResponse = z.object({ run: ModelBenchmarkRunSchema.nullable() });
 export type BenchmarkResponse = z.infer<typeof BenchmarkResponse>;
+
+export const RunBenchmarkRequest = z.object({
+  /** Devices to benchmark on. Asking for `gpu` without one is refused by the service. */
+  devices: z.array(ComputeMode).min(1),
+  /** Omit to benchmark every installed model. */
+  models: z.array(z.string()).nullable().default(null),
+});
+export type RunBenchmarkRequest = z.infer<typeof RunBenchmarkRequest>;
 
 // ---------------------------------------------------------------------------
 // Errors

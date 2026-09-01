@@ -145,6 +145,14 @@ export type ServiceActiveModel = z.infer<typeof ServiceActiveModel>;
 
 export const ServiceBenchmarkAccepted = z.object({ benchmark_job_id: pk });
 
+/** `progress` is pre-formatted by the service ("3 of 6", "starting"), not a number. */
+export const ServiceBenchmarkStatus = z.object({
+  status: z.string(),
+  progress: z.string(),
+  current: z.string().nullable(),
+});
+export type ServiceBenchmarkStatus = z.infer<typeof ServiceBenchmarkStatus>;
+
 export const ServiceBenchmarkRow = z.object({
   model: z.string(),
   device: z.string(),

@@ -1,9 +1,20 @@
 import { z } from 'zod';
-import type { Chat, Document, HealthResponse, Message, Model } from '@localchat/contracts';
+import type {
+  Chat,
+  ComputeMode,
+  Document,
+  HealthResponse,
+  Message,
+  Model,
+  ModelBenchmarkRun,
+} from '@localchat/contracts';
 import { request } from '../http';
 import {
   ServiceActiveModel,
   ServiceBenchmarkAccepted,
+  ServiceBenchmarkResults,
+  ServiceBenchmarkRunList,
+  ServiceBenchmarkStatus,
   ServiceConversationDetail,
   ServiceConversationList,
   ServiceDocumentList,
@@ -14,6 +25,7 @@ import {
   ServiceModelList,
 } from './dto';
 import {
+  benchmarkRunFromService,
   chatDetailFromService,
   chatFromService,
   createDocumentIndex,
@@ -22,6 +34,7 @@ import {
   ingestionStatusFromService,
   messageFromService,
   modelFromService,
+  toId,
   toServiceId,
 } from './map';
 
@@ -218,22 +231,59 @@ export function setActiveModel(model: string, device: 'cpu' | 'gpu') {
 }
 
 // ---------------------------------------------------------------------------
-// Benchmark — deliberately not mapped; see docs/backend-wiring.md
+// Model benchmark
 // ---------------------------------------------------------------------------
 
 /**
- * Kicks off a run. Results are NOT translated into `BenchmarkRun`: the service measures
- * generation throughput per model and device (load time, time to first token, tokens per
- * second), while the domain type describes answer quality over a fixed question set
- * (median and p95 answer latency, share of answers carrying a citation). Neither is
- * derivable from the other, and mapping `total_s` onto `medianAnswerMs` would put a
- * fabricated number in a report. The benchmark screen stays on fixtures until the team
- * agrees which measurement the product actually reports.
+ * Starts a run and returns its job id.
+ *
+ * Note for callers: the service unloads whatever model `/models/active` currently holds
+ * before benchmarking, so answering is unavailable for the duration. The interface has to
+ * say so rather than let a question sit there timing out.
  */
-export function startBenchmark(devices: Array<'cpu' | 'gpu'>, models?: string[]) {
-  return request('/benchmark', {
+export async function startBenchmark(
+  devices: ComputeMode[],
+  models: string[] | null,
+): Promise<string> {
+  const dto = await request('/benchmark', {
     method: 'POST',
-    body: { devices, models: models ?? null },
+    body: { devices, models },
     schema: ServiceBenchmarkAccepted,
+  });
+  return toId(dto.benchmark_job_id);
+}
+
+/**
+ * The most recent run, assembled from three endpoints.
+ *
+ * `/benchmark/results` lists runs with their timestamps but no rows; `/benchmark/results/{id}`
+ * has the rows but no timestamps; `/benchmark/status/{id}` has progress but neither. One
+ * screen needs all three, so they are joined here rather than in a component.
+ */
+export async function latestBenchmark(signal?: AbortSignal): Promise<ModelBenchmarkRun | null> {
+  const runs = await request('/benchmark/results', { schema: ServiceBenchmarkRunList, signal });
+  if (runs.length === 0) return null;
+
+  const newest = [...runs].sort((a, b) => b.benchmark_job_id - a.benchmark_job_id)[0];
+  if (!newest) return null;
+
+  const results = await request(`/benchmark/results/${newest.benchmark_job_id}`, {
+    schema: ServiceBenchmarkResults,
+    signal,
+  });
+
+  // Only worth a third request while something is actually moving.
+  let status;
+  if (newest.status.toLowerCase() === 'running') {
+    status = await request(`/benchmark/status/${newest.benchmark_job_id}`, {
+      schema: ServiceBenchmarkStatus,
+      signal,
+    });
+  }
+
+  return benchmarkRunFromService(results, {
+    startedAt: newest.created_at,
+    finishedAt: newest.finished_at,
+    status,
   });
 }

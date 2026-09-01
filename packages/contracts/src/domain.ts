@@ -289,30 +289,70 @@ export const SettingsSchema = z.object({
 export type Settings = z.infer<typeof SettingsSchema>;
 
 // ---------------------------------------------------------------------------
-// Benchmark
+// Model benchmark
 // ---------------------------------------------------------------------------
 
-export const BenchmarkMetricsSchema = z.object({
-  compute: ComputeMode,
-  medianAnswerMs: z.number().int().nonnegative(),
-  p95AnswerMs: z.number().int().nonnegative(),
-  medianRetrievalMs: z.number().int().nonnegative(),
-  answersWithCitation: z.number().int().nonnegative(),
-  questionCount: z.number().int().positive(),
-});
-export type BenchmarkMetrics = z.infer<typeof BenchmarkMetricsSchema>;
+/**
+ * Comparing local models on this machine — NOT an evaluation of retrieval quality.
+ *
+ * The service loads each GGUF onto each device and times generation against one fixed
+ * prompt with the context supplied inline; it never touches the index, the corpus or the
+ * retriever. So these numbers answer "which model can this laptop actually run, and how
+ * fast does it produce tokens", which is what decides the model we ship. They say nothing
+ * about whether an answer was correct or whether the right passage was found.
+ *
+ * A retrieval evaluation — answers carrying a citation, whether the expected document was
+ * retrieved, latency over a real question set — is a separate measurement over a fixed
+ * question set, and nothing here should be read as a substitute for it.
+ */
 
-export const BenchmarkRunSchema = z.object({
-  id: z.string(),
-  ranAt: isoDateTime,
+export const BenchmarkRowStatus = z.enum(['ok', 'failed', 'skipped']);
+export type BenchmarkRowStatus = z.infer<typeof BenchmarkRowStatus>;
+
+export const ModelBenchmarkRowSchema = z.object({
+  /** GGUF filename, matching `Model.id`. */
   modelId: z.string(),
-  corpusSnapshot: z.string(),
-  topK: z.number().int().positive(),
-  results: z.array(BenchmarkMetricsSchema),
-  /** Latency target from the non-functional requirements, in ms. */
-  targetAnswerMs: z.number().int().positive(),
+  modelName: z.string(),
+  compute: ComputeMode,
+  /** CPU or GPU as the machine names it, e.g. "Apple M2 Pro". */
+  deviceName: z.string().nullable(),
+  status: BenchmarkRowStatus,
+  /** Why a row is not `ok` — no CUDA build, out of memory on load. */
+  detail: z.string().nullable(),
+  /** Every timing null when the run for this combination did not complete. */
+  loadMs: z.number().nonnegative().nullable(),
+  timeToFirstTokenMs: z.number().nonnegative().nullable(),
+  generatedTokens: z.number().int().nonnegative().nullable(),
+  tokensPerSecond: z.number().nonnegative().nullable(),
+  totalMs: z.number().nonnegative().nullable(),
+  peakMemoryBytes: z.number().nonnegative().nullable(),
+  /** GPU rows only. */
+  peakVramBytes: z.number().nonnegative().nullable(),
+  ranAt: isoDateTime,
 });
-export type BenchmarkRun = z.infer<typeof BenchmarkRunSchema>;
+export type ModelBenchmarkRow = z.infer<typeof ModelBenchmarkRowSchema>;
+
+export const BenchmarkJobStatus = z.enum(['running', 'completed', 'failed']);
+export type BenchmarkJobStatus = z.infer<typeof BenchmarkJobStatus>;
+
+export const ModelBenchmarkRunSchema = z.object({
+  id: z.string(),
+  status: BenchmarkJobStatus,
+  /**
+   * Progress as the service words it, e.g. "3 of 6" or "starting".
+   *
+   * Rendered verbatim rather than parsed: the service formats this string itself, and
+   * splitting it apart to drive a progress bar would break silently the first time the
+   * wording changed. Numeric counts would be a small ask on the service side.
+   */
+  progress: z.string().nullable(),
+  /** Which model and device is loading right now, while the job runs. */
+  current: z.string().nullable(),
+  rows: z.array(ModelBenchmarkRowSchema),
+  startedAt: isoDateTime,
+  finishedAt: isoDateTime.nullable(),
+});
+export type ModelBenchmarkRun = z.infer<typeof ModelBenchmarkRunSchema>;
 
 // ---------------------------------------------------------------------------
 // Approved tools
