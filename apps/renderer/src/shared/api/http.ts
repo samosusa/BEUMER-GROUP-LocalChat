@@ -13,7 +13,19 @@ import { ApiErrorBody } from '@localchat/contracts';
 
 const DEFAULT_SERVICE_URL = 'http://127.0.0.1:8000';
 
+/**
+ * Where the local service lives.
+ *
+ * In live mode over http — the dev server, whether opened in a browser or inside the
+ * Electron shell — this is the empty string, making every call same-origin so the Vite
+ * proxy can forward it. The service installs no CORS middleware, so an absolute
+ * `http://127.0.0.1:8000` from a page served on :5173 is refused by the browser before it
+ * leaves. The packaged app loads from `app://`, has no dev server to proxy through, and
+ * uses the address the main process resolved.
+ */
 export function serviceUrl(): string {
+  const isDevServer = globalThis.location?.protocol?.startsWith('http') ?? false;
+  if (__LIVE_SERVICE__ && isDevServer) return '';
   return globalThis.window?.localchat?.serviceUrl ?? DEFAULT_SERVICE_URL;
 }
 
@@ -52,6 +64,7 @@ export class ContractViolationError extends Error {
 
 interface RequestOptions<TResponse> {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+  /** A FormData body is sent as multipart and the JSON content type is left off. */
   body?: unknown;
   schema: ZodType<TResponse>;
   signal?: AbortSignal;
@@ -76,11 +89,13 @@ export async function request<TResponse>(
 
   let response: Response;
   try {
+    const multipart = body instanceof FormData;
     response = await fetch(url, {
       method,
       signal,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      // The browser must set its own boundary on a multipart body, so no header here.
+      headers: body === undefined || multipart ? undefined : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : multipart ? body : JSON.stringify(body),
     });
   } catch (cause) {
     if (cause instanceof DOMException && cause.name === 'AbortError') throw cause;

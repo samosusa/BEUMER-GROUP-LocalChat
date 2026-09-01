@@ -4,7 +4,7 @@ import { CHANNELS } from '../main/ipc';
 /**
  * The bridge.
  *
- * This is the entire surface the renderer has onto the host: five functions and three window
+ * This is the entire surface the renderer has onto the host: six functions and three window
  * controls. Nothing is exposed that takes arbitrary input and hands it to Node — no `invoke`
  * passthrough, no `require`, no `process`. If a new capability is needed, it gets its own
  * named function here and its own validating handler in main/ipc.ts.
@@ -18,6 +18,12 @@ const bridge = {
   serviceUrl: process.env.LOCALCHAT_SERVICE_URL ?? 'http://127.0.0.1:8000',
 
   pickDocuments: (): Promise<string[]> => ipcRenderer.invoke(CHANNELS.pickDocuments),
+  /**
+   * Bytes of a document the picker returned, for upload to the service. The main process
+   * refuses any path its own dialog did not produce, so this cannot read the disk at large.
+   */
+  readDocument: (path: string): Promise<{ name: string; bytes: ArrayBuffer }> =>
+    ipcRenderer.invoke(CHANNELS.readDocument, path),
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke(CHANNELS.pickFolder),
   revealInFolder: (path: string): Promise<void> =>
     ipcRenderer.invoke(CHANNELS.revealInFolder, path),

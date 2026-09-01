@@ -4,6 +4,7 @@ import {
   CreateChatRequest,
   CreateProjectRequest,
   IngestDocumentsRequest,
+  RunBenchmarkRequest,
   ReindexRequest,
   UpdateChatContextRequest,
   UpdateSettingsRequest,
@@ -41,17 +42,32 @@ function badRequest(message: string, details?: Record<string, unknown>) {
   return HttpResponse.json({ code: 'invalid_request', message, details }, { status: 400 });
 }
 
+/**
+ * `/health` is the one route the mock and the real service both answer on the same origin
+ * and path. Registering it while the app is pointed at the live service would mean the
+ * status strip reports a healthy mock while the Python process is not even running — the
+ * single most misleading thing this mock could do. So it is left out in live mode, and the
+ * request falls through to 127.0.0.1:8000.
+ *
+ * Every other mocked route is under `/api`, which the service does not serve, so the two
+ * namespaces cannot otherwise collide.
+ */
+const healthHandlers = __LIVE_SERVICE__
+  ? []
+  : [
+      http.get(route(routes.health()), async () => {
+        await delay(LATENCY.fast);
+        return HttpResponse.json({
+          status: 'ok',
+          version: '0.4.1',
+          modelLoaded: true,
+          offline: store.settings.strictOffline,
+        });
+      }),
+    ];
+
 export const handlers = [
-  // --- health -------------------------------------------------------------
-  http.get(route(routes.health()), async () => {
-    await delay(LATENCY.fast);
-    return HttpResponse.json({
-      status: 'ok',
-      version: '0.4.1',
-      modelLoaded: true,
-      offline: store.settings.strictOffline,
-    });
-  }),
+  ...healthHandlers,
 
   // --- projects -----------------------------------------------------------
   http.get(route(routes.projects()), async () => {
@@ -109,6 +125,24 @@ export const handlers = [
       documents: documentsFor(projectId),
       stats: indexStatsFor(projectId),
     });
+  }),
+
+  /**
+   * Removing a document drops it from the index and from every chat that pinned it.
+   * Leaving a dangling attachment id behind would render a chat as having context it
+   * cannot search.
+   */
+  http.delete(route('/api/documents/:id'), async ({ params }) => {
+    const id = String(params.id);
+    const index = store.documents.findIndex((document) => document.id === id);
+    if (index === -1) return notFound('No such document.');
+
+    store.documents.splice(index, 1);
+    for (const chat of store.chats) {
+      chat.attachmentIds = chat.attachmentIds.filter((attachment) => attachment !== id);
+    }
+    await delay(LATENCY.fast);
+    return new HttpResponse(null, { status: 204 });
   }),
 
   http.post(route(routes.ingest()), async ({ request }) => {
@@ -339,10 +373,20 @@ export const handlers = [
     return HttpResponse.json({ run: catalogue.benchmark });
   }),
 
-  http.post(route(routes.benchmark()), async () => {
-    // A real run takes minutes; two seconds is enough to exercise the pending state.
+  http.post(route(routes.benchmark()), async ({ request }) => {
+    const parsed = RunBenchmarkRequest.safeParse(await request.json());
+    if (!parsed.success) return badRequest('Choose at least one device to benchmark.');
+
+    // A real run loads several multi-gigabyte models in sequence and takes minutes; two
+    // seconds is enough to exercise the pending state without making the mock tedious.
     await delay(2_000);
-    return HttpResponse.json({ run: { ...catalogue.benchmark, ranAt: new Date().toISOString() } });
+    const finishedAt = new Date().toISOString();
+    const rows = catalogue.benchmark.rows.filter((row) =>
+      parsed.data.devices.includes(row.compute),
+    );
+    return HttpResponse.json({
+      run: { ...catalogue.benchmark, rows, startedAt: finishedAt, finishedAt },
+    });
   }),
 ];
 

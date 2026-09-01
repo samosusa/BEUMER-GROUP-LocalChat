@@ -2,12 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CreateChatRequest,
   CreateProjectRequest,
-  IngestDocumentsRequest,
   ReindexRequest,
+  RunBenchmarkRequest,
   UpdateChatContextRequest,
   UpdateSettingsRequest,
 } from '@localchat/contracts';
-import { api } from './client';
+import { api, type IngestInput } from './client';
 import { ApiError } from './http';
 
 /**
@@ -150,12 +150,19 @@ export function useModels() {
   });
 }
 
+/**
+ * Polls only while a run is in flight. A benchmark loads several multi-gigabyte models in
+ * sequence, so a fixed interval would keep asking long after the last one finished.
+ */
 export function useBenchmark() {
   return useQuery({
     queryKey: keys.benchmark,
     queryFn: ({ signal }) => api.getBenchmark(signal),
     select: (data) => data.run,
     ...STATIC,
+    // Loading a multi-gigabyte model takes tens of seconds, so this is slow on purpose:
+    // a tighter interval would add nothing and a fixed one would keep asking forever.
+    refetchInterval: (query) => (query.state.data?.run?.status === 'running' ? 3_000 : false),
   });
 }
 
@@ -209,10 +216,24 @@ export function useUpdateChatContext(chatId: string | undefined) {
 export function useIngestDocuments() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (body: IngestDocumentsRequest) => api.ingestDocuments(body),
+    mutationFn: (input: IngestInput) => api.ingestDocuments(input),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['documents'] });
       void client.invalidateQueries({ queryKey: keys.projects.all });
+    },
+  });
+}
+
+export function useDeleteDocument() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteDocument(id),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['documents'] });
+      void client.invalidateQueries({ queryKey: ['projects'] });
+      // A pinned document that no longer exists would leave the chat claiming context it
+      // cannot search, so the chat is refetched too.
+      void client.invalidateQueries({ queryKey: ['chats'] });
     },
   });
 }
@@ -242,7 +263,7 @@ export function useUpdateSettings() {
 export function useRunBenchmark() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: () => api.runBenchmark(),
+    mutationFn: (body: RunBenchmarkRequest) => api.runBenchmark(body),
     onSuccess: (data) => client.setQueryData(keys.benchmark, data),
   });
 }

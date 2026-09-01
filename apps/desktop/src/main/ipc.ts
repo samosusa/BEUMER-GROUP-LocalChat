@@ -1,4 +1,5 @@
-import { extname, isAbsolute, normalize } from 'node:path';
+import { readFile, stat } from 'node:fs/promises';
+import { basename, extname, isAbsolute, normalize } from 'node:path';
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { getMainWindow, revealInFolder } from './windows';
 
@@ -18,6 +19,7 @@ export const CHANNELS = {
   windowToggleMaximize: 'window:toggle-maximize',
   windowHide: 'window:hide',
   quickAskSubmit: 'quick-ask:submit',
+  readDocument: 'documents:read',
 } as const;
 
 /** Formats the ingestion pipeline accepts. Anything else is rejected before it is offered. */
@@ -42,6 +44,20 @@ const ALLOWED_EXTENSIONS = new Set([
   '.jpeg',
 ]);
 
+/**
+ * Paths this session's own file dialogs returned.
+ *
+ * The RAG service ingests by multipart upload, so the renderer needs the file's bytes, not
+ * its path. A general "read any file" channel would hand the renderer — which runs model
+ * output — the ability to read the user's disk and post it anywhere it can reach. Instead
+ * only files the engineer explicitly chose through our dialog are readable, and the set is
+ * built by the dialog handler rather than supplied by the caller.
+ */
+const pickedDocuments = new Set<string>();
+
+/** A generous ceiling on one document; the pipeline is not the place to discover OOM. */
+const MAX_DOCUMENT_BYTES = 256 * 1024 * 1024;
+
 export function registerIpcHandlers(): void {
   ipcMain.handle(CHANNELS.pickDocuments, async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -53,7 +69,40 @@ export function registerIpcHandlers(): void {
       filters: DOCUMENT_FILTERS,
     });
 
-    return result.canceled ? [] : result.filePaths.filter(isAllowedDocument);
+    if (result.canceled) return [];
+    const paths = result.filePaths.filter(isAllowedDocument).map((path) => normalize(path));
+    for (const path of paths) pickedDocuments.add(path);
+    return paths;
+  });
+
+  /**
+   * Reads one previously-picked document for upload. Refuses anything the dialog did not
+   * produce, so the channel cannot be turned into arbitrary file read.
+   */
+  ipcMain.handle(CHANNELS.readDocument, async (_event, rawPath: unknown) => {
+    if (typeof rawPath !== 'string' || !isAbsolute(rawPath)) {
+      throw new Error('A document path is required.');
+    }
+    const path = normalize(rawPath);
+    if (!pickedDocuments.has(path)) {
+      throw new Error('That file was not chosen through the LocalChat file picker.');
+    }
+
+    const info = await stat(path);
+    if (!info.isFile()) throw new Error('That path is not a file.');
+    if (info.size > MAX_DOCUMENT_BYTES) {
+      throw new Error('That file is larger than 256 MB and cannot be ingested.');
+    }
+
+    // `readFile` returns a Buffer that may be a view onto Node's shared pool, so copy the
+    // exact byte range out before it crosses the bridge; sending the pool would leak
+    // unrelated file contents into the renderer.
+    const buffer = await readFile(path);
+    const bytes = buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength,
+    ) as ArrayBuffer;
+    return { name: basename(path), bytes };
   });
 
   ipcMain.handle(CHANNELS.pickFolder, async (event) => {

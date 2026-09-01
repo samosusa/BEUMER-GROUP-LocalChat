@@ -13,6 +13,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Mono, ProgressBar, SectionLabel, StatusDot, type Tone } from '@/shared/ui/Indicators';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { formatBytes, formatCount, formatRelative } from '@/shared/lib/format';
+import { chooseDocuments } from '@/shared/lib/localFiles';
 import { cn } from '@/shared/lib/cn';
 import styles from './ProjectDetail.module.css';
 
@@ -53,8 +54,13 @@ export function ProjectDetailPage() {
   const busy = rows.some((document) => document.status === 'indexing');
 
   async function addDocuments() {
-    const paths = (await window.localchat?.pickDocuments()) ?? [];
-    if (paths.length > 0) await ingest.mutateAsync({ projectId: projectId ?? null, paths });
+    const chosen = await chooseDocuments();
+    if (chosen.paths.length === 0 && chosen.files.length === 0) return;
+    await ingest.mutateAsync({
+      projectId: projectId ?? null,
+      paths: chosen.paths,
+      files: chosen.files,
+    });
   }
 
   return (

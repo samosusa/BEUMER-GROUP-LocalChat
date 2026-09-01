@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { BenchmarkMetrics, ComputeMode, Model } from '@localchat/contracts';
+import type { ComputeMode, Model, ModelBenchmarkRow } from '@localchat/contracts';
 import {
   useBenchmark,
   useModels,
@@ -311,11 +311,24 @@ function ModelRow({
       <span className={cn(styles.radio, selected && styles.radioSelected)} aria-hidden="true" />
       <span className={styles.modelText}>
         <span className={styles.modelName}>
-          {model.name} · {model.quantization}
+          {[model.name, model.quantization].filter(Boolean).join(' · ')}
         </span>
+        {/*
+          Context length and the descriptive note are only known when the catalogue knows
+          them. The live service lists GGUF files off disk and reads neither, so these are
+          joined rather than concatenated: a missing value drops out instead of rendering
+          "NaNk context" beside a real file size.
+        */}
         <Mono className={styles.modelMeta}>
-          {formatBytes(model.sizeBytes)} · {formatCount(model.contextTokens / 1024)}k context ·{' '}
-          {model.note}
+          {[
+            formatBytes(model.sizeBytes),
+            model.contextTokens === null
+              ? null
+              : `${formatCount(model.contextTokens / 1024)}k context`,
+            model.note || null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </Mono>
       </span>
       {model.medianLatencyMs !== null && (
@@ -362,115 +375,148 @@ function ComputeCard({
   );
 }
 
+/**
+ * The model benchmark.
+ *
+ * This measures models, not retrieval. The service loads each GGUF onto each device and
+ * times generation against one fixed prompt whose context is supplied inline — the index
+ * is never touched. So the table answers "which model can this machine run, and how fast",
+ * which is what decides the model we ship. The header says so, because a table of
+ * millisecond figures on a screen inside a RAG product will otherwise be read as a
+ * measurement of the RAG.
+ */
 function BenchmarkCard() {
   const benchmark = useBenchmark();
   const run = useRunBenchmark();
   const result = benchmark.data;
+  const running = result?.status === 'running' || run.isPending;
+
+  const start = () => run.mutate({ devices: ['cpu', 'gpu'], models: null });
 
   if (!result) {
     return (
       <section className={styles.card}>
-        <SectionLabel>Benchmark</SectionLabel>
-        <p className={styles.hint}>No benchmark has been run on this machine yet.</p>
-        <Button variant="outline" size="sm" loading={run.isPending} onClick={() => run.mutate()}>
+        <SectionLabel>Model benchmark</SectionLabel>
+        <p className={styles.hint}>
+          Compares the installed models on this machine — load time, time to first token and
+          generation speed. It does not measure retrieval quality.
+        </p>
+        <Button variant="outline" size="sm" loading={running} onClick={start}>
           Run benchmark
         </Button>
       </section>
     );
   }
 
-  const cpu = result.results.find((entry) => entry.compute === 'cpu');
-  const gpu = result.results.find((entry) => entry.compute === 'gpu');
-  const overTarget = cpu && cpu.p95AnswerMs > result.targetAnswerMs;
+  const measured = result.rows.filter((row) => row.status === 'ok');
+  const fastest = measured.reduce<ModelBenchmarkRow | undefined>(
+    (best, row) => ((row.tokensPerSecond ?? 0) > (best?.tokensPerSecond ?? 0) ? row : best),
+    undefined,
+  );
 
   return (
     <section className={styles.card}>
       <SectionLabel
-        action={<Mono className={styles.cardHeaderMeta}>{formatRelative(result.ranAt)}</Mono>}
+        action={
+          <Mono className={styles.cardHeaderMeta}>
+            {result.status === 'running'
+              ? (result.progress ?? 'running')
+              : formatRelative(result.finishedAt ?? result.startedAt)}
+          </Mono>
+        }
       >
-        Last benchmark run
+        Model benchmark
       </SectionLabel>
+
       <p className={styles.hint}>
-        {result.results[0]?.questionCount ?? 0} evaluation questions, same corpus snapshot, top-k{' '}
-        {result.topK}.
+        Generation speed per model and device, against one fixed prompt. This is not a measure of
+        retrieval quality — no document is searched.
       </p>
 
-      <table className={styles.benchTable}>
-        <thead>
-          <tr>
-            <th scope="col">Metric</th>
-            <th scope="col">CPU</th>
-            <th scope="col" className={styles.benchAccent}>
-              GPU
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <BenchRow
-            label="Median answer"
-            cpu={cpu}
-            gpu={gpu}
-            pick={(m) => formatDuration(m.medianAnswerMs)}
-          />
-          <BenchRow
-            label="95th percentile"
-            cpu={cpu}
-            gpu={gpu}
-            pick={(m) => formatDuration(m.p95AnswerMs)}
-            warnCpu={overTarget}
-          />
-          <BenchRow
-            label="Retrieval"
-            cpu={cpu}
-            gpu={gpu}
-            pick={(m) => formatDuration(m.medianRetrievalMs)}
-          />
-          <BenchRow
-            label="Answers with a citation"
-            cpu={cpu}
-            gpu={gpu}
-            pick={(m) => `${m.answersWithCitation}/${m.questionCount}`}
-          />
-        </tbody>
-      </table>
-
-      {overTarget && (
+      {result.status === 'running' && (
         <p className={styles.benchWarning}>
-          CPU 95th percentile is above the {formatDuration(result.targetAnswerMs)} target.
+          Running{result.current ? ` — ${result.current}` : ''}. Answering is unavailable until it
+          finishes: the service unloads the active model to benchmark.
         </p>
       )}
 
-      <Button variant="outline" size="sm" loading={run.isPending} onClick={() => run.mutate()}>
+      {result.status === 'failed' && (
+        <p className={styles.benchWarning}>The run did not finish. Start it again below.</p>
+      )}
+
+      <div className={styles.benchScroll}>
+        <table className={styles.benchTable}>
+          <thead>
+            <tr>
+              <th scope="col">Model</th>
+              <th scope="col">Device</th>
+              <th scope="col">Load</th>
+              <th scope="col">First token</th>
+              <th scope="col">Tokens/s</th>
+              <th scope="col">Peak memory</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.rows.map((row) => (
+              <tr key={`${row.modelId}-${row.compute}`}>
+                <th scope="row" className={styles.benchModel}>
+                  {row.modelName}
+                </th>
+                <td>
+                  <Mono>{row.compute.toUpperCase()}</Mono>
+                </td>
+                {row.status === 'ok' ? (
+                  <>
+                    <td>
+                      <Mono>{row.loadMs === null ? '—' : formatDuration(row.loadMs)}</Mono>
+                    </td>
+                    <td>
+                      <Mono>
+                        {row.timeToFirstTokenMs === null
+                          ? '—'
+                          : formatDuration(row.timeToFirstTokenMs)}
+                      </Mono>
+                    </td>
+                    <td className={cn(row === fastest && styles.benchAccent)}>
+                      <Mono>
+                        {row.tokensPerSecond === null ? '—' : row.tokensPerSecond.toFixed(1)}
+                      </Mono>
+                    </td>
+                    <td>
+                      <Mono>{formatPeakMemory(row.peakMemoryBytes, row.peakVramBytes)}</Mono>
+                    </td>
+                  </>
+                ) : (
+                  /*
+                    A skipped or failed combination gets the reason across the row rather
+                    than four em dashes. "No CUDA build installed" is actionable; a row of
+                    blanks reads as a bug in the benchmark.
+                  */
+                  <td colSpan={4} className={styles.benchSkipped}>
+                    {row.detail ?? (row.status === 'skipped' ? 'Skipped' : 'Failed')}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <Button variant="outline" size="sm" loading={running} onClick={start}>
         Run benchmark again
       </Button>
     </section>
   );
 }
 
-function BenchRow({
-  label,
-  cpu,
-  gpu,
-  pick,
-  warnCpu = false,
-}: {
-  label: string;
-  cpu: BenchmarkMetrics | undefined;
-  gpu: BenchmarkMetrics | undefined;
-  pick: (metrics: BenchmarkMetrics) => string;
-  warnCpu?: boolean;
-}) {
-  return (
-    <tr>
-      <th scope="row">{label}</th>
-      <td className={cn(warnCpu && styles.benchOverTarget)}>
-        <Mono>{cpu ? pick(cpu) : '—'}</Mono>
-      </td>
-      <td className={styles.benchAccent}>
-        <Mono>{gpu ? pick(gpu) : '—'}</Mono>
-      </td>
-    </tr>
-  );
+/**
+ * VRAM is reported for GPU rows and system memory for CPU rows; showing both columns would
+ * leave one permanently empty.
+ */
+function formatPeakMemory(memoryBytes: number | null, vramBytes: number | null): string {
+  if (vramBytes !== null) return `${formatBytes(vramBytes)} VRAM`;
+  if (memoryBytes !== null) return formatBytes(memoryBytes);
+  return '—';
 }
 
 function Definition({

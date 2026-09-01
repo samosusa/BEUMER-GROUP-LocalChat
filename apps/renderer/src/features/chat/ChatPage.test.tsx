@@ -120,4 +120,41 @@ describe('ChatPage', () => {
     expect(toast).toHaveTextContent('Removed');
     expect(within(toast).getByRole('button', { name: 'Undo' })).toBeInTheDocument();
   });
+
+  /**
+   * Deleting a document is the only action in the panel that cannot be undone: the vectors
+   * are dropped and the original file was never kept. So it asks first, and one stray click
+   * must not be enough to lose an index.
+   *
+   * A named document rather than "the first row": the corpus list fills in as the general
+   * and project queries resolve, so an early match can be replaced before it is clicked.
+   */
+  const TARGET = 'LS-4000E Commissioning Manual.pdf';
+  const removeLabel = `Remove ${TARGET} from the index`;
+
+  it('asks before removing a document from the index, and cancelling changes nothing', async () => {
+    const { user } = renderChat('chat-throughput');
+
+    await user.click(await screen.findByRole('button', { name: /Context/ }));
+    await user.click(await screen.findByRole('button', { name: removeLabel }));
+
+    expect(await screen.findByText(/cannot be undone/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByText(/cannot be undone/i)).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: removeLabel })).toBeInTheDocument();
+  });
+
+  it('removes the document from the corpus once the removal is confirmed', async () => {
+    const { user } = renderChat('chat-throughput');
+
+    await user.click(await screen.findByRole('button', { name: /Context/ }));
+    await user.click(await screen.findByRole('button', { name: removeLabel }));
+    await user.click(await screen.findByRole('button', { name: 'Remove' }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: removeLabel })).not.toBeInTheDocument(),
+    );
+  });
 });

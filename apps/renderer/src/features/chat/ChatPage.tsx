@@ -4,6 +4,7 @@ import type { RetrievalScope } from '@localchat/contracts';
 import {
   useChat,
   useCreateChat,
+  useDeleteDocument,
   useDocuments,
   useIngestDocuments,
   useMessages,
@@ -23,6 +24,7 @@ import { Composer } from './components/Composer';
 import { NewChatIntro } from './components/NewChatIntro';
 import { UndoToast } from './components/UndoToast';
 import { useAsk } from './hooks/useAsk';
+import { chooseDocuments, type ChosenDocuments } from '@/shared/lib/localFiles';
 import { useDocumentDrop } from './hooks/useDocumentDrop';
 import styles from './ChatPage.module.css';
 
@@ -42,6 +44,7 @@ export function ChatPage() {
   const updateContext = useUpdateChatContext(chatId);
   const createChat = useCreateChat();
   const ingest = useIngestDocuments();
+  const deleteDocument = useDeleteDocument();
   const ask = useAsk(chatId);
 
   const [seed, setSeed] = useState<string | null>(null);
@@ -58,13 +61,18 @@ export function ChatPage() {
   const stats = projectDocuments.data?.stats ?? generalDocuments.data?.stats;
 
   const addDocuments = useCallback(
-    async (paths: string[]) => {
-      if (paths.length === 0) return;
+    async (chosen: ChosenDocuments) => {
+      if (chosen.paths.length === 0 && chosen.files.length === 0) return;
       const result = await ingest.mutateAsync({
         projectId: chat.data?.projectId ?? null,
-        paths,
+        paths: chosen.paths,
+        files: chosen.files,
       });
-      if (chatId && result.accepted.length > 0) {
+      // Attaching is skipped against the live service: it has no per-chat context, so the
+      // next refetch of the chat wipes attachmentIds and the pin silently disappears. The
+      // document is in the general corpus and is searched either way — the corpus list in
+      // the context panel is where it shows up.
+      if (!__LIVE_SERVICE__ && chatId && result.accepted.length > 0) {
         updateContext.mutate({
           attachmentIds: [
             ...(chat.data?.attachmentIds ?? []),
@@ -86,13 +94,13 @@ export function ChatPage() {
   useEffect(() => window.localchat?.onQuickAsk(setSeed), []);
 
   async function pickFiles() {
-    const paths = (await window.localchat?.pickDocuments()) ?? [];
-    await addDocuments(paths);
+    await addDocuments(await chooseDocuments());
   }
 
+  /** Folders are a desktop concept; a browser has no way to hand one over. */
   async function pickFolder() {
     const folder = await window.localchat?.pickFolder();
-    if (folder) await addDocuments([folder]);
+    if (folder) await addDocuments({ paths: [folder], files: [] });
   }
 
   /** Asking from the empty state has to create the chat first, then run the turn in it. */
@@ -130,6 +138,7 @@ export function ChatPage() {
             onAttachmentsChange={(attachmentIds) => updateContext.mutate({ attachmentIds })}
             onAddFiles={pickFiles}
             onAddFolder={pickFolder}
+            onDeleteDocument={(document) => deleteDocument.mutate(document.id)}
           />
         ) : (
           <span className={styles.topbarPlaceholder}>

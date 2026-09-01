@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, type DragEvent } from 'react';
+import { documentsFromDrop, type ChosenDocuments } from '@/shared/lib/localFiles';
 
 /**
  * Whole-window drag and drop for documents.
@@ -6,11 +7,12 @@ import { useCallback, useRef, useState, type DragEvent } from 'react';
  * Drag events fire for every child element, so a naive `dragleave` handler flickers the
  * overlay as the pointer crosses internal boundaries. Counting enter/leave pairs is the fix.
  *
- * In the packaged app `File.path` gives the absolute path the service needs. In a browser
- * that property does not exist, so the drop degrades to the file picker rather than
- * pretending to have ingested something.
+ * In the packaged app `File.path` gives the absolute path the desktop shell reads. A browser
+ * has no such property — and should not — so there the dropped `File` objects are passed
+ * along instead. Previously the browser case filtered everything out and the drop appeared
+ * to do nothing at all.
  */
-export function useDocumentDrop(onFiles: (paths: string[]) => void | Promise<void>) {
+export function useDocumentDrop(onFiles: (chosen: ChosenDocuments) => void | Promise<void>) {
   const [active, setActive] = useState(false);
   const depth = useRef(0);
 
@@ -33,11 +35,8 @@ export function useDocumentDrop(onFiles: (paths: string[]) => void | Promise<voi
       depth.current = 0;
       setActive(false);
 
-      const paths = Array.from(event.dataTransfer.files)
-        .map((file) => (file as File & { path?: string }).path)
-        .filter((path): path is string => typeof path === 'string' && path.length > 0);
-
-      if (paths.length > 0) void onFiles(paths);
+      const chosen = documentsFromDrop(event.dataTransfer);
+      if (chosen.paths.length > 0 || chosen.files.length > 0) void onFiles(chosen);
     },
     [onFiles],
   );
