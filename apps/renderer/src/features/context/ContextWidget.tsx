@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Chat, Document, Project, RetrievalScope } from '@localchat/contracts';
 import { Icon, type IconName } from '@/shared/ui/Icon';
 import { Button, IconButton } from '@/shared/ui/Button';
@@ -41,6 +41,8 @@ interface ContextWidgetProps {
   onAttachmentsChange: (attachmentIds: string[]) => void;
   onAddFiles: () => void;
   onAddFolder: () => void;
+  /** Removes a document from the index entirely. Not the same as unpinning it. */
+  onDeleteDocument: (document: Document) => void;
 }
 
 /**
@@ -59,17 +61,39 @@ export function ContextWidget({
   onAttachmentsChange,
   onAddFiles,
   onAddFolder,
+  onDeleteDocument,
 }: ContextWidgetProps) {
   const open = useUiStore((state) => state.contextPanelOpen);
   const setOpen = useUiStore((state) => state.setContextPanelOpen);
   const rememberRemoval = useUiStore((state) => state.rememberRemoval);
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  /**
+   * Which corpus row is asking to be confirmed.
+   *
+   * Detaching a document offers undo, because re-pinning it costs nothing. Deleting one
+   * drops its vectors and the original bytes were never kept, so there is nothing to undo
+   * with — the choice has to be made before, not after. A single inline step rather than a
+   * modal: the list is right there, and a dialog over a popover is its own problem.
+   */
+  const [confirming, setConfirming] = useState<string | null>(null);
 
   const attached = useMemo(
     () => chat.attachmentIds.map((id) => available.find((doc) => doc.id === id)).filter(isDocument),
     [chat.attachmentIds, available],
   );
+
+  /*
+   * Disarm the confirmation when the panel closes, so reopening never shows a row already
+   * asking to be deleted. Adjusted during render rather than in an effect: an effect would
+   * paint the stale armed row for a frame first, and the lint rule that forbids it is
+   * right to.
+   */
+  const [panelWasOpen, setPanelWasOpen] = useState(open);
+  if (panelWasOpen !== open) {
+    setPanelWasOpen(open);
+    if (!open && confirming !== null) setConfirming(null);
+  }
 
   // Close on outside click and on Escape — a popover that traps the engineer is a bug.
   useEffect(() => {
@@ -228,24 +252,59 @@ export function ContextWidget({
             ) : (
               <>
                 <ul className={styles.fileList}>
-                  {available.slice(0, CORPUS_PREVIEW).map((document) => (
-                    <li key={document.id} className={styles.fileRow}>
-                      <Icon
-                        name={FORMAT_ICON[document.format]}
-                        size={15}
-                        className={cn(styles.fileIcon, styles[`format_${document.format}`])}
-                      />
-                      <span className={styles.fileText}>
-                        <span className={styles.fileName}>{document.filename}</span>
-                        <Mono className={styles.fileMeta}>{describeDocument(document)}</Mono>
-                      </span>
-                      {document.status === 'indexing' && document.progress !== null && (
-                        <div className={styles.fileProgress}>
-                          <ProgressBar value={document.progress} thickness={2} label="Indexing" />
-                        </div>
-                      )}
-                    </li>
-                  ))}
+                  {available.slice(0, CORPUS_PREVIEW).map((document) =>
+                    confirming === document.id ? (
+                      <li key={document.id} className={cn(styles.fileRow, styles.confirmRow)}>
+                        <span className={styles.confirmText}>
+                          Remove <strong>{document.filename}</strong> from the index? This cannot be
+                          undone — the file would have to be added again.
+                        </span>
+                        <span className={styles.confirmActions}>
+                          <button
+                            type="button"
+                            className={styles.confirmCancel}
+                            onClick={() => setConfirming(null)}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.confirmDelete}
+                            onClick={() => {
+                              setConfirming(null);
+                              onDeleteDocument(document);
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </span>
+                      </li>
+                    ) : (
+                      <li key={document.id} className={styles.fileRow}>
+                        <Icon
+                          name={FORMAT_ICON[document.format]}
+                          size={15}
+                          className={cn(styles.fileIcon, styles[`format_${document.format}`])}
+                        />
+                        <span className={styles.fileText}>
+                          <span className={styles.fileName}>{document.filename}</span>
+                          <Mono className={styles.fileMeta}>{describeDocument(document)}</Mono>
+                        </span>
+                        {document.status === 'indexing' && document.progress !== null ? (
+                          <div className={styles.fileProgress}>
+                            <ProgressBar value={document.progress} thickness={2} label="Indexing" />
+                          </div>
+                        ) : (
+                          <IconButton
+                            icon="trash"
+                            label={`Remove ${document.filename} from the index`}
+                            size={14}
+                            onClick={() => setConfirming(document.id)}
+                          />
+                        )}
+                      </li>
+                    ),
+                  )}
                 </ul>
                 {available.length > CORPUS_PREVIEW && (
                   <p className={styles.panelEmpty}>and {available.length - CORPUS_PREVIEW} more</p>

@@ -216,6 +216,20 @@ export function useIngestDocuments() {
   });
 }
 
+export function useDeleteDocument() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteDocument(id),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['documents'] });
+      void client.invalidateQueries({ queryKey: ['projects'] });
+      // A pinned document that no longer exists would leave the chat claiming context it
+      // cannot search, so the chat is refetched too.
+      void client.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+}
+
 export function useReindex() {
   const client = useQueryClient();
   return useMutation({

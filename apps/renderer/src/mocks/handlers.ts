@@ -126,6 +126,24 @@ export const handlers = [
     });
   }),
 
+  /**
+   * Removing a document drops it from the index and from every chat that pinned it.
+   * Leaving a dangling attachment id behind would render a chat as having context it
+   * cannot search.
+   */
+  http.delete(route('/api/documents/:id'), async ({ params }) => {
+    const id = String(params.id);
+    const index = store.documents.findIndex((document) => document.id === id);
+    if (index === -1) return notFound('No such document.');
+
+    store.documents.splice(index, 1);
+    for (const chat of store.chats) {
+      chat.attachmentIds = chat.attachmentIds.filter((attachment) => attachment !== id);
+    }
+    await delay(LATENCY.fast);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
   http.post(route(routes.ingest()), async ({ request }) => {
     const parsed = IngestDocumentsRequest.safeParse(await request.json());
     if (!parsed.success) return badRequest('No files were supplied.');

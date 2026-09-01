@@ -233,3 +233,66 @@
 .spacer {
   flex: 1;
 }
+
+/* ---------------------------------------------------------------------------
+   Delete confirmation
+
+   Replaces the row in place rather than opening a dialog: the panel is already a
+   popover, and stacking a modal on one leaves the engineer two Escapes from the
+   thing they were reading. The wording states the consequence, because this is the
+   one action here that cannot be undone.
+   --------------------------------------------------------------------------- */
+
+.confirmRow {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  background: var(--warning-surface);
+  box-shadow: inset 2px 0 0 var(--warning-border);
+}
+
+.confirmRow:hover {
+  background: var(--warning-surface);
+}
+
+.confirmText {
+  font-size: var(--text-meta);
+  line-height: var(--leading-normal);
+  color: var(--text-body);
+}
+
+.confirmActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.confirmCancel,
+.confirmDelete {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--text-meta);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.confirmCancel {
+  color: var(--text-label);
+}
+
+.confirmDelete {
+  color: var(--danger-text);
+  font-weight: 600;
+}
+
+.confirmCancel:hover,
+.confirmDelete:hover {
+  text-decoration: underline;
+}
+
+.confirmCancel:focus-visible,
+.confirmDelete:focus-visible {
+  box-shadow: var(--focus-ring);
+}

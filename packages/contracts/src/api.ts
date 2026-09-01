@@ -196,6 +196,7 @@ export const routes = {
   projectDocuments: (id: string) => `/api/projects/${id}/documents`,
   projectTools: (id: string) => `/api/projects/${id}/tools`,
   documents: () => '/api/documents',
+  document: (id: string) => `/api/documents/${id}`,
   ingest: () => '/api/documents/ingest',
   reindex: () => '/api/index/reindex',
   indexStats: () => '/api/index/stats',

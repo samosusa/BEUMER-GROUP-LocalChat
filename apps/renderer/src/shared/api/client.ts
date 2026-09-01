@@ -24,6 +24,7 @@ import {
   type UpdateSettingsRequest,
   routes,
 } from '@localchat/contracts';
+import { z } from 'zod';
 import { ApiError, request, serviceUrl } from './http';
 import * as service from './service';
 
@@ -128,6 +129,16 @@ export const api = {
     if (body.paths.length === 0) return { accepted: [], rejected: [] };
     return request(routes.ingest(), { method: 'POST', body, schema: IngestDocumentsResponse });
   },
+
+  /**
+   * Removes a document from the index. Not undoable on either backend: the vectors are
+   * gone and the original bytes were never kept, so the caller must confirm first rather
+   * than offering an undo it cannot honour.
+   */
+  deleteDocument: (id: string): Promise<undefined> =>
+    LIVE
+      ? service.deleteDocument(id)
+      : request(routes.document(id), { method: 'DELETE', schema: z.undefined() }),
 
   reindex: (body: ReindexRequest) =>
     request(routes.reindex(), { method: 'POST', body, schema: ListDocumentsResponse }),

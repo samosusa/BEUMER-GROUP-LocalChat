@@ -4,6 +4,7 @@ import type { RetrievalScope } from '@localchat/contracts';
 import {
   useChat,
   useCreateChat,
+  useDeleteDocument,
   useDocuments,
   useIngestDocuments,
   useMessages,
@@ -43,6 +44,7 @@ export function ChatPage() {
   const updateContext = useUpdateChatContext(chatId);
   const createChat = useCreateChat();
   const ingest = useIngestDocuments();
+  const deleteDocument = useDeleteDocument();
   const ask = useAsk(chatId);
 
   const [seed, setSeed] = useState<string | null>(null);
@@ -136,6 +138,7 @@ export function ChatPage() {
             onAttachmentsChange={(attachmentIds) => updateContext.mutate({ attachmentIds })}
             onAddFiles={pickFiles}
             onAddFolder={pickFolder}
+            onDeleteDocument={(document) => deleteDocument.mutate(document.id)}
           />
         ) : (
           <span className={styles.topbarPlaceholder}>
