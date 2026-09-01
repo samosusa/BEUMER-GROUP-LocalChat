@@ -29,7 +29,8 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,css,json,md,yaml,yml}\"",
     "test": "npm run build:contracts && npm run test --workspace @localchat/renderer && npm run test --workspace @localchat/health-service",
     "test:watch": "npm run test --workspace @localchat/renderer -- --watch",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build"
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
+    "demo": "py scripts/demo_workflow.py"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

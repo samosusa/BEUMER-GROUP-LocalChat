@@ -15,15 +15,123 @@ release/
 # Test output
 coverage/
 
+# ---------------------------------------------------------------------------
+# Python / RAG service
+#
+# Several patterns below are anchored to the repository root with a leading
+# slash. Unanchored, `lib/` and `build/` match a directory of that name at ANY
+# depth, which would silently ignore apps/renderer/src/shared/lib/ and
+# apps/renderer/src/features/*/lib/. Already-tracked files would survive, but
+# every new file added there would vanish from `git status`.
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[codz]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+/build/
+develop-eggs/
+.eggs/
+/lib/
+/lib64/
+/parts/
+/sdist/
+/var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py.cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Local data — database, vector indexes, models, demo output
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+data/app.db
+data/app.db-journal
+data/vectors/
+data/models/
+data/demo_runs/
+eval_results/
+
+# Frameworks
+instance/
+.webassets-cache
+.scrapy
+docs/_build/
+.pybuilder/
+/target/
+
+# Notebooks
+.ipynb_checkpoints
+profile_default/
+ipython_config.py
+
+# Packaging tools
+.pdm-python
+.pdm-build/
+.pixi
+__pypackages__/
+
+# Task queues / brokers
+celerybeat-schedule
+celerybeat.pid
+*.rdb
+*.aof
+*.pid
+mnesia/
+rabbitmq/
+rabbitmq-data/
+activemq-data/
+
+# SageMath
+*.sage.py
+
+# Environments
+.env
+.envrc
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ---------------------------------------------------------------------------
 # OS
+# ---------------------------------------------------------------------------
 .DS_Store
 Thumbs.db
-
-node_modules/
-dist/
-out/
-release/
-*.tsbuildinfo
-.DS_Store
-coverage/
-.vite/
