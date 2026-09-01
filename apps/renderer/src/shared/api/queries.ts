@@ -2,12 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CreateChatRequest,
   CreateProjectRequest,
-  IngestDocumentsRequest,
   ReindexRequest,
   UpdateChatContextRequest,
   UpdateSettingsRequest,
 } from '@localchat/contracts';
-import { api } from './client';
+import { api, type IngestInput } from './client';
 import { ApiError } from './http';
 
 /**
@@ -209,7 +208,7 @@ export function useUpdateChatContext(chatId: string | undefined) {
 export function useIngestDocuments() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (body: IngestDocumentsRequest) => api.ingestDocuments(body),
+    mutationFn: (input: IngestInput) => api.ingestDocuments(input),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['documents'] });
       void client.invalidateQueries({ queryKey: keys.projects.all });

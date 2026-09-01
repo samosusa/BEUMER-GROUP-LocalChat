@@ -41,17 +41,32 @@ function badRequest(message: string, details?: Record<string, unknown>) {
   return HttpResponse.json({ code: 'invalid_request', message, details }, { status: 400 });
 }
 
+/**
+ * `/health` is the one route the mock and the real service both answer on the same origin
+ * and path. Registering it while the app is pointed at the live service would mean the
+ * status strip reports a healthy mock while the Python process is not even running — the
+ * single most misleading thing this mock could do. So it is left out in live mode, and the
+ * request falls through to 127.0.0.1:8000.
+ *
+ * Every other mocked route is under `/api`, which the service does not serve, so the two
+ * namespaces cannot otherwise collide.
+ */
+const healthHandlers = __LIVE_SERVICE__
+  ? []
+  : [
+      http.get(route(routes.health()), async () => {
+        await delay(LATENCY.fast);
+        return HttpResponse.json({
+          status: 'ok',
+          version: '0.4.1',
+          modelLoaded: true,
+          offline: store.settings.strictOffline,
+        });
+      }),
+    ];
+
 export const handlers = [
-  // --- health -------------------------------------------------------------
-  http.get(route(routes.health()), async () => {
-    await delay(LATENCY.fast);
-    return HttpResponse.json({
-      status: 'ok',
-      version: '0.4.1',
-      modelLoaded: true,
-      offline: store.settings.strictOffline,
-    });
-  }),
+  ...healthHandlers,
 
   // --- projects -----------------------------------------------------------
   http.get(route(routes.projects()), async () => {

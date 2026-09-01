@@ -4,6 +4,12 @@
 declare const __USE_MOCKS__: boolean;
 
 /**
+ * Baked in by Vite. True when chats, documents, ingestion and models talk to the Python
+ * RAG service instead of the mock. See `shared/api/client.ts` for exactly what forks.
+ */
+declare const __LIVE_SERVICE__: boolean;
+
+/**
  * The only surface the renderer has onto the host. Injected by the Electron preload
  * (apps/desktop/src/preload); absent when running in a plain browser, which is exactly
  * how the UI degrades in the Docker preview.
@@ -15,6 +21,12 @@ interface LocalChatBridge {
   readonly serviceUrl: string;
   /** Opens the OS file picker and returns absolute paths. Empty when cancelled. */
   pickDocuments(): Promise<string[]>;
+  /**
+   * Reads a document the picker previously returned, so it can be uploaded to the
+   * service. Only paths this session's own dialogs produced are readable; anything else
+   * is refused by the main process.
+   */
+  readDocument(path: string): Promise<{ name: string; bytes: ArrayBuffer }>;
   pickFolder(): Promise<string | null>;
   /** Reveals a source document in Explorer/Finder. */
   revealInFolder(path: string): Promise<void>;
