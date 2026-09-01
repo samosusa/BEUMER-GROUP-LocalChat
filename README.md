@@ -52,6 +52,33 @@ curl -X POST http://localhost:8000/query -H "Content-Type: application/json" -d 
 
 Place the Llama-3.2-3B-Instruct Q5_K_M GGUF at `data/models/Llama-3.2-3B-Instruct-Q5_K_M.gguf`, or set `LOCALCHAT_LLM_MODEL` to its local path before starting the API. The model is loaded once at startup and runs with `n_gpu_layers=0`.
 
+### Chat history (conversations)
+
+Questions and answers can be persisted as threaded conversations, each holding its own ordered sequence of user/assistant messages (title auto-generated from the first question, or renamed explicitly):
+
+```bash
+# Start a new conversation (title is optional; omit it to auto-generate from the first question)
+curl -X POST http://localhost:8000/conversations -H "Content-Type: application/json" -d "{\"title\":\"Conveyor questions\"}"
+
+# Ask a question inside that conversation. This runs the same RAG flow as /query,
+# then stores both the user question and the assistant's answer as messages.
+curl -X POST http://localhost:8000/conversations/1/messages -H "Content-Type: application/json" -d "{\"q\":\"What is the conveyor speed?\"}"
+
+# List conversations (most recently active first), for a sidebar-style history view
+curl http://localhost:8000/conversations
+
+# Fetch one conversation with its full message thread
+curl http://localhost:8000/conversations/1
+
+# Rename a conversation
+curl -X PATCH http://localhost:8000/conversations/1 -H "Content-Type: application/json" -d "{\"title\":\"Safety questions\"}"
+
+# Delete a conversation (its messages are removed too)
+curl -X DELETE http://localhost:8000/conversations/1
+```
+
+Conversations and messages are stored in the same SQLite database (`conversations` and `messages` tables) as everything else in `data/app.db`; they are pure persistence around the existing RAG pipeline and do not change how answers are generated.
+
 Run the opt-in real end-to-end workflow test after installing `llama-cpp-python` and placing the GGUF model:
 
 ```powershell

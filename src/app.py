@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from src.api.conversations import router as conversations_router
 from src.api.docs import router as docs_router
 from src.api.ingest import router as ingest_router
 from src.api.query import router as query_router
@@ -27,6 +28,7 @@ app = FastAPI(
         Exception: unhandled_error_handler,
     },
 )
+app.include_router(conversations_router)
 app.include_router(docs_router)
 app.include_router(ingest_router)
 app.include_router(query_router)
