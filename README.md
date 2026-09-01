@@ -89,6 +89,51 @@ py -m pytest tests/integration/test_real_workflow_e2e.py -s
 
 This test uses real SQLite, chunking, Nomic embeddings, FAISS retrieval, and Llama-3.2 generation. It is skipped unless explicitly enabled because it loads the local multi-gigabyte model.
 
+### Model selection and device (research/eval tooling)
+
+`/query` and `/conversations/*/messages` always answer using whatever model is currently active, not a per-request choice. List the GGUF files available in `data/models/` and manage the active model with:
+
+```bash
+# List available GGUF models
+curl http://localhost:8000/models
+
+# See what's currently loaded (null/null if nothing has been activated yet)
+curl http://localhost:8000/models/active
+
+# Load a model onto a device. This blocks until the swap is complete (unload the
+# current model, load the requested one, ready to answer) and returns the confirmed
+# active selection - there is no separate "loading" status to poll.
+curl -X POST http://localhost:8000/models/active -H "Content-Type: application/json" \
+  -d "{\"model\":\"Qwen2.5-0.5B-Instruct-Q5_K_M.gguf\",\"device\":\"cpu\"}"
+```
+
+`device` is `"cpu"` or `"gpu"`. Requesting `"gpu"` returns `422 ERR_GPU_UNAVAILABLE` with a clear message when the installed `llama-cpp-python` build has no CUDA/GPU offload support, instead of silently falling back to CPU. An unknown model name returns `404 ERR_NOT_FOUND`.
+
+### Benchmarking (research/eval tooling)
+
+Benchmarks run as a background job, mirroring `/ingest`'s job pattern (kick off, poll status, fetch results) rather than blocking a request:
+
+```bash
+# Kick off a benchmark. "models" is optional - omit it to benchmark every GGUF in data/models/.
+curl -X POST http://localhost:8000/benchmark -H "Content-Type: application/json" \
+  -d "{\"devices\":[\"cpu\",\"gpu\"],\"models\":[\"Qwen2.5-0.5B-Instruct-Q5_K_M.gguf\"]}"
+
+# Poll progress
+curl http://localhost:8000/benchmark/status/1
+
+# Full metrics table for that run, once complete
+curl http://localhost:8000/benchmark/results/1
+
+# All past benchmark runs
+curl http://localhost:8000/benchmark/results
+```
+
+Each result row records `model`, `device`, `device_name`, `load_s`, `ttft_s`, `gen_tokens`, `tok_s`, `total_s`, `peak_mem_mb`, and `peak_vram_mb` (GPU rows only). Rows are written to the `eval_results` table (via the `EvalResult` model), keyed by `benchmark_job_id`, so results are queryable and persist across restarts instead of living in loose CSV/JSON files.
+
+Before benchmarking, the job unloads whatever model `/models/active` currently has loaded, so the two features don't compete for the same RAM/VRAM - re-select a model with `POST /models/active` afterward if you need `/query` live again.
+
+Model-switching and benchmarking are research/evaluation tooling for comparing local models, not part of the deployed staff-facing assistant surface - they're deliberately functional-over-polished.
+
 Available checks:
 
 ```bash
