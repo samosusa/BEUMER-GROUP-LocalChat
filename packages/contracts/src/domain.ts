@@ -243,7 +243,8 @@ export const ModelSchema = z.object({
   name: z.string(),
   quantization: z.string(),
   sizeBytes: z.number().int().nonnegative(),
-  contextTokens: z.number().int().positive(),
+  /** Null when the source cannot report it without loading the model. */
+  contextTokens: z.number().int().positive().nullable(),
   /** One line on what this model is good for, shown next to the choice. */
   note: z.string(),
   /** Median end-to-end answer latency measured on this machine, in ms. Null if never run. */

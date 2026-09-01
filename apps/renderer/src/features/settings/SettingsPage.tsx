@@ -311,11 +311,24 @@ function ModelRow({
       <span className={cn(styles.radio, selected && styles.radioSelected)} aria-hidden="true" />
       <span className={styles.modelText}>
         <span className={styles.modelName}>
-          {model.name} · {model.quantization}
+          {[model.name, model.quantization].filter(Boolean).join(' · ')}
         </span>
+        {/*
+          Context length and the descriptive note are only known when the catalogue knows
+          them. The live service lists GGUF files off disk and reads neither, so these are
+          joined rather than concatenated: a missing value drops out instead of rendering
+          "NaNk context" beside a real file size.
+        */}
         <Mono className={styles.modelMeta}>
-          {formatBytes(model.sizeBytes)} · {formatCount(model.contextTokens / 1024)}k context ·{' '}
-          {model.note}
+          {[
+            formatBytes(model.sizeBytes),
+            model.contextTokens === null
+              ? null
+              : `${formatCount(model.contextTokens / 1024)}k context`,
+            model.note || null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </Mono>
       </span>
       {model.medianLatencyMs !== null && (
