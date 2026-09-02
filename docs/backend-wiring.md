@@ -61,22 +61,29 @@ right and the stub is out of date.**
 | Add documents            | `POST /ingest` → `GET /status/{job_id}`  | Multipart upload; polls to completion           |
 | Chat sidebar and history | `GET /conversations`                     |                                                 |
 | Open a chat              | `GET /conversations/{id}`                |                                                 |
-| New chat                 | `POST /conversations`                    | Title auto-generated from the first question    |
+| New chat                 | `POST /conversations`                    | Title auto-generated from the first question; optional `project_id` scopes it |
 | Rename / delete          | `PATCH` / `DELETE /conversations/{id}`   |                                                 |
-| Ask a question           | `POST /conversations/{id}/messages`      |                                                 |
+| Ask a question           | `POST /conversations/{id}/messages`      | Retrieval is limited to the conversation's project, if it has one |
 | Model picker             | `GET /models`, `GET/POST /models/active` | The swap blocks; expect tens of seconds         |
+| Projects                 | `GET/POST /projects`, `GET/PATCH/DELETE /projects/{id}` | Name only — see below for what is still missing |
 
 ## What is not wired, and why
 
-**Projects.** The service has no project entity — only a `project: bool` flag on ingest.
-Agreed as out of scope for this pass. The projects screens stay wholly on fixtures: asking
-the live client for a project's documents returns an empty list rather than the whole corpus
-mislabelled as belonging to that project, and ingesting _from_ a project page goes to the
-mock as well, because uploading to the service's single corpus would put the file somewhere
-that page cannot show it.
+**Projects, beyond scoped retrieval.** The service now has a real `Project` entity: a
+document ingested with a `project_id` (`POST /ingest`) belongs to that project, and a
+conversation created with a `project_id` only ever retrieves from that project's documents
+— `retriever.retrieve()` restricts the FAISS indexes it searches to that project's document
+ids. A document or conversation with no `project_id` behaves exactly as before (general
+corpus). Deleting a project cascades to its documents and conversations, the same way
+deleting a conversation cascades its messages.
 
-**So in live mode, add documents from the chat screen's context widget, not from a project.**
-That is the general corpus, and it is the one backed by `POST /ingest`.
+What is still missing relative to `packages/contracts`' `ProjectSchema`: `description`,
+`folderPath`/`watched` (folder watching), `instructions` (per-project system prompt),
+`documentCount`/`chatCount`/`indexState`/`indexProgress` (computed fields), and the
+`RetrievalScope` enum (`general` / `project` / `both`) plus per-chat `attachmentIds` — today
+a scoped conversation is strictly project-only, there is no "project + general" or
+per-chat-attachment mode. The projects screens still need their own adapter work in
+`apps/renderer/src/shared/api/service/` to move off fixtures onto these routes.
 
 **Retrieval evaluation.** The benchmark that _is_ wired measures models, not retrieval:
 `src/benchmark.py` uses one hardcoded question with its context pasted inline, and never

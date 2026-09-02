@@ -8,6 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, UploadFile,
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from src.api.projects import get_project_or_404
 from src.db import SessionLocal, get_db
 from src.errors import AppError
 from src.ingest.loader import SUPPORTED_SUFFIXES, load_file
@@ -30,9 +31,9 @@ class IngestStatusResponse(BaseModel):
     last_checkpoint: dict | None
 
 
-def process_upload(job_id: int, title: str, path: str) -> None:
+def process_upload(job_id: int, title: str, path: str, project_id: int | None = None) -> None:
     with SessionLocal() as db:
-        run_pipeline(db, job_id, title, path)
+        run_pipeline(db, job_id, title, path, project_id=project_id)
     Path(path).unlink(missing_ok=True)
 
 
@@ -74,15 +75,17 @@ async def ingest_document(
     background_tasks: BackgroundTasks,
     file: UploadFile | None = File(None),
     title: str | None = Form(None),
-    project: bool | None = Form(False),
+    project_id: int | None = Form(None),
     db: Session = Depends(get_db),
 ) -> IngestResponse:
     validate_against_schema(
-        {"title": title, "project": project},
+        {"title": title, "project_id": project_id},
         ROOT / "schemas" / "ingest.json",
     )
     if file is None:
         raise AppError("ERR_MISSING_FILE", "An upload file is required", {"file": "is required"})
+    if project_id is not None:
+        get_project_or_404(db, project_id)
     suffix = _validate_suffix(file.filename or "")
 
     temporary_file = NamedTemporaryFile(delete=False, suffix=suffix)
@@ -91,7 +94,7 @@ async def ingest_document(
         temporary_file.close()
         _ensure_parseable(temporary_file.name, file.filename or "unknown")
         job = _create_queued_job(db)
-        background_tasks.add_task(process_upload, job.id, title, temporary_file.name)
+        background_tasks.add_task(process_upload, job.id, title, temporary_file.name, project_id)
         return IngestResponse(job_id=job.id)
     except Exception:
         temporary_file.close()

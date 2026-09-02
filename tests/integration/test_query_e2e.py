@@ -12,7 +12,7 @@ def test_query_retrieves_and_cites_ingested_document(monkeypatch):
     import src.rag_service as rag_service
     import src.retriever as retriever
 
-    def fake_process_upload(job_id: int, title: str, path: str) -> None:
+    def fake_process_upload(job_id: int, title: str, path: str, project_id: int | None = None) -> None:
         from src.ingest.pipeline import run_pipeline
 
         with SessionLocal() as db:
@@ -22,6 +22,7 @@ def test_query_retrieves_and_cites_ingested_document(monkeypatch):
                 title,
                 path,
                 embedder=lambda texts: [[1.0, 0.0] for _ in texts],
+                project_id=project_id,
             )
         Path(path).unlink(missing_ok=True)
 
@@ -60,3 +61,54 @@ def test_query_retrieves_and_cites_ingested_document(monkeypatch):
     with SessionLocal() as db:
         document = db.query(Document).filter_by(title=title).first()
         assert document is not None
+
+
+def test_query_scoped_to_project_ignores_other_projects_documents(monkeypatch):
+    import src.api.ingest as ingest_api
+    import src.rag_service as rag_service
+    import src.retriever as retriever
+
+    def fake_process_upload(job_id: int, title: str, path: str, project_id: int | None = None) -> None:
+        from src.ingest.pipeline import run_pipeline
+
+        with SessionLocal() as db:
+            run_pipeline(
+                db,
+                job_id,
+                title,
+                path,
+                embedder=lambda texts: [[1.0, 0.0] for _ in texts],
+                project_id=project_id,
+            )
+        Path(path).unlink(missing_ok=True)
+
+    monkeypatch.setattr(ingest_api, "process_upload", fake_process_upload)
+    monkeypatch.setattr(retriever, "embed_query", lambda texts: [[1.0, 0.0]])
+    monkeypatch.setattr(rag_service.llm_adapter, "generate", lambda prompt, max_tokens: "Answered from project A.")
+
+    client = TestClient(app)
+    project_a = client.post("/projects", json={"name": "Project A"}).json()
+    project_b = client.post("/projects", json={"name": "Project B"}).json()
+
+    ingest_a = client.post(
+        "/ingest",
+        data={"title": "Project A doc", "project_id": project_a["id"]},
+        files={"file": ("a.txt", b"Only visible inside project A.", "text/plain")},
+    )
+    ingest_b = client.post(
+        "/ingest",
+        data={"title": "Project B doc", "project_id": project_b["id"]},
+        files={"file": ("b.txt", b"Only visible inside project B.", "text/plain")},
+    )
+    assert ingest_a.status_code == 202 and ingest_b.status_code == 202
+    assert client.get(f"/status/{ingest_a.json()['job_id']}").json()["status"] == "completed"
+    assert client.get(f"/status/{ingest_b.json()['job_id']}").json()["status"] == "completed"
+
+    scoped_response = client.post("/query", json={"q": "What is visible?", "project_id": project_a["id"]})
+    assert scoped_response.status_code == 200
+    scoped_result = scoped_response.json()
+    assert scoped_result["not_found"] is False
+    assert all(citation["title"] == "Project A doc" for citation in scoped_result["citations"])
+
+    unknown_project_response = client.post("/query", json={"q": "What is visible?", "project_id": 999999})
+    assert unknown_project_response.status_code == 404

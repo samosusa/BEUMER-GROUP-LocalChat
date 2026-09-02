@@ -26,17 +26,27 @@ def retrieve(
     db: Session,
     top_k: int = 5,
     vector_dir: Path | None = None,
+    project_id: int | None = None,
 ) -> list[RetrievedChunk]:
     if top_k <= 0 or not query.strip():
         return []
 
     query_vector = np.asarray(embed_query([query]), dtype="float32")
     vector_dir = vector_dir or Path(os.getenv("LOCALCHAT_VECTOR_DIR", VECTOR_DIR))
+
+    allowed_doc_ids: set[int] | None = None
+    if project_id is not None:
+        allowed_doc_ids = {
+            doc_id for (doc_id,) in db.query(Document.id).filter(Document.project_id == project_id).all()
+        }
+
     results: list[RetrievedChunk] = []
     for index_path in vector_dir.glob("*.index"):
         try:
             doc_id = int(index_path.stem)
         except ValueError:
+            continue
+        if allowed_doc_ids is not None and doc_id not in allowed_doc_ids:
             continue
         index = faiss.read_index(str(index_path))
         if index.ntotal == 0 or index.d != query_vector.shape[1]:
@@ -58,5 +68,7 @@ def retrieve(
     return results[:top_k]
 
 
-def retrieve_chunks(query: str, db: Session, top_k: int = 5) -> list[RetrievedChunk]:
-    return retrieve(query, db, top_k=top_k)
+def retrieve_chunks(
+    query: str, db: Session, top_k: int = 5, project_id: int | None = None
+) -> list[RetrievedChunk]:
+    return retrieve(query, db, top_k=top_k, project_id=project_id)

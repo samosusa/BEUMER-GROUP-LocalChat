@@ -144,6 +144,11 @@ class LLMAdapter:
             return self._model
 
     def generate(self, prompt: str, max_tokens: int = 512) -> str:
+        # NOTE: create_chat_completion() (which applies the model's own chat template and
+        # stops at its trained end-of-turn token) segfaults the whole process here - it runs
+        # cleanly in isolated single-threaded/threaded repro scripts, but crashes reliably
+        # once actually called through FastAPI's real async/threadpool request path. Back to
+        # raw completion until that's root-caused; see the conversation this was tried in.
         result = self.load_model()(
             prompt,
             max_tokens=max_tokens,

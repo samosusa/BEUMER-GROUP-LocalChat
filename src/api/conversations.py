@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from src.api.projects import get_project_or_404
 from src.db import get_db
 from src.errors import AppError
 from src.models.conversation import Conversation
@@ -22,6 +23,7 @@ TITLE_MAX_LENGTH = 60
 
 class ConversationCreate(BaseModel):
     title: str | None = None
+    project_id: int | None = None
 
 
 class ConversationUpdate(BaseModel):
@@ -35,6 +37,7 @@ class MessageCreate(BaseModel):
 class ConversationResponse(BaseModel):
     id: int
     title: str | None
+    project_id: int | None
     created_at: datetime
     updated_at: datetime
 
@@ -88,8 +91,12 @@ def create_conversation(payload: ConversationCreate, db: Session = Depends(get_d
     title = payload.title.strip() if payload.title else None
     if title:
         _validate_title(title)
+    if payload.project_id is not None:
+        get_project_or_404(db, payload.project_id)
     now = _now()
-    conversation = Conversation(title=title or None, created_at=now, updated_at=now)
+    conversation = Conversation(
+        title=title or None, project_id=payload.project_id, created_at=now, updated_at=now
+    )
     db.add(conversation)
     db.commit()
     db.refresh(conversation)
@@ -110,6 +117,7 @@ def get_conversation(conversation_id: int, db: Session = Depends(get_db)) -> dic
     return {
         "id": conversation.id,
         "title": conversation.title,
+        "project_id": conversation.project_id,
         "created_at": conversation.created_at,
         "updated_at": conversation.updated_at,
         "messages": messages,
@@ -152,7 +160,7 @@ def post_message(conversation_id: int, payload: MessageCreate, db: Session = Dep
 
     db.add(Message(conversation_id=conversation.id, role="user", text=question, created_at=_now()))
 
-    result = answer(question, db)
+    result = answer(question, db, project_id=conversation.project_id)
 
     assistant_message = Message(
         conversation_id=conversation.id,

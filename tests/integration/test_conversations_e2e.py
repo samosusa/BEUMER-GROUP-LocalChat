@@ -12,7 +12,7 @@ client = TestClient(app)
 def _fake_answer(monkeypatch, result: dict):
     import src.api.conversations as conversations_api
 
-    monkeypatch.setattr(conversations_api, "answer", lambda question, db: result)
+    monkeypatch.setattr(conversations_api, "answer", lambda question, db, project_id=None: result)
 
 
 def test_create_get_delete_conversation():
@@ -136,6 +136,36 @@ def test_post_message_rejects_blank_question():
     try:
         response = client.post(f"/conversations/{created['id']}/messages", json={"q": ""})
         assert response.status_code == 400
+    finally:
+        client.delete(f"/conversations/{created['id']}")
+
+
+def test_create_conversation_rejects_unknown_project():
+    response = client.post("/conversations", json={"title": "Orphan", "project_id": 999999})
+    assert response.status_code == 404
+    assert response.json()["code"] == "ERR_NOT_FOUND"
+
+
+def test_post_message_scopes_retrieval_to_the_conversations_project(monkeypatch):
+    import src.api.conversations as conversations_api
+
+    project = client.post("/projects", json={"name": "Scoped chat project"}).json()
+
+    captured_project_ids = []
+
+    def fake_answer(question, db, project_id=None):
+        captured_project_ids.append(project_id)
+        return {"answer": "answer", "citations": [], "not_found": False}
+
+    monkeypatch.setattr(conversations_api, "answer", fake_answer)
+
+    created = client.post("/conversations", json={"project_id": project["id"]}).json()
+    assert created["project_id"] == project["id"]
+
+    try:
+        response = client.post(f"/conversations/{created['id']}/messages", json={"q": "Any question?"})
+        assert response.status_code == 201
+        assert captured_project_ids == [project["id"]]
     finally:
         client.delete(f"/conversations/{created['id']}")
 
