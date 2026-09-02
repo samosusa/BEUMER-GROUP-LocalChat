@@ -34,11 +34,12 @@ def retrieve(
     query_vector = np.asarray(embed_query([query]), dtype="float32")
     vector_dir = vector_dir or Path(os.getenv("LOCALCHAT_VECTOR_DIR", VECTOR_DIR))
 
-    allowed_doc_ids: set[int] | None = None
-    if project_id is not None:
-        allowed_doc_ids = {
-            doc_id for (doc_id,) in db.query(Document.id).filter(Document.project_id == project_id).all()
-        }
+    # project_id is None here means "the general corpus", i.e. documents that also have no
+    # project - not "every document regardless of project". SQLAlchemy turns
+    # `Document.project_id == None` into `IS NULL`, so this one filter covers both cases.
+    allowed_doc_ids = {
+        doc_id for (doc_id,) in db.query(Document.id).filter(Document.project_id == project_id).all()
+    }
 
     results: list[RetrievedChunk] = []
     for index_path in vector_dir.glob("*.index"):
@@ -46,7 +47,7 @@ def retrieve(
             doc_id = int(index_path.stem)
         except ValueError:
             continue
-        if allowed_doc_ids is not None and doc_id not in allowed_doc_ids:
+        if doc_id not in allowed_doc_ids:
             continue
         index = faiss.read_index(str(index_path))
         if index.ntotal == 0 or index.d != query_vector.shape[1]:

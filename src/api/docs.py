@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from src.api.projects import get_project_or_404
 from src.db import get_db
 from src.errors import AppError
 from src.ingest.vector_store import FaissVectorStore
@@ -20,6 +21,7 @@ router = APIRouter()
 class DocumentCreate(BaseModel):
     title: str
     path: str
+    project_id: int | None = None
 
 
 class DocumentResponse(BaseModel):
@@ -28,6 +30,7 @@ class DocumentResponse(BaseModel):
     path: str
     checksum: str
     version: int
+    project_id: int | None
     uploaded_at: datetime
     indexed_at: datetime | None
 
@@ -64,12 +67,15 @@ def create_document(payload: DocumentCreate, db: Session = Depends(get_db)) -> D
 
     checksum = file_checksum(path)
     _ensure_unique_checksum(db, checksum)
+    if payload.project_id is not None:
+        get_project_or_404(db, payload.project_id)
 
     document = Document(
         title=payload.title,
         path=payload.path,
         checksum=checksum,
         version=1,
+        project_id=payload.project_id,
         uploaded_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     db.add(document)
