@@ -1,23 +1,37 @@
 # Local development and review stack.
 #
-#   docker compose up --build ui    → the desktop interface at http://localhost:8080
-#   docker compose up --build app   → the health service at http://localhost:8000
+#   docker compose up --build ui         → the desktop interface (mocked) at http://localhost:8080
+#   docker compose up --build app        → the FastAPI RAG service at http://localhost:8000,
+#                                           Swagger at http://localhost:8000/api-docs
+#   docker compose up --build app ui-live → both together: the interface at
+#                                           http://localhost:8081, wired to the real service
 #
-# Neither is the shipping artefact. The product ships as the Windows installer built by
-# `npm run package`; these exist so the interface and the service can be reviewed by anyone
-# without a Node toolchain, a model or a GPU.
+# None of these are the shipping artefact. The product ships as the Windows installer built
+# by `npm run package`; these exist so the interface and the service can be reviewed by
+# anyone without a Node toolchain, a model or a GPU.
 services:
-  # The existing minimal HTTP service. Placeholder until the FastAPI RAG service lands.
+  # The FastAPI RAG service (src/app.py): SQLite, FAISS, embeddings, local LLM.
   app:
     build:
-      context: ./apps/health-service
-    image: localchat-health:dev
-    container_name: localchat-health
+      context: .
+      dockerfile: Dockerfile
+    image: localchat-rag:dev
+    container_name: localchat-rag
     ports:
       - '${PORT:-8000}:8000'
     environment:
       PORT: 8000
+      # Override in a local .env if the GGUF isn't at the default data/models path.
+      LOCALCHAT_LLM_MODEL: ${LOCALCHAT_LLM_MODEL:-/app/data/models/Llama-3.2-3B-Instruct-Q5_K_M.gguf}
+    volumes:
+      - ./data:/app/data
     restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
 
   # The desktop interface, built against its in-process mock service.
   ui:
@@ -38,6 +52,40 @@ services:
     security_opt:
       - no-new-privileges:true
     read_only: true
+    # mode=1777 is required: an unqualified tmpfs mount defaults to root:root 0755, but the
+    # container runs as the unprivileged "nginx" user (USER nginx in the Dockerfile), which
+    # cannot otherwise create nginx's own client_temp/proxy_temp dirs underneath it.
     tmpfs:
-      - /var/cache/nginx
-      - /var/run
+      - /var/cache/nginx:mode=1777
+      - /var/run:mode=1777
+
+  # The desktop interface built against the real FastAPI service. nginx reverse-proxies the
+  # service's routes to "app" so the browser's calls stay same-origin - see
+  # docker/nginx.live.conf and docs/backend-wiring.md. Needs a GGUF under data/models/
+  # (via the "app" service's volume) to actually answer questions.
+  ui-live:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.live
+    image: localchat-ui-live:dev
+    container_name: localchat-ui-live
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - '${UI_LIVE_PORT:-8081}:8080'
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://127.0.0.1:8080/']
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    # mode=1777 is required: an unqualified tmpfs mount defaults to root:root 0755, but the
+    # container runs as the unprivileged "nginx" user (USER nginx in the Dockerfile), which
+    # cannot otherwise create nginx's own client_temp/proxy_temp dirs underneath it.
+    tmpfs:
+      - /var/cache/nginx:mode=1777
+      - /var/run:mode=1777

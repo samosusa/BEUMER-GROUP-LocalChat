@@ -90,6 +90,27 @@ The database is stored locally at `data/app.db`. Use `python scripts/db_migrate.
 to inspect migration state or `python scripts/db_migrate.py down` to remove the application
 tables.
 
+### Docker
+
+The same service also runs in a container, built from the root `Dockerfile` (Python 3.11,
+CPU-only PyTorch to keep the image small, `llama-cpp-python` compiled from source):
+
+```bash
+docker compose up --build app
+```
+
+This applies the SQLite migrations automatically on container start and serves the API on
+`http://localhost:8000`. `./data` is bind-mounted into the container at `/app/data`, so the
+database, FAISS vector indexes, and GGUF models under `data/models/` all persist on the host
+across container restarts — place a model there the same way as for a local run before
+starting the container, or `/query` and `/models/active` will report no model loaded. Set
+`PORT` in a local `.env` to change the host port, or `LOCALCHAT_LLM_MODEL` to point at a
+non-default model path. Loading the embedding model and any local LLM is memory-intensive;
+make sure Docker has enough RAM allocated (Docker Desktop → Settings → Resources).
+
+This is a review/local target, not the shipping artefact — see the note at the top of
+`docker-compose.yml`.
+
 ## Ingestion
 
 Upload a supported PDF, Word (.docx), Markdown, or TXT document with:
