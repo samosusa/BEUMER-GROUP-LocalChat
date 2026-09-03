@@ -29,19 +29,6 @@
   color: var(--text-secondary);
 }
 
-.topbarRight {
-  display: flex;
-  align-items: center;
-  gap: var(--space-5);
-  flex-shrink: 0;
-}
-
-.topbarDivider {
-  width: 1px;
-  height: 20px;
-  background: var(--border-subtle);
-}
-
 /* ----- drop overlay ------------------------------------------------------ */
 
 .dropOverlay {

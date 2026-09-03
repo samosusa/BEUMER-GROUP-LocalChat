@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import type { ComputeMode, Model, ModelBenchmarkRow } from '@localchat/contracts';
 import {
   useActiveModel,
@@ -17,51 +16,15 @@ import { Icon, type IconName } from '@/shared/ui/Icon';
 import { Mono, ProgressBar, SectionLabel } from '@/shared/ui/Indicators';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { formatBytes, formatCount, formatDuration, formatRelative } from '@/shared/lib/format';
-import { useUiStore } from '@/shared/store/uiStore';
 import { cn } from '@/shared/lib/cn';
 import styles from './Settings.module.css';
 
-type Section = 'model' | 'retrieval' | 'storage' | 'tools' | 'startup';
-
-const SECTIONS: Array<{ id: Section; label: string; icon: IconName }> = [
-  { id: 'model', label: 'Model & hardware', icon: 'cpu' },
-  { id: 'retrieval', label: 'Retrieval', icon: 'search' },
-  { id: 'storage', label: 'Storage & privacy', icon: 'database' },
-  { id: 'tools', label: 'Approved tools', icon: 'plug' },
-  { id: 'startup', label: 'Startup & window', icon: 'settings' },
-];
-
-const SECTION_IDS = new Set(SECTIONS.map((entry) => entry.id));
-
-function isSection(value: string | null): value is Section {
-  return value !== null && SECTION_IDS.has(value as Section);
-}
-
 export function SettingsPage() {
-  // The URL is the source of truth for which section is open, not local state: the
-  // sidebar's settings icon links straight to `?section=benchmark`, which only changes the
-  // query string on an already-mounted page rather than remounting it.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const sectionParam = searchParams.get('section');
-  const section: Section = isSection(sectionParam) ? sectionParam : 'model';
   const settings = useSettings();
   const activeModelState = useActiveModel();
   const models = useModels();
   const update = useUpdateSettings();
   const setActiveModel = useSetActiveModel();
-  const theme = useUiStore((state) => state.theme);
-  const setTheme = useUiStore((state) => state.setTheme);
-
-  function setSection(next: Section) {
-    setSearchParams(
-      (prev) => {
-        const params = new URLSearchParams(prev);
-        params.set('section', next);
-        return params;
-      },
-      { replace: true },
-    );
-  }
 
   // Applying a model or switching device is one blocking call that can take tens of
   // seconds on a multi-gigabyte GGUF — the row picked has to say so, or a second click
@@ -71,11 +34,7 @@ export function SettingsPage() {
       ? setActiveModel.variables.modelId
       : null;
 
-  // Theme, hotkey, hardware and retrieval have no server-side home (see
-  // docs/backend-wiring.md), so the tabs that only show those stay blank without a mock —
-  // the model picker below does not, since it never depends on this query.
   const hardware = settings.data?.hardware;
-  const retrieval = settings.data?.retrieval;
   const vramFraction =
     hardware?.gpuMemoryBytes && hardware.gpuMemoryUsedBytes
       ? hardware.gpuMemoryUsedBytes / hardware.gpuMemoryBytes
@@ -85,260 +44,141 @@ export function SettingsPage() {
     <div className={styles.page}>
       <nav className={styles.nav} aria-label="Settings sections">
         <h1 className={styles.navTitle}>Settings</h1>
-        {SECTIONS.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            className={cn(styles.navItem, section === entry.id && styles.navItemActive)}
-            onClick={() => setSection(entry.id)}
-          >
-            <Icon name={entry.icon} size={16} />
-            {entry.label}
-          </button>
-        ))}
+        <span className={cn(styles.navItem, styles.navItemActive)}>
+          <Icon name="cpu" size={16} />
+          Model &amp; hardware
+        </span>
         <span className={styles.navSpacer} />
         <Mono className={styles.navVersion}>LocalChat 0.4.1</Mono>
       </nav>
 
       <div className={styles.content}>
-        {section === 'model' && (
-          <>
-            <PageHeader
-              title="Model & hardware"
-              description="The model, the index and every question stay on this machine."
-            />
+        <PageHeader
+          title="Model & hardware"
+          description="The model, the index and every question stay on this machine."
+        />
 
-            <div className={styles.columns}>
-              <div className={styles.column}>
-                <section className={styles.card}>
-                  <header className={styles.cardHeader}>
-                    <SectionLabel
-                      action={
-                        <Mono className={styles.cardHeaderMeta}>
-                          {models.data?.length ?? 0} installed ·{' '}
-                          {formatBytes(
-                            (models.data ?? []).reduce((total, m) => total + m.sizeBytes, 0),
-                          )}{' '}
-                          on disk
-                        </Mono>
-                      }
-                    >
-                      Answer model
-                    </SectionLabel>
-                  </header>
-                  <div className={styles.modelList} role="radiogroup" aria-label="Answer model">
-                    {models.data?.map((model) => (
-                      <ModelRow
-                        key={model.id}
-                        model={model}
-                        selected={model.id === activeModelState.data?.activeModelId}
-                        pending={model.id === pendingModelId}
-                        disabled={pendingModelId !== null && model.id !== pendingModelId}
-                        onSelect={() => setActiveModel.mutate({ modelId: model.id })}
-                      />
-                    ))}
-                  </div>
-                </section>
-
-                <section className={styles.card}>
-                  <SectionLabel>Compute</SectionLabel>
-                  <div className={styles.computeRow}>
-                    <ComputeCard
-                      mode="cpu"
-                      icon="cpu"
-                      title="CPU only"
-                      detail={
-                        hardware
-                          ? `Works on any machine. ${hardware.cpuThreads} threads available.`
-                          : 'Works on any machine.'
-                      }
-                      selected={activeModelState.data?.compute === 'cpu'}
-                      disabled={setActiveModel.isPending}
-                      onSelect={() => setActiveModel.mutate({ compute: 'cpu' })}
-                    />
-                    <ComputeCard
-                      mode="gpu"
-                      icon="gpu"
-                      title="GPU acceleration"
-                      detail={
-                        hardware?.gpuName
-                          ? `${hardware.gpuName} · ${formatBytes(hardware.gpuMemoryBytes ?? 0)} · ${hardware.gpuLayersOffloaded} of ${hardware.gpuLayersTotal} layers offloaded`
-                          : 'GPU acceleration, if the installed build supports it.'
-                      }
-                      selected={activeModelState.data?.compute === 'gpu'}
-                      disabled={
-                        setActiveModel.isPending || activeModelState.data?.gpuAvailable === false
-                      }
-                      onSelect={() => setActiveModel.mutate({ compute: 'gpu' })}
-                    />
-                  </div>
-
-                  {hardware?.gpuMemoryBytes && (
-                    <div className={styles.vram}>
-                      <div className={styles.vramRow}>
-                        <span>VRAM in use</span>
-                        <Mono>
-                          {formatBytes(hardware.gpuMemoryUsedBytes ?? 0)} /{' '}
-                          {formatBytes(hardware.gpuMemoryBytes)}
-                        </Mono>
-                      </div>
-                      <ProgressBar
-                        value={vramFraction}
-                        thickness={5}
-                        tone={vramFraction > 0.85 ? 'warning' : 'accent'}
-                        label="VRAM in use"
-                      />
-                      <p className={styles.hint}>
-                        A model with a larger context window would exceed this card — LocalChat
-                        falls back to partial offload rather than failing.
-                      </p>
-                    </div>
-                  )}
-                </section>
-
-                <section className={cn(styles.card, styles.cardRow)}>
-                  <div className={styles.cardRowText}>
-                    <span className={styles.cardRowTitle}>
-                      Embedding model — {settings.data?.embeddingModel || '—'}
-                    </span>
-                    <span className={styles.hint}>
-                      Changing this rebuilds every index from scratch.
-                    </span>
-                  </div>
-                  <Button variant="outline" size="sm">
-                    Change
-                  </Button>
-                </section>
-
-                {/*
-                  The benchmark sits under the model list on purpose. It measures exactly
-                  the thing the list asks you to choose between, and on its own page the
-                  choice was made on one screen and the evidence for it lived on another.
-                  Full width because six numeric columns were unreadable in the rail.
-                */}
-                <BenchmarkCard />
-              </div>
-
-              <div className={styles.rail}>
-                {settings.data && (
-                  <section className={styles.card}>
-                    <SectionLabel>Network</SectionLabel>
-                    <Toggle
-                      checked={settings.data.strictOffline}
-                      onChange={(strictOffline) => update.mutate({ strictOffline })}
-                      label="Strict offline mode"
-                      description="Blocks every outbound request, including approved tools."
-                    />
-                    <Mono className={styles.outbound}>
-                      outbound requests this session:{' '}
-                      {formatCount(settings.data.outboundRequestsThisSession)}
-                    </Mono>
-                  </section>
-                )}
-              </div>
-            </div>
-          </>
-        )}
-
-        {section === 'retrieval' && (
-          <>
-            <PageHeader
-              title="Retrieval"
-              description="How much of the corpus each answer is allowed to draw on."
-            />
-            {retrieval ? (
-              <section className={styles.card}>
-                <dl className={styles.definitions}>
-                  <Definition label="Passages per answer (top-k)" value={String(retrieval.topK)} />
-                  <Definition
-                    label="Conversation turns kept"
-                    value={String(retrieval.historyTurns)}
-                  />
-                  <Definition
-                    label="Minimum relevance score"
-                    value={retrieval.minScore.toFixed(2)}
-                    hint="Below this, LocalChat refuses to answer rather than guessing."
-                  />
-                </dl>
-              </section>
-            ) : (
-              <SettingsUnavailable />
-            )}
-          </>
-        )}
-
-        {section === 'storage' && (
-          <>
-            <PageHeader
-              title="Storage & privacy"
-              description="Everything LocalChat writes stays inside your user profile."
-            />
-            {settings.data ? (
-              <section className={styles.card}>
-                <dl className={styles.definitions}>
-                  <Definition label="Index location" value={settings.data.indexLocation} mono />
-                  <Definition label="Embedding model" value={settings.data.embeddingModel} mono />
-                </dl>
-              </section>
-            ) : (
-              <SettingsUnavailable />
-            )}
-          </>
-        )}
-
-        {section === 'startup' && (
-          <>
-            <PageHeader
-              title="Startup & window"
-              description="LocalChat runs in the tray so the model is already loaded when you need it."
-            />
-            {settings.data ? (
-              <section className={styles.card}>
-                <Toggle
-                  checked={settings.data.launchOnStartup}
-                  onChange={(launchOnStartup) => update.mutate({ launchOnStartup })}
-                  label="Start with Windows"
-                  description="Loads the model in the background at sign-in."
-                />
-                <dl className={styles.definitions}>
-                  <Definition label="Quick-ask hotkey" value={settings.data.quickAskHotkey} mono />
-                </dl>
-                <div className={styles.themeRow}>
-                  <span className={styles.cardRowTitle}>Theme</span>
-                  <div className={styles.themeButtons}>
-                    {(['dark', 'light', 'system'] as const).map((option) => (
-                      <button
-                        key={option}
-                        type="button"
-                        className={cn(styles.themeButton, theme === option && styles.themeActive)}
-                        onClick={() => {
-                          setTheme(option);
-                          update.mutate({ theme: option });
-                        }}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            ) : (
-              <SettingsUnavailable />
-            )}
-          </>
-        )}
-
-        {section === 'tools' && (
-          <>
-            <PageHeader
-              title="Approved tools"
-              description="Tool results are always labelled separately from document citations."
-            />
+        <div className={styles.columns}>
+          <div className={styles.column}>
             <section className={styles.card}>
-              <p className={styles.hint}>Enable a tool per project on the project screen.</p>
+              <header className={styles.cardHeader}>
+                <SectionLabel
+                  action={
+                    <Mono className={styles.cardHeaderMeta}>
+                      {models.data?.length ?? 0} installed ·{' '}
+                      {formatBytes(
+                        (models.data ?? []).reduce((total, m) => total + m.sizeBytes, 0),
+                      )}{' '}
+                      on disk
+                    </Mono>
+                  }
+                >
+                  Answer model
+                </SectionLabel>
+              </header>
+              <div className={styles.modelList} role="radiogroup" aria-label="Answer model">
+                {models.data?.map((model) => (
+                  <ModelRow
+                    key={model.id}
+                    model={model}
+                    selected={model.id === activeModelState.data?.activeModelId}
+                    pending={model.id === pendingModelId}
+                    disabled={pendingModelId !== null && model.id !== pendingModelId}
+                    onSelect={() => setActiveModel.mutate({ modelId: model.id })}
+                  />
+                ))}
+              </div>
             </section>
-          </>
-        )}
+
+            <section className={styles.card}>
+              <SectionLabel>Compute</SectionLabel>
+              <div className={styles.computeRow}>
+                <ComputeCard
+                  mode="cpu"
+                  icon="cpu"
+                  title="CPU only"
+                  detail={
+                    hardware
+                      ? `Works on any machine. ${hardware.cpuThreads} threads available.`
+                      : 'Works on any machine.'
+                  }
+                  selected={activeModelState.data?.compute === 'cpu'}
+                  disabled={setActiveModel.isPending}
+                  onSelect={() => setActiveModel.mutate({ compute: 'cpu' })}
+                />
+                <ComputeCard
+                  mode="gpu"
+                  icon="gpu"
+                  title="GPU acceleration"
+                  detail={
+                    activeModelState.data?.gpuAvailable === false
+                      ? 'No CUDA-enabled build of llama-cpp-python installed — GPU offload is unavailable on this machine.'
+                      : hardware?.gpuName
+                        ? `${hardware.gpuName} · ${formatBytes(hardware.gpuMemoryBytes ?? 0)} · ${hardware.gpuLayersOffloaded} of ${hardware.gpuLayersTotal} layers offloaded`
+                        : 'GPU acceleration, if the installed build supports it.'
+                  }
+                  selected={activeModelState.data?.compute === 'gpu'}
+                  disabled={
+                    setActiveModel.isPending || activeModelState.data?.gpuAvailable === false
+                  }
+                  onSelect={() => setActiveModel.mutate({ compute: 'gpu' })}
+                />
+              </div>
+
+              {setActiveModel.isError && (
+                <p className={styles.benchWarning}>{describeError(setActiveModel.error)}</p>
+              )}
+
+              {hardware?.gpuMemoryBytes && (
+                <div className={styles.vram}>
+                  <div className={styles.vramRow}>
+                    <span>VRAM in use</span>
+                    <Mono>
+                      {formatBytes(hardware.gpuMemoryUsedBytes ?? 0)} /{' '}
+                      {formatBytes(hardware.gpuMemoryBytes)}
+                    </Mono>
+                  </div>
+                  <ProgressBar
+                    value={vramFraction}
+                    thickness={5}
+                    tone={vramFraction > 0.85 ? 'warning' : 'accent'}
+                    label="VRAM in use"
+                  />
+                  <p className={styles.hint}>
+                    A model with a larger context window would exceed this card — LocalChat falls
+                    back to partial offload rather than failing.
+                  </p>
+                </div>
+              )}
+            </section>
+
+            {/*
+              The benchmark sits under the model list on purpose. It measures exactly
+              the thing the list asks you to choose between, and on its own page the
+              choice was made on one screen and the evidence for it lived on another.
+              Full width because six numeric columns were unreadable in the rail.
+            */}
+            <BenchmarkCard />
+          </div>
+
+          <div className={styles.rail}>
+            {settings.data && (
+              <section className={styles.card}>
+                <SectionLabel>Network</SectionLabel>
+                <Toggle
+                  checked={settings.data.strictOffline}
+                  onChange={(strictOffline) => update.mutate({ strictOffline })}
+                  label="Strict offline mode"
+                  description="Blocks every outbound request, including approved tools."
+                />
+                <Mono className={styles.outbound}>
+                  outbound requests this session:{' '}
+                  {formatCount(settings.data.outboundRequestsThisSession)}
+                </Mono>
+              </section>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -461,39 +301,72 @@ function BenchmarkCard() {
   /** Empty means every installed model, which is what the service does with `models: null`. */
   const [only, setOnly] = useState('');
 
+  // Which devices to run this pass, engineer-chosen rather than always-both: a run loads
+  // every installed model on every checked device in sequence, so narrowing to one device is
+  // the difference between checking a single change and waiting out the whole matrix.
+  const [useCpu, setUseCpu] = useState(true);
+  const [useGpu, setUseGpu] = useState(true);
+
   /**
-   * Ask only for devices this machine has.
-   *
-   * Requesting `gpu` where llama-cpp-python was installed without a CUDA build is refused
-   * with ERR_GPU_UNAVAILABLE, and the service refuses the WHOLE request — not just the GPU
-   * rows — so nothing runs at all. Since that is the ordinary case on a laptop, asking for
-   * both unconditionally meant the button could never work.
+   * GPU stays off the request entirely when this build cannot honour it. Requesting `gpu`
+   * where llama-cpp-python was installed without a CUDA build is refused with
+   * ERR_GPU_UNAVAILABLE, and the service refuses the WHOLE request — not just the GPU rows —
+   * so nothing runs at all.
    */
   const gpuAvailable = activeModel.data?.gpuAvailable ?? false;
+  const devices: ComputeMode[] = [
+    ...(useCpu ? (['cpu'] as const) : []),
+    ...(gpuAvailable && useGpu ? (['gpu'] as const) : []),
+  ];
   const start = () =>
     run.mutate({
-      devices: gpuAvailable ? ['cpu', 'gpu'] : ['cpu'],
+      devices,
       models: only ? [only] : null,
     });
 
   const picker = (
-    <label className={styles.benchPicker}>
-      <span className={styles.benchPickerLabel}>Benchmark</span>
-      <select
-        className={styles.benchSelect}
-        value={only}
-        disabled={running}
-        onChange={(event) => setOnly(event.target.value)}
-      >
-        <option value="">all installed models</option>
-        {(models.data ?? []).map((model) => (
-          <option key={model.id} value={model.id}>
-            {model.name}
-          </option>
-        ))}
-      </select>
-      {!gpuAvailable && <span className={styles.benchPickerNote}>CPU only — no GPU build</span>}
-    </label>
+    <div className={styles.benchPickerRow}>
+      <label className={styles.benchPicker}>
+        <span className={styles.benchPickerLabel}>Benchmark</span>
+        <select
+          className={styles.benchSelect}
+          value={only}
+          disabled={running}
+          onChange={(event) => setOnly(event.target.value)}
+        >
+          <option value="">all installed models</option>
+          {(models.data ?? []).map((model) => (
+            <option key={model.id} value={model.id}>
+              {model.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <span className={styles.benchDevices}>
+        <span className={styles.benchPickerLabel}>Devices</span>
+        <label className={styles.benchDeviceOption}>
+          <input
+            type="checkbox"
+            checked={useCpu}
+            disabled={running}
+            onChange={(event) => setUseCpu(event.target.checked)}
+          />
+          CPU
+        </label>
+        <label
+          className={cn(styles.benchDeviceOption, !gpuAvailable && styles.benchDeviceOptionDisabled)}
+        >
+          <input
+            type="checkbox"
+            checked={gpuAvailable && useGpu}
+            disabled={running || !gpuAvailable}
+            onChange={(event) => setUseGpu(event.target.checked)}
+          />
+          GPU
+        </label>
+        {!gpuAvailable && <span className={styles.benchPickerNote}>No CUDA build installed</span>}
+      </span>
+    </div>
   );
 
   if (!result) {
@@ -506,7 +379,13 @@ function BenchmarkCard() {
         </p>
         {picker}
         {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
-        <Button variant="outline" size="sm" loading={running} onClick={start}>
+        <Button
+          variant="outline"
+          size="sm"
+          loading={running}
+          disabled={devices.length === 0}
+          onClick={start}
+        >
           Run benchmark
         </Button>
       </section>
@@ -611,7 +490,13 @@ function BenchmarkCard() {
 
       {picker}
 
-      <Button variant="outline" size="sm" loading={running} onClick={start}>
+      <Button
+        variant="outline"
+        size="sm"
+        loading={running}
+        disabled={devices.length === 0}
+        onClick={start}
+      >
         Run benchmark again
       </Button>
     </section>
@@ -628,33 +513,3 @@ function formatPeakMemory(memoryBytes: number | null, vramBytes: number | null):
   return '—';
 }
 
-/** The service has no `/api/settings` route, so this tab has nothing to show without a mock. */
-function SettingsUnavailable() {
-  return (
-    <section className={styles.card}>
-      <p className={styles.hint}>
-        This machine's local service does not expose these settings yet.
-      </p>
-    </section>
-  );
-}
-
-function Definition({
-  label,
-  value,
-  hint,
-  mono = false,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  mono?: boolean;
-}) {
-  return (
-    <div className={styles.definition}>
-      <dt>{label}</dt>
-      <dd>{mono ? <Mono>{value}</Mono> : value}</dd>
-      {hint && <p className={styles.hint}>{hint}</p>}
-    </div>
-  );
-}

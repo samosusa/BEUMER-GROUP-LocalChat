@@ -120,25 +120,6 @@
   letter-spacing: normal;
 }
 
-.cardRow {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-6);
-}
-
-.cardRowText {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.cardRowTitle {
-  font-size: var(--text-ui);
-  font-weight: var(--weight-medium);
-  color: var(--text-body);
-}
-
 .hint {
   font-size: var(--text-meta);
   line-height: var(--leading-normal);
@@ -448,17 +429,43 @@
    single change and waiting out the whole set.
    --------------------------------------------------------------------------- */
 
+.benchPickerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
 .benchPicker {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
-  margin-bottom: var(--space-4);
 }
 
 .benchPickerLabel {
   font-size: var(--text-meta);
   color: var(--text-label);
+}
+
+.benchDevices {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.benchDeviceOption {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-meta);
+  color: var(--text-body);
+}
+
+.benchDeviceOptionDisabled {
+  opacity: 0.5;
 }
 
 .benchSelect {

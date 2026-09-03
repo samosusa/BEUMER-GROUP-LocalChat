@@ -65,7 +65,6 @@
 
 .body {
   display: flex;
-  gap: var(--space-8);
   flex: 1;
   min-height: 0;
   padding-bottom: var(--space-8);
@@ -81,13 +80,6 @@
   font-size: var(--text-ui);
   color: var(--text-label);
   padding: var(--space-6) 0;
-}
-
-.instructionsFull {
-  max-width: 70ch;
-  font-size: var(--text-ui);
-  line-height: var(--leading-chat);
-  color: var(--text-body);
 }
 
 /* ----- document table ---------------------------------------------------- */
@@ -120,14 +112,6 @@
 
 .rowStale td {
   background: color-mix(in srgb, var(--warning-surface) 60%, transparent);
-}
-
-.colRevision {
-  width: 130px;
-}
-
-.colChunks {
-  width: 90px;
 }
 
 .colStatus {
@@ -168,11 +152,6 @@
   white-space: nowrap;
 }
 
-.superseded {
-  color: var(--text-label);
-  text-decoration: line-through;
-}
-
 .statusProgress {
   display: flex;
   flex-direction: column;
@@ -182,88 +161,6 @@
 .statusProgressLabel {
   font-size: var(--text-meta);
   color: var(--accent-text);
-}
-
-/* ----- rail -------------------------------------------------------------- */
-
-.rail {
-  width: 300px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  overflow-y: auto;
-}
-
-.railCard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-6);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--surface-raised);
-}
-
-.instructions {
-  font-size: var(--text-row);
-  line-height: var(--leading-chat);
-  color: var(--text-secondary);
-}
-
-.railFoot {
-  font-size: var(--text-meta);
-  color: var(--text-label);
-}
-
-.railStats,
-.statList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.statList {
-  max-width: 420px;
-}
-
-.stat {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-5);
-}
-
-.stat dt {
-  font-size: var(--text-row);
-  color: var(--text-secondary);
-}
-
-.stat dd {
-  margin: 0;
-  font-size: var(--text-row);
-  color: var(--text-body);
-}
-
-.toolRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.toolName {
-  flex: 1;
-  font-size: var(--text-row);
-  color: var(--text-secondary);
-}
-
-.toolOff {
-  color: var(--text-label);
-}
-
-.toolMode {
-  font-size: var(--text-meta);
-  color: var(--text-label);
 }
 
 /* ---------------------------------------------------------------------------

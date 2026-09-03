@@ -1,14 +1,8 @@
 import type { Project, RetrievalScope } from '@localchat/contracts';
 import { Icon } from '@/shared/ui/Icon';
-import { Mono, SectionLabel } from '@/shared/ui/Indicators';
+import { Mono } from '@/shared/ui/Indicators';
 import { cn } from '@/shared/lib/cn';
 import styles from './NewChatIntro.module.css';
-
-const STARTERS = [
-  'Which alarms block a sorter restart after an e-stop?',
-  'Lubrication intervals for the tilt-tray drive unit',
-  'Explain the discharge sequence diagram in Fig. 3.4',
-];
 
 interface NewChatIntroProps {
   projects: Project[];
@@ -16,7 +10,6 @@ interface NewChatIntroProps {
   scope: RetrievalScope;
   generalDocumentCount: number;
   onScopeChange: (scope: RetrievalScope, projectId: string | null) => void;
-  onStarter: (question: string) => void;
   onDropFiles: () => void;
 }
 
@@ -30,7 +23,6 @@ export function NewChatIntro({
   scope,
   generalDocumentCount,
   onScopeChange,
-  onStarter,
   onDropFiles,
 }: NewChatIntroProps) {
   const activeProject = projects.find((project) => project.id === activeProjectId);
@@ -81,21 +73,6 @@ export function NewChatIntro({
             <span className={styles.dropTitle}>Drop documents here</span>
             <Mono className={styles.dropHint}>PDF, DOCX, Markdown, TXT</Mono>
           </button>
-
-          <div className={styles.starters}>
-            <SectionLabel>Start from a recent question</SectionLabel>
-            {STARTERS.map((starter) => (
-              <button
-                key={starter}
-                type="button"
-                className={styles.starter}
-                onClick={() => onStarter(starter)}
-              >
-                <Icon name="chevronRight" size={14} className={styles.starterIcon} />
-                {starter}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
     </div>

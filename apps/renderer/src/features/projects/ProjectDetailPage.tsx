@@ -1,24 +1,17 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Document, IngestionStatus } from '@localchat/contracts';
-import {
-  useChats,
-  useIngestDocuments,
-  useProject,
-  useProjectDocuments,
-  useProjectTools,
-  useReindex,
-} from '@/shared/api/queries';
+import { useChats, useIngestDocuments, useProject, useProjectDocuments } from '@/shared/api/queries';
 import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
-import { Mono, ProgressBar, SectionLabel, StatusDot, type Tone } from '@/shared/ui/Indicators';
+import { Mono, ProgressBar, StatusDot, type Tone } from '@/shared/ui/Indicators';
 import { PageHeader } from '@/shared/ui/PageHeader';
-import { formatBytes, formatCount, formatRelative } from '@/shared/lib/format';
+import { formatCount, formatRelative } from '@/shared/lib/format';
 import { chooseDocuments } from '@/shared/lib/localFiles';
 import { cn } from '@/shared/lib/cn';
 import styles from './ProjectDetail.module.css';
 
-type Tab = 'documents' | 'chats' | 'instructions' | 'index';
+type Tab = 'documents' | 'chats';
 
 const STATUS_TONE: Record<IngestionStatus, Tone> = {
   pending: 'muted',
@@ -43,16 +36,12 @@ const STATUS_LABEL: Record<IngestionStatus, string> = {
 export function ProjectDetailPage() {
   const { projectId } = useParams();
   const project = useProject(projectId);
-  const tools = useProjectTools(projectId);
-  const reindex = useReindex();
   const ingest = useIngestDocuments();
   const [tab, setTab] = useState<Tab>('documents');
 
   // While anything is mid-ingestion the table polls, so progress moves without a refresh.
   const documents = useProjectDocuments(projectId, { refetchInterval: 1_500 });
   const rows = documents.data?.documents ?? [];
-  const stats = documents.data?.stats;
-  const busy = rows.some((document) => document.status === 'indexing');
 
   async function addDocuments() {
     const chosen = await chooseDocuments();
@@ -88,19 +77,9 @@ export function ProjectDetailPage() {
           ) : undefined
         }
         actions={
-          <>
-            <Button
-              variant="outline"
-              icon="refresh"
-              loading={reindex.isPending || busy}
-              onClick={() => reindex.mutate({ projectId: projectId ?? null, full: false })}
-            >
-              Re-index now
-            </Button>
-            <Button variant="accent" icon="plus" loading={ingest.isPending} onClick={addDocuments}>
-              Add documents
-            </Button>
-          </>
+          <Button variant="accent" icon="plus" loading={ingest.isPending} onClick={addDocuments}>
+            Add documents
+          </Button>
         }
       />
 
@@ -111,71 +90,13 @@ export function ProjectDetailPage() {
         <Tab id="chats" active={tab} onSelect={setTab} count={project.data?.chatCount}>
           Chats
         </Tab>
-        <Tab id="instructions" active={tab} onSelect={setTab}>
-          Project instructions
-        </Tab>
-        <Tab id="index" active={tab} onSelect={setTab}>
-          Index &amp; storage
-        </Tab>
       </nav>
 
       <div className={styles.body}>
         <div className={styles.main}>
           {tab === 'documents' && <DocumentTable documents={rows} />}
           {tab === 'chats' && <ChatList projectId={projectId} />}
-          {tab === 'instructions' && (
-            <p className={styles.instructionsFull}>
-              {project.data?.instructions || 'No project instructions set.'}
-            </p>
-          )}
-          {tab === 'index' && stats && (
-            <dl className={styles.statList}>
-              <Stat label="Chunks" value={formatCount(stats.chunkCount)} />
-              <Stat label="Documents" value={formatCount(stats.documentCount)} />
-              <Stat label="Embedding model" value={stats.embeddingModel} />
-              <Stat label="Index size" value={formatBytes(stats.indexSizeBytes)} />
-              <Stat label="Last rebuild" value={formatRelative(stats.lastRebuiltAt)} />
-              <Stat label="Changed on disk" value={formatCount(stats.staleDocumentCount)} />
-            </dl>
-          )}
         </div>
-
-        <aside className={styles.rail}>
-          <section className={styles.railCard}>
-            <SectionLabel>Project instructions</SectionLabel>
-            <p className={styles.instructions}>
-              {project.data?.instructions || 'None set. Chats use the default behaviour.'}
-            </p>
-            <Mono className={styles.railFoot}>applies to every chat in this project</Mono>
-          </section>
-
-          {stats && (
-            <section className={styles.railCard}>
-              <SectionLabel>Index</SectionLabel>
-              <dl className={styles.railStats}>
-                <Stat label="Chunks" value={formatCount(stats.chunkCount)} />
-                <Stat label="Embedding model" value={stats.embeddingModel} />
-                <Stat label="Index size" value={formatBytes(stats.indexSizeBytes)} />
-                <Stat label="Last rebuild" value={formatRelative(stats.lastRebuiltAt)} />
-              </dl>
-            </section>
-          )}
-
-          <section className={styles.railCard}>
-            <SectionLabel>Approved tools</SectionLabel>
-            {tools.data?.map((tool) => (
-              <div className={styles.toolRow} key={tool.id}>
-                <StatusDot tone={tool.enabled ? 'success' : 'muted'} label="" />
-                <Mono className={cn(styles.toolName, !tool.enabled && styles.toolOff)}>
-                  {tool.server}
-                </Mono>
-                <span className={styles.toolMode}>
-                  {tool.enabled ? (tool.readOnly ? 'read only' : 'read/write') : 'off'}
-                </span>
-              </div>
-            ))}
-          </section>
-        </aside>
       </div>
     </div>
   );
@@ -259,12 +180,6 @@ function DocumentTable({ documents }: { documents: Document[] }) {
       <thead>
         <tr>
           <th scope="col">Document</th>
-          <th scope="col" className={styles.colRevision}>
-            Revision
-          </th>
-          <th scope="col" className={styles.colChunks}>
-            Chunks
-          </th>
           <th scope="col" className={styles.colStatus}>
             Status
           </th>
@@ -282,17 +197,6 @@ function DocumentTable({ documents }: { documents: Document[] }) {
                 />
                 <span className={styles.docName}>{document.filename}</span>
               </span>
-            </td>
-            <td className={styles.colRevision}>
-              <Mono>
-                {document.revision ?? '—'}
-                {document.supersedes && (
-                  <span className={styles.superseded}> {document.supersedes}</span>
-                )}
-              </Mono>
-            </td>
-            <td className={styles.colChunks}>
-              <Mono>{formatCount(document.chunkCount)}</Mono>
             </td>
             <td className={styles.colStatus}>
               {document.status === 'indexing' && document.progress !== null ? (
@@ -313,16 +217,5 @@ function DocumentTable({ documents }: { documents: Document[] }) {
         ))}
       </tbody>
     </table>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className={styles.stat}>
-      <dt>{label}</dt>
-      <dd>
-        <Mono>{value}</Mono>
-      </dd>
-    </div>
   );
 }

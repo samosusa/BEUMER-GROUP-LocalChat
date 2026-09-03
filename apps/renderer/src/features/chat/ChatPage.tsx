@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import type { RetrievalScope } from '@localchat/contracts';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import type { Chat, RetrievalScope } from '@localchat/contracts';
 import {
   useChat,
   useCreateChat,
@@ -14,9 +14,7 @@ import {
 } from '@/shared/api/queries';
 import { ContextWidget } from '@/features/context/ContextWidget';
 import { Icon } from '@/shared/ui/Icon';
-import { IconButton } from '@/shared/ui/Button';
-import { Mono, StatusDot } from '@/shared/ui/Indicators';
-import { formatCount } from '@/shared/lib/format';
+import { Mono } from '@/shared/ui/Indicators';
 import { useUiStore } from '@/shared/store/uiStore';
 import { Transcript } from './components/Transcript';
 import { Composer } from './components/Composer';
@@ -31,9 +29,30 @@ import {
 import { useDocumentDrop } from './hooks/useDocumentDrop';
 import styles from './ChatPage.module.css';
 
+/**
+ * Stands in for the chat before it exists. Landing on `/chat` searches the general corpus
+ * exactly like a freshly created one would — the chat record itself is only written on the
+ * first message — so the context widget should say so instead of claiming there's nothing
+ * to search.
+ */
+const DRAFT_CHAT: Chat = {
+  id: 'draft',
+  title: '',
+  projectId: null,
+  scope: 'general',
+  attachmentIds: [],
+  messageCount: 0,
+  preview: '',
+  sourceCount: 0,
+  hadNoEvidence: false,
+  createdAt: new Date(0).toISOString(),
+  updatedAt: new Date(0).toISOString(),
+};
+
 export function ChatPage() {
   const { chatId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const chat = useChat(chatId);
   const messages = useMessages(chatId);
@@ -63,11 +82,6 @@ export function ChatPage() {
       ...(generalDocuments.data?.documents ?? []),
     ];
   }, [chatProjectId, projectDocuments.data, generalDocuments.data]);
-
-  const stats =
-    chatProjectId === null
-      ? generalDocuments.data?.stats
-      : (projectDocuments.data?.stats ?? generalDocuments.data?.stats);
 
   const addDocuments = useCallback(
     async (chosen: ChosenDocuments) => {
@@ -102,6 +116,23 @@ export function ChatPage() {
    */
   useEffect(() => window.localchat?.onQuickAsk(setSeed), []);
 
+  /**
+   * Submitting from the empty state creates the chat first — there's nothing to ask against
+   * yet — then navigates here with the question carried as router state rather than local
+   * component state: the composer already clears its own input on submit, so stashing the
+   * question in `seed` to "resend" it later would just fight that and leave stale text
+   * sitting in the box. This picks the question back up once `chatId` is live and asks it,
+   * rather than making the engineer submit a second time.
+   */
+  useEffect(() => {
+    const pending = (location.state as { question?: string } | null)?.question;
+    if (!chatId || !pending) return;
+    void ask.ask(pending, chat.data?.scope ?? 'general', chat.data?.attachmentIds ?? []);
+    navigate(location.pathname, { replace: true, state: null });
+    // Fires once per pending question: `location.state` is cleared in the same tick it runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId, location.state]);
+
   async function pickFiles() {
     await addDocuments(await chooseDocuments());
   }
@@ -125,7 +156,6 @@ export function ChatPage() {
       attachmentIds: [],
     });
     navigate(`/chat/${created.chat.id}`, { state: { question } });
-    setSeed(question);
   }
 
   const hasTranscript = (messages.data?.length ?? 0) > 0 || ask.phase !== 'idle';
@@ -138,13 +168,17 @@ export function ChatPage() {
       onDrop={drop.onDrop}
     >
       <header className={styles.topbar}>
-        {chat.data ? (
+        {chat.data || !chatId ? (
           <ContextWidget
-            chat={chat.data}
+            chat={chat.data ?? DRAFT_CHAT}
             project={project.data}
             available={available}
-            onScopeChange={(scope: RetrievalScope) => updateContext.mutate({ scope })}
-            onAttachmentsChange={(attachmentIds) => updateContext.mutate({ attachmentIds })}
+            onScopeChange={(scope: RetrievalScope) => {
+              if (chatId) updateContext.mutate({ scope });
+            }}
+            onAttachmentsChange={(attachmentIds) => {
+              if (chatId) updateContext.mutate({ attachmentIds });
+            }}
             onAddFiles={pickFiles}
             onAddFolder={pickFolder}
             onDeleteDocument={(document) => deleteDocument.mutate(document.id)}
@@ -152,25 +186,9 @@ export function ChatPage() {
         ) : (
           <span className={styles.topbarPlaceholder}>
             <Icon name="database" size={15} />
-            No context yet
+            Loading…
           </span>
         )}
-
-        <div className={styles.topbarRight}>
-          {stats && (
-            <StatusDot
-              tone={stats.staleDocumentCount > 0 ? 'warning' : 'success'}
-              label={
-                stats.staleDocumentCount > 0
-                  ? `${stats.staleDocumentCount} ${stats.staleDocumentCount === 1 ? 'document has' : 'documents have'} changed on disk`
-                  : `index up to date · ${formatCount(stats.chunkCount)} chunks`
-              }
-            />
-          )}
-          <IconButton icon="refresh" label="Re-index changed files" />
-          <span className={styles.topbarDivider} aria-hidden="true" />
-          <IconButton icon="more" label="Chat options" />
-        </div>
       </header>
 
       {hasTranscript ? (
@@ -185,7 +203,6 @@ export function ChatPage() {
             if (chatId) updateContext.mutate({ scope });
             else if (projectId) navigate(`/projects/${projectId}`);
           }}
-          onStarter={setSeed}
           onDropFiles={pickFiles}
         />
       )}
