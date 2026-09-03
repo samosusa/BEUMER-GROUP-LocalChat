@@ -107,3 +107,44 @@ def test_retrieve_without_a_project_excludes_project_scoped_documents(tmp_path, 
         results = retrieve("question", db, top_k=5, vector_dir=tmp_path)
 
     assert [result.chunk.text for result in results] == ["general text"]
+
+
+def test_retrieve_with_include_general_unions_project_and_general_documents(tmp_path, monkeypatch):
+    """'Both' mode: a project-scoped query with include_general=True must also surface
+    project-less documents, without leaking in other projects' documents."""
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine)
+    with session_factory() as db:
+        general = Document(
+            title="General", path="general.txt", checksum="general", version=1,
+            uploaded_at=datetime.utcnow(),
+        )
+        in_project = Document(
+            title="In project", path="in.txt", checksum="in", version=1,
+            project_id=1, uploaded_at=datetime.utcnow(),
+        )
+        other_project = Document(
+            title="Other project", path="other.txt", checksum="other", version=1,
+            project_id=2, uploaded_at=datetime.utcnow(),
+        )
+        db.add_all([general, in_project, other_project])
+        db.flush()
+        db.add_all([
+            Chunk(doc_id=general.id, chunk_index=0, text="general text", created_at=datetime.utcnow()),
+            Chunk(doc_id=in_project.id, chunk_index=0, text="in-project text", created_at=datetime.utcnow()),
+            Chunk(doc_id=other_project.id, chunk_index=0, text="other-project text", created_at=datetime.utcnow()),
+        ])
+        db.commit()
+
+        for document in (general, in_project, other_project):
+            index = faiss.IndexFlatIP(2)
+            index.add(np.asarray([[1.0, 0.0]], dtype="float32"))
+            faiss.write_index(index, str(tmp_path / f"{document.id}.index"))
+        monkeypatch.setattr("src.retriever.embed_query", lambda texts: [[1.0, 0.0]])
+
+        results = retrieve(
+            "question", db, top_k=5, vector_dir=tmp_path, project_id=1, include_general=True
+        )
+
+    assert {result.chunk.text for result in results} == {"in-project text", "general text"}

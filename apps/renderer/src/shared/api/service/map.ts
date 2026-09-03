@@ -289,9 +289,12 @@ export function chatFromService(dto: ServiceConversation, messages?: ServiceMess
     id: toId(dto.id),
     title: dto.title?.trim() || UNTITLED,
     projectId: dto.project_id === null ? null : toId(dto.project_id),
-    // The service has no "general + project" mode: a conversation with a project_id
-    // retrieves from that project only, one with none searches the whole corpus. `both`
-    // and per-chat attachments are UI-only until the service grows that mode.
+    // The service persists no scope on the conversation itself, only its project_id, so the
+    // default shown here is always the binary derived from that: project-linked conversations
+    // default to 'project', project-less ones to 'general'. `both` is available (and reaches
+    // the retriever) as a per-turn override once the engineer picks it in the widget - see
+    // `postMessage`'s `scope` param - but there is no persisted "this chat defaults to both"
+    // state. Per-chat attachments remain UI-only; `/messages` has no field for them.
     scope: dto.project_id === null ? 'general' : 'project',
     attachmentIds: [],
     messageCount: messages?.length ?? 0,

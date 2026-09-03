@@ -13,7 +13,11 @@ def retrieved(text="The conveyor speed is 2 meters per second.", score=0.9):
 
 def test_answer_prompt_contains_retrieved_text(monkeypatch):
     chunks = retrieved()
-    monkeypatch.setattr(rag_service, "retrieve_chunks", lambda question, db, top_k, project_id=None: chunks)
+    monkeypatch.setattr(
+        rag_service,
+        "retrieve_chunks",
+        lambda question, db, top_k, project_id=None, include_general=False: chunks,
+    )
     prompts = []
     monkeypatch.setattr(rag_service.llm_adapter, "generate", lambda prompt, max_tokens: prompts.append(prompt) or "2 m/s")
 
@@ -25,7 +29,9 @@ def test_answer_prompt_contains_retrieved_text(monkeypatch):
 
 def test_answer_returns_not_found_below_threshold(monkeypatch):
     monkeypatch.setattr(
-        rag_service, "retrieve_chunks", lambda question, db, top_k, project_id=None: retrieved(score=0.2)
+        rag_service,
+        "retrieve_chunks",
+        lambda question, db, top_k, project_id=None, include_general=False: retrieved(score=0.2),
     )
 
     response = rag_service.answer("Unrelated", object())
@@ -36,7 +42,11 @@ def test_answer_returns_not_found_below_threshold(monkeypatch):
 
 
 def test_answer_citations_match_retrieved_chunks(monkeypatch):
-    monkeypatch.setattr(rag_service, "retrieve_chunks", lambda question, db, top_k, project_id=None: retrieved())
+    monkeypatch.setattr(
+        rag_service,
+        "retrieve_chunks",
+        lambda question, db, top_k, project_id=None, include_general=False: retrieved(),
+    )
     monkeypatch.setattr(rag_service.llm_adapter, "generate", lambda prompt, max_tokens: "answer")
 
     response = rag_service.answer("Question", object())

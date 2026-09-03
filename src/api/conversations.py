@@ -34,8 +34,8 @@ class MessageCreate(BaseModel):
     q: str | None = None
     # Optional per-turn override of the conversation's own project. 'general' searches the
     # corpus that has no project (project_id IS NULL) even for a project-linked conversation;
-    # anything else (including 'both', not yet supported by the retriever) keeps the
-    # conversation's own project scope.
+    # 'both' searches the conversation's project plus that project-less corpus; anything else
+    # keeps the conversation's own project scope.
     scope: str | None = None
 
 
@@ -166,7 +166,8 @@ def post_message(conversation_id: int, payload: MessageCreate, db: Session = Dep
     db.add(Message(conversation_id=conversation.id, role="user", text=question, created_at=_now()))
 
     project_id = None if payload.scope == "general" else conversation.project_id
-    result = answer(question, db, project_id=project_id)
+    include_general = payload.scope == "both" and conversation.project_id is not None
+    result = answer(question, db, project_id=project_id, include_general=include_general)
 
     assistant_message = Message(
         conversation_id=conversation.id,

@@ -25,7 +25,11 @@ def test_query_over_max_length_returns_validation_error():
 def test_empty_corpus_returns_not_found(monkeypatch):
     import src.rag_service as rag_service
 
-    monkeypatch.setattr(rag_service, "retrieve_chunks", lambda question, db, top_k, project_id=None: [])
+    monkeypatch.setattr(
+        rag_service,
+        "retrieve_chunks",
+        lambda question, db, top_k, project_id=None, include_general=False: [],
+    )
     response = client.post("/query", json={"q": "What is in the corpus?"})
 
     assert response.status_code == 200

@@ -277,8 +277,9 @@ export async function listMessages(chatId: string, signal?: AbortSignal): Promis
  * before responding. `client.ts` wraps this to produce the event sequence the UI expects.
  *
  * `scope` is a per-turn override of the conversation's own project: 'general' searches the
- * project-less corpus even from inside a project-linked conversation. Anything else keeps
- * the conversation's own project scope, since the retriever has no 'both' mode yet.
+ * project-less corpus even from inside a project-linked conversation, 'both' adds that
+ * project-less corpus on top of the conversation's own project, and anything else keeps
+ * the conversation's own project scope.
  */
 export async function postMessage(
   chatId: string,

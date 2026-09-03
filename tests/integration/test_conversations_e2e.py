@@ -12,7 +12,11 @@ client = TestClient(app)
 def _fake_answer(monkeypatch, result: dict):
     import src.api.conversations as conversations_api
 
-    monkeypatch.setattr(conversations_api, "answer", lambda question, db, project_id=None: result)
+    monkeypatch.setattr(
+        conversations_api,
+        "answer",
+        lambda question, db, project_id=None, include_general=False: result,
+    )
 
 
 def test_create_get_delete_conversation():
@@ -153,7 +157,7 @@ def test_post_message_scopes_retrieval_to_the_conversations_project(monkeypatch)
 
     captured_project_ids = []
 
-    def fake_answer(question, db, project_id=None):
+    def fake_answer(question, db, project_id=None, include_general=False):
         captured_project_ids.append(project_id)
         return {"answer": "answer", "citations": [], "not_found": False}
 
@@ -179,7 +183,7 @@ def test_post_message_scope_general_overrides_the_conversations_project(monkeypa
 
     captured_project_ids = []
 
-    def fake_answer(question, db, project_id=None):
+    def fake_answer(question, db, project_id=None, include_general=False):
         captured_project_ids.append(project_id)
         return {"answer": "answer", "citations": [], "not_found": False}
 
@@ -194,6 +198,60 @@ def test_post_message_scope_general_overrides_the_conversations_project(monkeypa
         )
         assert response.status_code == 201
         assert captured_project_ids == [None]
+    finally:
+        client.delete(f"/conversations/{created['id']}")
+
+
+def test_post_message_scope_both_keeps_project_and_adds_general(monkeypatch):
+    """Picking 'Both' for a project-linked chat must keep searching that project's
+    documents while also drawing on the project-less general corpus."""
+    import src.api.conversations as conversations_api
+
+    project = client.post("/projects", json={"name": "Both-scope project"}).json()
+
+    captured = []
+
+    def fake_answer(question, db, project_id=None, include_general=False):
+        captured.append((project_id, include_general))
+        return {"answer": "answer", "citations": [], "not_found": False}
+
+    monkeypatch.setattr(conversations_api, "answer", fake_answer)
+
+    created = client.post("/conversations", json={"project_id": project["id"]}).json()
+
+    try:
+        response = client.post(
+            f"/conversations/{created['id']}/messages",
+            json={"q": "Any question?", "scope": "both"},
+        )
+        assert response.status_code == 201
+        assert captured == [(project["id"], True)]
+    finally:
+        client.delete(f"/conversations/{created['id']}")
+
+
+def test_post_message_scope_both_without_a_project_is_plain_general(monkeypatch):
+    """'Both' only makes sense with a project to add to; for a project-less conversation
+    it must behave exactly like the plain general corpus search."""
+    import src.api.conversations as conversations_api
+
+    captured = []
+
+    def fake_answer(question, db, project_id=None, include_general=False):
+        captured.append((project_id, include_general))
+        return {"answer": "answer", "citations": [], "not_found": False}
+
+    monkeypatch.setattr(conversations_api, "answer", fake_answer)
+
+    created = client.post("/conversations", json={}).json()
+
+    try:
+        response = client.post(
+            f"/conversations/{created['id']}/messages",
+            json={"q": "Any question?", "scope": "both"},
+        )
+        assert response.status_code == 201
+        assert captured == [(None, False)]
     finally:
         client.delete(f"/conversations/{created['id']}")
 
