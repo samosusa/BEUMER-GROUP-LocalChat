@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { ComputeMode, Model, ModelBenchmarkRow } from '@localchat/contracts';
 import {
+  useActiveModel,
   useBenchmark,
   useModels,
   useRunBenchmark,
+  useSetActiveModel,
   useSettings,
   useUpdateSettings,
 } from '@/shared/api/queries';
@@ -28,21 +30,53 @@ const SECTIONS: Array<{ id: Section; label: string; icon: IconName }> = [
   { id: 'benchmark', label: 'Benchmark', icon: 'chart' },
 ];
 
+const SECTION_IDS = new Set(SECTIONS.map((entry) => entry.id));
+
+function isSection(value: string | null): value is Section {
+  return value !== null && SECTION_IDS.has(value as Section);
+}
+
 export function SettingsPage() {
-  const [section, setSection] = useState<Section>('model');
+  // The URL is the source of truth for which section is open, not local state: the
+  // sidebar's settings icon links straight to `?section=benchmark`, which only changes the
+  // query string on an already-mounted page rather than remounting it.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sectionParam = searchParams.get('section');
+  const section: Section = isSection(sectionParam) ? sectionParam : 'model';
   const settings = useSettings();
+  const activeModelState = useActiveModel();
   const models = useModels();
   const update = useUpdateSettings();
+  const setActiveModel = useSetActiveModel();
   const theme = useUiStore((state) => state.theme);
   const setTheme = useUiStore((state) => state.setTheme);
 
-  if (!settings.data) {
-    return <div className={styles.page} />;
+  function setSection(next: Section) {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.set('section', next);
+        return params;
+      },
+      { replace: true },
+    );
   }
 
-  const { hardware, retrieval } = settings.data;
+  // Applying a model or switching device is one blocking call that can take tens of
+  // seconds on a multi-gigabyte GGUF — the row picked has to say so, or a second click
+  // during the wait reads as the first one having failed.
+  const pendingModelId =
+    setActiveModel.isPending && setActiveModel.variables?.modelId !== undefined
+      ? setActiveModel.variables.modelId
+      : null;
+
+  // Theme, hotkey, hardware and retrieval have no server-side home (see
+  // docs/backend-wiring.md), so the tabs that only show those stay blank without a mock —
+  // the model picker below does not, since it never depends on this query.
+  const hardware = settings.data?.hardware;
+  const retrieval = settings.data?.retrieval;
   const vramFraction =
-    hardware.gpuMemoryBytes && hardware.gpuMemoryUsedBytes
+    hardware?.gpuMemoryBytes && hardware.gpuMemoryUsedBytes
       ? hardware.gpuMemoryUsedBytes / hardware.gpuMemoryBytes
       : 0;
 
@@ -96,8 +130,10 @@ export function SettingsPage() {
                       <ModelRow
                         key={model.id}
                         model={model}
-                        selected={model.id === settings.data.activeModelId}
-                        onSelect={() => update.mutate({ activeModelId: model.id })}
+                        selected={model.id === activeModelState.data?.activeModelId}
+                        pending={model.id === pendingModelId}
+                        disabled={pendingModelId !== null && model.id !== pendingModelId}
+                        onSelect={() => setActiveModel.mutate({ modelId: model.id })}
                       />
                     ))}
                   </div>
@@ -110,26 +146,31 @@ export function SettingsPage() {
                       mode="cpu"
                       icon="cpu"
                       title="CPU only"
-                      detail={`Works on any machine. ${hardware.cpuThreads} threads available.`}
-                      selected={settings.data.compute === 'cpu'}
-                      onSelect={() => update.mutate({ compute: 'cpu' })}
+                      detail={
+                        hardware
+                          ? `Works on any machine. ${hardware.cpuThreads} threads available.`
+                          : 'Works on any machine.'
+                      }
+                      selected={activeModelState.data?.compute === 'cpu'}
+                      disabled={setActiveModel.isPending}
+                      onSelect={() => setActiveModel.mutate({ compute: 'cpu' })}
                     />
                     <ComputeCard
                       mode="gpu"
                       icon="gpu"
                       title="GPU acceleration"
                       detail={
-                        hardware.gpuName
+                        hardware?.gpuName
                           ? `${hardware.gpuName} · ${formatBytes(hardware.gpuMemoryBytes ?? 0)} · ${hardware.gpuLayersOffloaded} of ${hardware.gpuLayersTotal} layers offloaded`
-                          : 'No compatible GPU detected.'
+                          : 'GPU acceleration, if the installed build supports it.'
                       }
-                      selected={settings.data.compute === 'gpu'}
-                      disabled={!hardware.gpuName}
-                      onSelect={() => update.mutate({ compute: 'gpu' })}
+                      selected={activeModelState.data?.compute === 'gpu'}
+                      disabled={setActiveModel.isPending || activeModelState.data?.gpuAvailable === false}
+                      onSelect={() => setActiveModel.mutate({ compute: 'gpu' })}
                     />
                   </div>
 
-                  {hardware.gpuMemoryBytes && (
+                  {hardware?.gpuMemoryBytes && (
                     <div className={styles.vram}>
                       <div className={styles.vramRow}>
                         <span>VRAM in use</span>
@@ -155,7 +196,7 @@ export function SettingsPage() {
                 <section className={cn(styles.card, styles.cardRow)}>
                   <div className={styles.cardRowText}>
                     <span className={styles.cardRowTitle}>
-                      Embedding model — {settings.data.embeddingModel}
+                      Embedding model — {settings.data?.embeddingModel || '—'}
                     </span>
                     <span className={styles.hint}>
                       Changing this rebuilds every index from scratch.
@@ -169,19 +210,21 @@ export function SettingsPage() {
 
               <div className={styles.rail}>
                 <BenchmarkCard />
-                <section className={styles.card}>
-                  <SectionLabel>Network</SectionLabel>
-                  <Toggle
-                    checked={settings.data.strictOffline}
-                    onChange={(strictOffline) => update.mutate({ strictOffline })}
-                    label="Strict offline mode"
-                    description="Blocks every outbound request, including approved tools."
-                  />
-                  <Mono className={styles.outbound}>
-                    outbound requests this session:{' '}
-                    {formatCount(settings.data.outboundRequestsThisSession)}
-                  </Mono>
-                </section>
+                {settings.data && (
+                  <section className={styles.card}>
+                    <SectionLabel>Network</SectionLabel>
+                    <Toggle
+                      checked={settings.data.strictOffline}
+                      onChange={(strictOffline) => update.mutate({ strictOffline })}
+                      label="Strict offline mode"
+                      description="Blocks every outbound request, including approved tools."
+                    />
+                    <Mono className={styles.outbound}>
+                      outbound requests this session:{' '}
+                      {formatCount(settings.data.outboundRequestsThisSession)}
+                    </Mono>
+                  </section>
+                )}
               </div>
             </div>
           </>
@@ -193,20 +236,27 @@ export function SettingsPage() {
               title="Retrieval"
               description="How much of the corpus each answer is allowed to draw on."
             />
-            <section className={styles.card}>
-              <dl className={styles.definitions}>
-                <Definition label="Passages per answer (top-k)" value={String(retrieval.topK)} />
-                <Definition
-                  label="Conversation turns kept"
-                  value={String(retrieval.historyTurns)}
-                />
-                <Definition
-                  label="Minimum relevance score"
-                  value={retrieval.minScore.toFixed(2)}
-                  hint="Below this, LocalChat refuses to answer rather than guessing."
-                />
-              </dl>
-            </section>
+            {retrieval ? (
+              <section className={styles.card}>
+                <dl className={styles.definitions}>
+                  <Definition
+                    label="Passages per answer (top-k)"
+                    value={String(retrieval.topK)}
+                  />
+                  <Definition
+                    label="Conversation turns kept"
+                    value={String(retrieval.historyTurns)}
+                  />
+                  <Definition
+                    label="Minimum relevance score"
+                    value={retrieval.minScore.toFixed(2)}
+                    hint="Below this, LocalChat refuses to answer rather than guessing."
+                  />
+                </dl>
+              </section>
+            ) : (
+              <SettingsUnavailable />
+            )}
           </>
         )}
 
@@ -216,12 +266,16 @@ export function SettingsPage() {
               title="Storage & privacy"
               description="Everything LocalChat writes stays inside your user profile."
             />
-            <section className={styles.card}>
-              <dl className={styles.definitions}>
-                <Definition label="Index location" value={settings.data.indexLocation} mono />
-                <Definition label="Embedding model" value={settings.data.embeddingModel} mono />
-              </dl>
-            </section>
+            {settings.data ? (
+              <section className={styles.card}>
+                <dl className={styles.definitions}>
+                  <Definition label="Index location" value={settings.data.indexLocation} mono />
+                  <Definition label="Embedding model" value={settings.data.embeddingModel} mono />
+                </dl>
+              </section>
+            ) : (
+              <SettingsUnavailable />
+            )}
           </>
         )}
 
@@ -231,35 +285,39 @@ export function SettingsPage() {
               title="Startup & window"
               description="LocalChat runs in the tray so the model is already loaded when you need it."
             />
-            <section className={styles.card}>
-              <Toggle
-                checked={settings.data.launchOnStartup}
-                onChange={(launchOnStartup) => update.mutate({ launchOnStartup })}
-                label="Start with Windows"
-                description="Loads the model in the background at sign-in."
-              />
-              <dl className={styles.definitions}>
-                <Definition label="Quick-ask hotkey" value={settings.data.quickAskHotkey} mono />
-              </dl>
-              <div className={styles.themeRow}>
-                <span className={styles.cardRowTitle}>Theme</span>
-                <div className={styles.themeButtons}>
-                  {(['dark', 'light', 'system'] as const).map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      className={cn(styles.themeButton, theme === option && styles.themeActive)}
-                      onClick={() => {
-                        setTheme(option);
-                        update.mutate({ theme: option });
-                      }}
-                    >
-                      {option}
-                    </button>
-                  ))}
+            {settings.data ? (
+              <section className={styles.card}>
+                <Toggle
+                  checked={settings.data.launchOnStartup}
+                  onChange={(launchOnStartup) => update.mutate({ launchOnStartup })}
+                  label="Start with Windows"
+                  description="Loads the model in the background at sign-in."
+                />
+                <dl className={styles.definitions}>
+                  <Definition label="Quick-ask hotkey" value={settings.data.quickAskHotkey} mono />
+                </dl>
+                <div className={styles.themeRow}>
+                  <span className={styles.cardRowTitle}>Theme</span>
+                  <div className={styles.themeButtons}>
+                    {(['dark', 'light', 'system'] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        className={cn(styles.themeButton, theme === option && styles.themeActive)}
+                        onClick={() => {
+                          setTheme(option);
+                          update.mutate({ theme: option });
+                        }}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
+            ) : (
+              <SettingsUnavailable />
+            )}
           </>
         )}
 
@@ -294,10 +352,14 @@ export function SettingsPage() {
 function ModelRow({
   model,
   selected,
+  pending,
+  disabled,
   onSelect,
 }: {
   model: Model;
   selected: boolean;
+  pending: boolean;
+  disabled: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -305,10 +367,16 @@ function ModelRow({
       type="button"
       role="radio"
       aria-checked={selected}
+      aria-busy={pending || undefined}
+      disabled={disabled}
       className={cn(styles.modelRow, selected && styles.modelRowSelected)}
       onClick={onSelect}
     >
-      <span className={cn(styles.radio, selected && styles.radioSelected)} aria-hidden="true" />
+      {pending ? (
+        <Icon name="refresh" size={16} className={styles.modelSpinner} />
+      ) : (
+        <span className={cn(styles.radio, selected && styles.radioSelected)} aria-hidden="true" />
+      )}
       <span className={styles.modelText}>
         <span className={styles.modelName}>
           {[model.name, model.quantization].filter(Boolean).join(' · ')}
@@ -320,18 +388,20 @@ function ModelRow({
           "NaNk context" beside a real file size.
         */}
         <Mono className={styles.modelMeta}>
-          {[
-            formatBytes(model.sizeBytes),
-            model.contextTokens === null
-              ? null
-              : `${formatCount(model.contextTokens / 1024)}k context`,
-            model.note || null,
-          ]
-            .filter(Boolean)
-            .join(' · ')}
+          {pending
+            ? 'Loading onto device — this can take a minute for a large model…'
+            : [
+                formatBytes(model.sizeBytes),
+                model.contextTokens === null
+                  ? null
+                  : `${formatCount(model.contextTokens / 1024)}k context`,
+                model.note || null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
         </Mono>
       </span>
-      {model.medianLatencyMs !== null && (
+      {!pending && model.medianLatencyMs !== null && (
         <Mono className={styles.modelLatency}>{formatDuration(model.medianLatencyMs)} median</Mono>
       )}
     </button>
@@ -517,6 +587,17 @@ function formatPeakMemory(memoryBytes: number | null, vramBytes: number | null):
   if (vramBytes !== null) return `${formatBytes(vramBytes)} VRAM`;
   if (memoryBytes !== null) return formatBytes(memoryBytes);
   return '—';
+}
+
+/** The service has no `/api/settings` route, so this tab has nothing to show without a mock. */
+function SettingsUnavailable() {
+  return (
+    <section className={styles.card}>
+      <p className={styles.hint}>
+        This machine's local service does not expose these settings yet.
+      </p>
+    </section>
+  );
 }
 
 function Definition({

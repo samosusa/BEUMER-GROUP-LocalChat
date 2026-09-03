@@ -11,6 +11,7 @@ import type {
   ModelBenchmarkRow,
   ModelBenchmarkRun,
   NoEvidenceReason,
+  Project,
 } from '@localchat/contracts';
 import type {
   ServiceAnswer,
@@ -24,6 +25,7 @@ import type {
   ServiceIngestStatus,
   ServiceMessage,
   ServiceModel,
+  ServiceProject,
 } from './dto';
 
 /**
@@ -105,7 +107,7 @@ export function formatFromPath(path: string): DocumentFormat {
 export function documentFromService(dto: ServiceDocument): Document {
   return {
     id: toId(dto.id),
-    projectId: null,
+    projectId: dto.project_id === null ? null : toId(dto.project_id),
     filename: basename(dto.path),
     title: dto.title,
     format: formatFromPath(dto.path),
@@ -286,9 +288,11 @@ export function chatFromService(dto: ServiceConversation, messages?: ServiceMess
   return {
     id: toId(dto.id),
     title: dto.title?.trim() || UNTITLED,
-    // No project entity on the service; chats are company-wide until one exists.
-    projectId: null,
-    scope: 'general',
+    projectId: dto.project_id === null ? null : toId(dto.project_id),
+    // The service has no "general + project" mode: a conversation with a project_id
+    // retrieves from that project only, one with none searches the whole corpus. `both`
+    // and per-chat attachments are UI-only until the service grows that mode.
+    scope: dto.project_id === null ? 'general' : 'project',
     attachmentIds: [],
     messageCount: messages?.length ?? 0,
     preview: messages ? previewOf(messages) : '',
@@ -301,6 +305,42 @@ export function chatFromService(dto: ServiceConversation, messages?: ServiceMess
 
 export function chatDetailFromService(dto: ServiceConversationDetail): Chat {
   return chatFromService(dto, dto.messages);
+}
+
+// ---------------------------------------------------------------------------
+// Projects
+// ---------------------------------------------------------------------------
+
+/**
+ * The service's `Project` row is just a name and timestamps — description, folder
+ * watching, per-project instructions and index state have no server-side column. Those
+ * come back as the honest empty value (`''`, `null`, `false`) rather than a guess.
+ *
+ * `documentCount` and `chatCount` are real, though: the service has no scoped endpoint
+ * for either, so callers fetch the whole corpus once and pass in this project's slice
+ * rather than the service inventing a number it was never asked to filter.
+ */
+export function projectFromService(
+  dto: ServiceProject,
+  documents: Document[],
+  chatCount: number,
+): Project {
+  const indexing = documents.some((doc) => doc.status === 'pending' || doc.status === 'indexing');
+  return {
+    id: toId(dto.id),
+    name: dto.name,
+    description: '',
+    folderPath: null,
+    watched: false,
+    instructions: '',
+    documentCount: documents.length,
+    chatCount,
+    indexState: documents.length === 0 ? 'empty' : indexing ? 'indexing' : 'ready',
+    indexProgress: null,
+    indexEtaSeconds: null,
+    lastOpenedAt: null,
+    createdAt: toIso(dto.created_at),
+  };
 }
 
 // ---------------------------------------------------------------------------

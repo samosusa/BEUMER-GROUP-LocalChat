@@ -1,7 +1,14 @@
 import { useMemo, useState } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
-import type { Chat } from '@localchat/contracts';
-import { useChats, useHealth, useModels, useProjects, useSettings } from '@/shared/api/queries';
+import type { Chat, ComputeMode } from '@localchat/contracts';
+import {
+  useActiveModel,
+  useChats,
+  useHealth,
+  useModels,
+  useProjects,
+  useSettings,
+} from '@/shared/api/queries';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { SearchField } from '@/shared/ui/Controls';
 import { Icon } from '@/shared/ui/Icon';
@@ -25,13 +32,19 @@ export function Sidebar() {
 
   const health = useHealth();
   const settings = useSettings();
+  const activeModelState = useActiveModel();
   const models = useModels();
   const projects = useProjects();
   const chats = useChats({ query: search || undefined });
   const createChat = useCreateChat();
 
   const grouped = useMemo(() => groupChats(chats.data ?? []), [chats.data]);
-  const activeModel = models.data?.find((model) => model.id === settings.data?.activeModelId);
+  const activeModel = models.data?.find((model) => model.id === activeModelState.data?.activeModelId);
+  // Distinct from "still fetching": once both queries have settled, a model that isn't
+  // active yet is a real state — the picker starts with nothing loaded — not a stuck spinner.
+  const modelLabel = !activeModelState.data || !models.data
+    ? 'Loading model…'
+    : (activeModel?.name ?? 'No model selected');
 
   const activeProjectId = projectId ?? chats.data?.find((chat) => chat.id === chatId)?.projectId;
 
@@ -140,13 +153,15 @@ export function Sidebar() {
       <footer className={styles.footer}>
         <NavLink to="/settings" className={styles.modelChip}>
           <Icon
-            name={settings.data?.compute === 'gpu' ? 'gpu' : 'cpu'}
+            name={activeModelState.data?.compute === 'gpu' ? 'gpu' : 'cpu'}
             size={14}
             className={styles.modelIcon}
           />
           <span className={styles.modelText}>
-            <span className={styles.modelName}>{activeModel?.name ?? 'Loading model…'}</span>
-            <Mono className={styles.modelMeta}>{computeLabel(settings.data)}</Mono>
+            <span className={styles.modelName}>{modelLabel}</span>
+            <Mono className={styles.modelMeta}>
+              {computeLabel(activeModelState.data?.compute, settings.data)}
+            </Mono>
           </span>
           <Icon name="chevronDown" size={13} className={styles.modelChevron} />
         </NavLink>
@@ -156,7 +171,11 @@ export function Sidebar() {
             MP
           </span>
           <span className={styles.userName}>M. Palas</span>
-          <IconButton icon="settings" label="Settings" onClick={() => navigate('/settings')} />
+          <IconButton
+            icon="settings"
+            label="Settings"
+            onClick={() => navigate('/settings?section=benchmark')}
+          />
         </div>
       </footer>
     </nav>
@@ -180,10 +199,20 @@ function OfflineBadge({ offline }: { offline: boolean }) {
   );
 }
 
-function computeLabel(settings: ReturnType<typeof useSettings>['data']): string {
-  if (!settings) return '—';
-  if (settings.compute === 'cpu') return `CPU · ${settings.hardware.cpuThreads} threads`;
-  const used = settings.hardware.gpuMemoryUsedBytes;
+/**
+ * The device comes from `useActiveModel` (the service's own truth); thread count and VRAM
+ * are decorative extras from the settings mock, since the service reports neither. Either
+ * being unavailable still leaves an honest label rather than blocking on both.
+ */
+function computeLabel(
+  compute: ComputeMode | undefined,
+  settings: ReturnType<typeof useSettings>['data'],
+): string {
+  if (!compute) return '—';
+  if (compute === 'cpu') {
+    return settings ? `CPU · ${settings.hardware.cpuThreads} threads` : 'CPU';
+  }
+  const used = settings?.hardware.gpuMemoryUsedBytes;
   return used ? `GPU · ${formatBytes(used)} VRAM` : 'GPU';
 }
 

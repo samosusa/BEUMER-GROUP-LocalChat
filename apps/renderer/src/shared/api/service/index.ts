@@ -7,6 +7,7 @@ import type {
   Message,
   Model,
   ModelBenchmarkRun,
+  Project,
 } from '@localchat/contracts';
 import { request } from '../http';
 import {
@@ -23,6 +24,8 @@ import {
   ServiceIngestStatus,
   ServiceMessage,
   ServiceModelList,
+  ServiceProject,
+  ServiceProjectList,
 } from './dto';
 import {
   benchmarkRunFromService,
@@ -34,6 +37,7 @@ import {
   ingestionStatusFromService,
   messageFromService,
   modelFromService,
+  projectFromService,
   toId,
   toServiceId,
 } from './map';
@@ -92,6 +96,75 @@ export async function health(signal?: AbortSignal): Promise<HealthResponse> {
 }
 
 // ---------------------------------------------------------------------------
+// Projects
+// ---------------------------------------------------------------------------
+
+/**
+ * The service has no scoped "documents in this project" or "chats in this project"
+ * endpoint, so counts come from the same full lists every other screen already fetches,
+ * filtered here rather than trusting a number the service was never asked to compute.
+ */
+async function withProjectCounts(project: ServiceProject, signal?: AbortSignal): Promise<Project> {
+  const id = toId(project.id);
+  const [documents, chats] = await Promise.all([listDocuments(signal), listChats(signal)]);
+  return projectFromService(
+    project,
+    documents.filter((document) => document.projectId === id),
+    chats.filter((chat) => chat.projectId === id).length,
+  );
+}
+
+export async function listProjects(signal?: AbortSignal): Promise<Project[]> {
+  const [projects, documents, chats] = await Promise.all([
+    request('/projects', { schema: ServiceProjectList, signal }),
+    listDocuments(signal),
+    listChats(signal),
+  ]);
+  return projects.map((project) => {
+    const id = toId(project.id);
+    return projectFromService(
+      project,
+      documents.filter((document) => document.projectId === id),
+      chats.filter((chat) => chat.projectId === id).length,
+    );
+  });
+}
+
+export async function getProject(id: string, signal?: AbortSignal): Promise<Project> {
+  const dto = await request(`/projects/${toServiceId(id, 'project')}`, {
+    schema: ServiceProject,
+    signal,
+  });
+  return withProjectCounts(dto, signal);
+}
+
+export async function createProject(name: string): Promise<Project> {
+  const dto = await request('/projects', {
+    method: 'POST',
+    body: { name },
+    schema: ServiceProject,
+  });
+  // A project is created empty; no document or chat can reference it yet.
+  return projectFromService(dto, [], 0);
+}
+
+export async function renameProject(id: string, name: string): Promise<Project> {
+  const dto = await request(`/projects/${toServiceId(id, 'project')}`, {
+    method: 'PATCH',
+    body: { name },
+    schema: ServiceProject,
+  });
+  return withProjectCounts(dto);
+}
+
+export function deleteProject(id: string): Promise<undefined> {
+  return request(`/projects/${toServiceId(id, 'project')}`, {
+    method: 'DELETE',
+    schema: z.undefined(),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Documents
 // ---------------------------------------------------------------------------
 
@@ -113,11 +186,15 @@ export function deleteDocument(id: string): Promise<undefined> {
  * Ingestion is a multipart upload followed by polling, so this returns the job id rather
  * than a document: the row does not exist until the pipeline has finished chunking it.
  */
-export async function startIngestion(file: File, title: string): Promise<string> {
+export async function startIngestion(
+  file: File,
+  title: string,
+  projectId: string | null,
+): Promise<string> {
   const form = new FormData();
   form.set('file', file, file.name);
   form.set('title', title);
-  form.set('project', 'false');
+  if (projectId !== null) form.set('project_id', String(toServiceId(projectId, 'project')));
   const dto = await request('/ingest', {
     method: 'POST',
     body: form,
@@ -158,10 +235,13 @@ export async function getChat(id: string, signal?: AbortSignal): Promise<Chat> {
   return chatDetailFromService(dto);
 }
 
-export async function createChat(title?: string): Promise<Chat> {
+export async function createChat(projectId: string | null): Promise<Chat> {
   const dto = await request('/conversations', {
     method: 'POST',
-    body: { title: title ?? null },
+    body: {
+      title: null,
+      project_id: projectId === null ? null : toServiceId(projectId, 'project'),
+    },
     schema: ServiceConversationDetail.omit({ messages: true }),
   });
   return chatFromService(dto);

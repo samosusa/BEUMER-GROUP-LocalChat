@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  ComputeMode,
   CreateChatRequest,
   CreateProjectRequest,
   ReindexRequest,
@@ -31,6 +32,7 @@ export const keys = {
     messages: (id: string) => ['chats', id, 'messages'] as const,
   },
   settings: ['settings'] as const,
+  activeModel: ['activeModel'] as const,
   models: ['models'] as const,
   benchmark: ['benchmark'] as const,
 };
@@ -137,6 +139,20 @@ export function useSettings() {
     queryKey: keys.settings,
     queryFn: ({ signal }) => api.getSettings(signal),
     select: (data) => data.settings,
+    ...STATIC,
+  });
+}
+
+/**
+ * The model and device actually loaded, straight off `GET /models/active` in live mode —
+ * see `api.getActiveModel`. Deliberately its own query rather than a field on `useSettings`:
+ * the service has no settings route at all, so folding this into that blob meant it could
+ * never resolve on a real deployment.
+ */
+export function useActiveModel() {
+  return useQuery({
+    queryKey: keys.activeModel,
+    queryFn: ({ signal }) => api.getActiveModel(signal),
     ...STATIC,
   });
 }
@@ -257,6 +273,19 @@ export function useUpdateSettings() {
       client.setQueryData(keys.settings, data);
       void client.invalidateQueries({ queryKey: keys.models });
     },
+  });
+}
+
+/**
+ * Loads a model onto a device via `POST /models/active` in live mode. Kept apart from
+ * `useUpdateSettings` for the same reason `useActiveModel` is kept apart from `useSettings`:
+ * this is the one field of "settings" the service actually owns.
+ */
+export function useSetActiveModel() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { modelId?: string; compute?: ComputeMode }) => api.setActiveModel(body),
+    onSuccess: (data) => client.setQueryData(keys.activeModel, data),
   });
 }
 

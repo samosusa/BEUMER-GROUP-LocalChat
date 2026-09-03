@@ -167,9 +167,25 @@
   background: var(--surface-hover);
 }
 
+.modelRow:disabled {
+  opacity: 0.5;
+}
+
 .modelRowSelected {
   border-color: var(--border-strong);
   background: var(--surface-active);
+}
+
+.modelSpinner {
+  flex-shrink: 0;
+  color: var(--accent-text);
+  animation: modelSpin 900ms linear infinite;
+}
+
+@keyframes modelSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .radio {
