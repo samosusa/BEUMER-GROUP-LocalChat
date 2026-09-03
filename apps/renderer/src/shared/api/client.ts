@@ -214,9 +214,11 @@ export const api = {
       : request(routes.chatMessages(id), { schema: ListMessagesResponse, signal }),
 
   /**
-   * Scope and per-chat attachments have no server-side representation: `/query` accepts
-   * only a question. The change is kept client-side so the control still works and the
-   * chat still records what the engineer chose, but it does not yet reach the retriever.
+   * Scope and per-chat attachments have no *persistent* server-side representation: there is
+   * no endpoint to store a chat's chosen scope, so this only updates the local cache (the
+   * widget still records what the engineer picked, and `askLive` below re-sends `scope` with
+   * every turn so it actually reaches the retriever — attachments still don't, `/messages`
+   * has no field for them).
    */
   updateChatContext: async (id: string, body: UpdateChatContextRequest): Promise<ChatResponse> => {
     if (!LIVE) {
@@ -443,7 +445,7 @@ async function* askLive(
 
   let message: Message;
   try {
-    message = await service.postMessage(chatId, body.question);
+    message = await service.postMessage(chatId, body.question, body.scope);
   } catch (cause) {
     if (cause instanceof DOMException && cause.name === 'AbortError') return;
     yield {

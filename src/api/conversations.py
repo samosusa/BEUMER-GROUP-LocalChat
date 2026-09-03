@@ -32,6 +32,11 @@ class ConversationUpdate(BaseModel):
 
 class MessageCreate(BaseModel):
     q: str | None = None
+    # Optional per-turn override of the conversation's own project. 'general' searches the
+    # corpus that has no project (project_id IS NULL) even for a project-linked conversation;
+    # anything else (including 'both', not yet supported by the retriever) keeps the
+    # conversation's own project scope.
+    scope: str | None = None
 
 
 class ConversationResponse(BaseModel):
@@ -160,7 +165,8 @@ def post_message(conversation_id: int, payload: MessageCreate, db: Session = Dep
 
     db.add(Message(conversation_id=conversation.id, role="user", text=question, created_at=_now()))
 
-    result = answer(question, db, project_id=conversation.project_id)
+    project_id = None if payload.scope == "general" else conversation.project_id
+    result = answer(question, db, project_id=project_id)
 
     assistant_message = Message(
         conversation_id=conversation.id,

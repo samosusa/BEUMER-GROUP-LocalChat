@@ -8,6 +8,7 @@ import type {
   Model,
   ModelBenchmarkRun,
   Project,
+  RetrievalScope,
 } from '@localchat/contracts';
 import { request } from '../http';
 import {
@@ -274,11 +275,19 @@ export async function listMessages(chatId: string, signal?: AbortSignal): Promis
 /**
  * Ask a question inside a conversation. Blocking: the service generates the whole answer
  * before responding. `client.ts` wraps this to produce the event sequence the UI expects.
+ *
+ * `scope` is a per-turn override of the conversation's own project: 'general' searches the
+ * project-less corpus even from inside a project-linked conversation. Anything else keeps
+ * the conversation's own project scope, since the retriever has no 'both' mode yet.
  */
-export async function postMessage(chatId: string, question: string): Promise<Message> {
+export async function postMessage(
+  chatId: string,
+  question: string,
+  scope?: RetrievalScope,
+): Promise<Message> {
   const dto = await request(`/conversations/${toServiceId(chatId, 'conversation')}/messages`, {
     method: 'POST',
-    body: { q: question },
+    body: { q: question, scope },
     schema: ServiceMessage,
   });
   return messageFromService(dto, resolveDocumentId);

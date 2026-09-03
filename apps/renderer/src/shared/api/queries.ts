@@ -232,11 +232,18 @@ export function useUpdateChatContext(chatId: string | undefined) {
       );
       return { previous, key };
     },
+    /**
+     * Written directly into the cache rather than invalidated: a refetch would re-derive
+     * `scope` from `projectId` (the live service has no independent scope field, see
+     * `chatFromService`), which would immediately overwrite a client-chosen 'general'/'both'
+     * scope on a project chat right back to 'project'.
+     */
+    onSuccess: (data, _body, context) => {
+      const key = context?.key ?? (chatId ? keys.chats.detail(chatId) : undefined);
+      if (key) client.setQueryData(key, data);
+    },
     onError: (_error, _body, context) => {
       if (context?.key) client.setQueryData(context.key, context.previous);
-    },
-    onSettled: () => {
-      if (chatId) void client.invalidateQueries({ queryKey: keys.chats.detail(chatId) });
     },
   });
 }

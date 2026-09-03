@@ -170,6 +170,34 @@ def test_post_message_scopes_retrieval_to_the_conversations_project(monkeypatch)
         client.delete(f"/conversations/{created['id']}")
 
 
+def test_post_message_scope_general_overrides_the_conversations_project(monkeypatch):
+    """Picking 'General' in the client for a project-linked chat must search the
+    project-less corpus for that turn, not silently keep using the chat's own project."""
+    import src.api.conversations as conversations_api
+
+    project = client.post("/projects", json={"name": "Overridable project"}).json()
+
+    captured_project_ids = []
+
+    def fake_answer(question, db, project_id=None):
+        captured_project_ids.append(project_id)
+        return {"answer": "answer", "citations": [], "not_found": False}
+
+    monkeypatch.setattr(conversations_api, "answer", fake_answer)
+
+    created = client.post("/conversations", json={"project_id": project["id"]}).json()
+
+    try:
+        response = client.post(
+            f"/conversations/{created['id']}/messages",
+            json={"q": "Any question?", "scope": "general"},
+        )
+        assert response.status_code == 201
+        assert captured_project_ids == [None]
+    finally:
+        client.delete(f"/conversations/{created['id']}")
+
+
 def test_delete_conversation_cascades_messages(monkeypatch):
     _fake_answer(monkeypatch, {"answer": "An answer.", "citations": [], "not_found": False})
 
