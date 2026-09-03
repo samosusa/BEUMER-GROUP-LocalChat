@@ -24,7 +24,7 @@ import { Composer } from './components/Composer';
 import { NewChatIntro } from './components/NewChatIntro';
 import { UndoToast } from './components/UndoToast';
 import { useAsk } from './hooks/useAsk';
-import { chooseDocuments, type ChosenDocuments } from '@/shared/lib/localFiles';
+import { chooseDocuments, chooseFolderDocuments, type ChosenDocuments } from '@/shared/lib/localFiles';
 import { useDocumentDrop } from './hooks/useDocumentDrop';
 import styles from './ChatPage.module.css';
 
@@ -103,8 +103,8 @@ export function ChatPage() {
 
   /** Folders are a desktop concept; a browser has no way to hand one over. */
   async function pickFolder() {
-    const folder = await window.localchat?.pickFolder();
-    if (folder) await addDocuments({ paths: [folder], files: [] });
+    const { documents } = await chooseFolderDocuments();
+    if (documents.paths.length > 0) await addDocuments(documents);
   }
 
   /** Asking from the empty state has to create the chat first, then run the turn in it. */

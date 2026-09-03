@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Project } from '@localchat/contracts';
-import { useCreateProject, useProjects } from '@/shared/api/queries';
+import { useCreateProject, useIngestDocuments, useProjects } from '@/shared/api/queries';
 import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
 import { Mono, ProgressBar, StatusDot } from '@/shared/ui/Indicators';
@@ -14,6 +14,7 @@ export function ProjectsPage() {
   const navigate = useNavigate();
   const projects = useProjects();
   const createProject = useCreateProject();
+  const ingest = useIngestDocuments();
   const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
@@ -50,10 +51,20 @@ export function ProjectsPage() {
 
       {dialogOpen && (
         <NewProjectDialog
-          pending={createProject.isPending}
+          pending={createProject.isPending || ingest.isPending}
           onCancel={() => setDialogOpen(false)}
-          onCreate={async (values) => {
+          onCreate={async (values, documents) => {
             const result = await createProject.mutateAsync(values);
+            // The project has to exist before anything can be tagged with its id, so this
+            // is a second request rather than part of creation itself — same two-step
+            // shape as adding documents from the project screen afterwards.
+            if (documents.paths.length > 0 || documents.files.length > 0) {
+              await ingest.mutateAsync({
+                projectId: result.project.id,
+                paths: documents.paths,
+                files: documents.files,
+              });
+            }
             setDialogOpen(false);
             navigate(`/projects/${result.project.id}`);
           }}

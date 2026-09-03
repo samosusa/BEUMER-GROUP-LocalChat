@@ -28,6 +28,11 @@ interface LocalChatBridge {
    */
   readDocument(path: string): Promise<{ name: string; bytes: ArrayBuffer }>;
   pickFolder(): Promise<string | null>;
+  /**
+   * Documents found inside a folder `pickFolder` previously returned, ready to read via
+   * `readDocument`. Refused by the main process for any other path.
+   */
+  listFolderDocuments(folderPath: string): Promise<string[]>;
   /** Reveals a source document in Explorer/Finder. */
   revealInFolder(path: string): Promise<void>;
   window: {

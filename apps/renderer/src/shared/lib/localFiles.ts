@@ -69,6 +69,27 @@ export async function chooseDocuments(): Promise<ChosenDocuments> {
 }
 
 /**
+ * Opens the folder picker and returns every document found inside it (recursively), ready
+ * to hand to the same ingestion path as an individual pick.
+ *
+ * Desktop-only: a browser has no way to enumerate a folder's contents, so there `folderPath`
+ * is always null and `documents` always empty — same degrade-gracefully rule as everywhere
+ * else a host cannot supply something.
+ */
+export async function chooseFolderDocuments(): Promise<{
+  folderPath: string | null;
+  documents: ChosenDocuments;
+}> {
+  const bridge = globalThis.window?.localchat;
+  const folderPath = (await bridge?.pickFolder?.()) ?? null;
+  if (folderPath === null || !bridge?.listFolderDocuments) {
+    return { folderPath, documents: EMPTY_CHOICE };
+  }
+  const paths = await bridge.listFolderDocuments(folderPath);
+  return { folderPath, documents: { paths, files: [] } };
+}
+
+/**
  * Splits a drop into whichever of the two the host provided.
  *
  * `File.path` is an Electron addition. Reading it in a browser yields undefined, which is
