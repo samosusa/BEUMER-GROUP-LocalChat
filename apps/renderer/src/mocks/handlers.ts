@@ -105,6 +105,26 @@ export const handlers = [
     return project ? HttpResponse.json({ project }) : notFound('That project no longer exists.');
   }),
 
+  /**
+   * Cascades to the project's own documents and chats, mirroring the real service's
+   * `ON DELETE CASCADE` — a project without its documents left orphaned in the general
+   * corpus would be a worse bug than the deletion itself.
+   */
+  http.delete(route('/api/projects/:id'), async ({ params }) => {
+    const id = String(params.id);
+    const index = store.projects.findIndex((entry) => entry.id === id);
+    if (index === -1) return notFound('That project no longer exists.');
+
+    store.projects.splice(index, 1);
+    store.documents = store.documents.filter((document) => document.projectId !== id);
+    for (const chat of store.chats.filter((entry) => entry.projectId === id)) {
+      store.messages.delete(chat.id);
+    }
+    store.chats = store.chats.filter((entry) => entry.projectId !== id);
+    await delay(LATENCY.fast);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
   http.get(route('/api/projects/:id/documents'), async ({ params }) => {
     await delay(LATENCY.normal);
     const id = String(params.id);
@@ -117,6 +137,19 @@ export const handlers = [
     return HttpResponse.json({ tools: catalogue.tools });
   }),
 
+  /** Same cascade as deleting one project at a time, applied to every project at once. */
+  http.delete(route(routes.projects()), async () => {
+    const inADeletedProject = (projectId: string | null) => projectId !== null;
+    store.projects = [];
+    store.documents = store.documents.filter((document) => !inADeletedProject(document.projectId));
+    for (const chat of store.chats.filter((entry) => inADeletedProject(entry.projectId))) {
+      store.messages.delete(chat.id);
+    }
+    store.chats = store.chats.filter((entry) => !inADeletedProject(entry.projectId));
+    await delay(LATENCY.fast);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
   // --- documents ----------------------------------------------------------
   http.get(route(routes.documents()), async ({ request }) => {
     await delay(LATENCY.normal);
@@ -125,6 +158,31 @@ export const handlers = [
       documents: documentsFor(projectId),
       stats: indexStatsFor(projectId),
     });
+  }),
+
+  /**
+   * Bulk delete. No `projectId` removes every document; `projectId=null` removes only the
+   * general corpus; any other value removes just that project's documents — mirrors the real
+   * service's `DELETE /docs` exactly (see src/api/docs.py).
+   */
+  http.delete(route(routes.documents()), async ({ request }) => {
+    const projectId = new URL(request.url).searchParams.get('projectId');
+    const removed = new Set(
+      store.documents
+        .filter((document) => {
+          if (projectId === null) return true;
+          if (projectId === 'null') return document.projectId === null;
+          return document.projectId === projectId;
+        })
+        .map((document) => document.id),
+    );
+
+    store.documents = store.documents.filter((document) => !removed.has(document.id));
+    for (const chat of store.chats) {
+      chat.attachmentIds = chat.attachmentIds.filter((id) => !removed.has(id));
+    }
+    await delay(LATENCY.fast);
+    return new HttpResponse(null, { status: 204 });
   }),
 
   /**
@@ -271,6 +329,13 @@ export const handlers = [
 
     store.chats.splice(index, 1);
     store.messages.delete(id);
+    await delay(LATENCY.fast);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.delete(route(routes.chats()), async () => {
+    store.chats = [];
+    store.messages.clear();
     await delay(LATENCY.fast);
     return new HttpResponse(null, { status: 204 });
   }),

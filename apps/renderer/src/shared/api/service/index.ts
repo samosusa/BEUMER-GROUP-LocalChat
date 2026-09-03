@@ -165,6 +165,11 @@ export function deleteProject(id: string): Promise<undefined> {
   });
 }
 
+/** Every project, cascading to their documents (and each one's vector index) and chats. */
+export function deleteAllProjects(): Promise<undefined> {
+  return request('/projects', { method: 'DELETE', schema: z.undefined() });
+}
+
 // ---------------------------------------------------------------------------
 // Documents
 // ---------------------------------------------------------------------------
@@ -180,6 +185,18 @@ export function deleteDocument(id: string): Promise<undefined> {
   return request(`/docs/${toServiceId(id, 'document')}`, {
     method: 'DELETE',
     schema: z.undefined(),
+  });
+}
+
+/**
+ * `projectId: null` maps to the service's `project_id=null` sentinel, meaning the general
+ * (project-less) corpus — the only case the renderer actually calls this with today.
+ */
+export function deleteAllDocuments(projectId: string | null): Promise<undefined> {
+  return request('/docs', {
+    method: 'DELETE',
+    schema: z.undefined(),
+    query: { project_id: projectId === null ? 'null' : toServiceId(projectId, 'project') },
   });
 }
 
@@ -262,6 +279,11 @@ export function deleteChat(id: string): Promise<undefined> {
     method: 'DELETE',
     schema: z.undefined(),
   });
+}
+
+/** Every chat, cascading to their messages the same way the single delete does. */
+export function deleteAllConversations(): Promise<undefined> {
+  return request('/conversations', { method: 'DELETE', schema: z.undefined() });
 }
 
 export async function listMessages(chatId: string, signal?: AbortSignal): Promise<Message[]> {

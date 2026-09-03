@@ -4,19 +4,19 @@ import type { Chat, ComputeMode } from '@localchat/contracts';
 import {
   useActiveModel,
   useChats,
+  useDeleteAllChats,
   useDeleteChat,
   useHealth,
   useModels,
-  useProjects,
   useSettings,
 } from '@/shared/api/queries';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { SearchField } from '@/shared/ui/Controls';
+import { DangerAction } from '@/shared/ui/DangerAction';
 import { Icon } from '@/shared/ui/Icon';
 import { Mono, SectionLabel } from '@/shared/ui/Indicators';
 import { formatBytes, historyBucket } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/cn';
-import { useCreateChat } from '@/shared/api/queries';
 import styles from './Sidebar.module.css';
 
 const BUCKET_LABELS = {
@@ -28,17 +28,16 @@ const BUCKET_LABELS = {
 
 export function Sidebar() {
   const navigate = useNavigate();
-  const { chatId, projectId } = useParams();
+  const { chatId } = useParams();
   const [search, setSearch] = useState('');
 
   const health = useHealth();
   const settings = useSettings();
   const activeModelState = useActiveModel();
   const models = useModels();
-  const projects = useProjects();
   const chats = useChats({ query: search || undefined });
-  const createChat = useCreateChat();
   const deleteChat = useDeleteChat();
+  const deleteAllChats = useDeleteAllChats();
   // Which chat row is asking to be confirmed. Deleting cascades the chat's messages on
   // both backends and there is no undo, so the choice has to be made before, not after —
   // an inline confirm in place of the row rather than a toast with a fading window.
@@ -55,23 +54,18 @@ export function Sidebar() {
       ? 'Loading model…'
       : (activeModel?.name ?? 'No model selected');
 
-  const activeProjectId = projectId ?? chats.data?.find((chat) => chat.id === chatId)?.projectId;
-
-  async function startChat() {
-    const result = await createChat.mutateAsync({
-      projectId: activeProjectId ?? null,
-      scope: activeProjectId ? 'both' : 'general',
-      attachmentIds: [],
-    });
-    navigate(`/chat/${result.chat.id}`);
-  }
-
   function handleDeleteChat(chat: Chat) {
     setConfirmingChatId(null);
     deleteChat.mutate(chat.id, {
       onSuccess: () => {
         if (chat.id === chatId) navigate('/chat');
       },
+    });
+  }
+
+  function handleDeleteAllChats() {
+    deleteAllChats.mutate(undefined, {
+      onSuccess: () => navigate('/chat'),
     });
   }
 
@@ -92,56 +86,39 @@ export function Sidebar() {
 
         <OfflineBadge offline={health.data?.offline ?? settings.data?.strictOffline ?? true} />
 
-        <Button
-          variant="cta"
-          size="lg"
-          icon="plus"
-          fullWidth
-          onClick={startChat}
-          loading={createChat.isPending}
-        >
+        <Button variant="cta" size="lg" icon="plus" fullWidth onClick={() => navigate('/chat')}>
           New chat
         </Button>
 
-        <SearchField
-          value={search}
-          onChange={setSearch}
-          placeholder="Search chats and documents"
-          label="Search chats and documents"
-        />
+        <div className={styles.searchRow}>
+          <div className={styles.searchField}>
+            <SearchField
+              value={search}
+              onChange={setSearch}
+              placeholder="Search chats"
+              label="Search chats"
+            />
+          </div>
+          {/* Ambiguous what "all" would mean while a search is narrowing the list, so this
+              only acts — and is only enabled — on the true, unfiltered set of chats. */}
+          <DangerAction
+            label="Delete all chats"
+            confirmText={`Delete all ${chats.data?.length ?? 0} chats? This can't be undone.`}
+            pending={deleteAllChats.isPending}
+            disabled={Boolean(search) || !chats.data?.length}
+            onConfirm={handleDeleteAllChats}
+          />
+        </div>
       </header>
 
       <div className={styles.scroll}>
-        <section className={styles.section}>
-          <SectionLabel
-            action={
-              <IconButton
-                icon="plus"
-                label="New project"
-                size={14}
-                onClick={() => navigate('/projects')}
-              />
-            }
-          >
-            Projects
-          </SectionLabel>
-          <ul>
-            {projects.data?.map((project) => (
-              <li key={project.id}>
-                <NavLink
-                  to={`/projects/${project.id}`}
-                  className={({ isActive }) =>
-                    cn(styles.row, (isActive || project.id === activeProjectId) && styles.rowActive)
-                  }
-                >
-                  <Icon name="folder" size={15} className={styles.rowIcon} />
-                  <span className={styles.rowLabel}>{project.name}</span>
-                  <Mono className={styles.rowCount}>{project.documentCount}</Mono>
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <NavLink
+          to="/projects"
+          className={({ isActive }) => cn(styles.row, isActive && styles.rowActive)}
+        >
+          <Icon name="folder" size={15} className={styles.rowIcon} />
+          <span className={styles.rowLabel}>Documents &amp; Projects</span>
+        </NavLink>
 
         {grouped.map(([bucket, entries]) => (
           <section className={styles.section} key={bucket}>

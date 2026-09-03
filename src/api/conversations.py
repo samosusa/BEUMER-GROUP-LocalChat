@@ -153,6 +153,17 @@ def delete_conversation(conversation_id: int, db: Session = Depends(get_db)) -> 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.delete("/conversations", status_code=status.HTTP_204_NO_CONTENT)
+def delete_all_conversations(db: Session = Depends(get_db)) -> Response:
+    """Bulk delete every conversation. Message rows cascade the same as the single delete;
+    there's no FAISS or other external state tied to a conversation, so nothing else to
+    clean up."""
+    for conversation in db.query(Conversation).all():
+        db.delete(conversation)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post(
     "/conversations/{conversation_id}/messages",
     response_model=MessageResponse,

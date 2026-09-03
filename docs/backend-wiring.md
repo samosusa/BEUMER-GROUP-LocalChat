@@ -58,14 +58,18 @@ right and the stub is out of date.**
 | Status strip             | `GET /health` + `GET /models/active`             | Second call only to tell "up" from "can answer"                               |
 | Document list            | `GET /docs`                                      |                                                                               |
 | Remove a document        | `DELETE /docs/{id}`                              |                                                                               |
+| Remove all documents     | `DELETE /docs`                                   | Optional `project_id` (an id, or the literal string `null` for the general corpus only); also deletes each document's FAISS index |
 | Add documents            | `POST /ingest` → `GET /status/{job_id}`          | Multipart upload; polls to completion                                         |
 | Chat sidebar and history | `GET /conversations`                             |                                                                               |
 | Open a chat              | `GET /conversations/{id}`                        |                                                                               |
 | New chat                 | `POST /conversations`                            | Title auto-generated from the first question; optional `project_id` scopes it |
 | Rename / delete          | `PATCH` / `DELETE /conversations/{id}`           |                                                                               |
+| Delete all chats         | `DELETE /conversations`                          | Messages cascade with each conversation                                       |
 | Ask a question           | `POST /conversations/{id}/messages`              | Retrieval is limited to the conversation's project, if it has one             |
 | Model picker             | `GET /models`, `GET/POST /models/active`         | The swap blocks; expect tens of seconds                                       |
 | Projects                 | `GET/POST /projects`, `GET/PATCH /projects/{id}` | Rename only, no other field — see below                                       |
+| Delete a project         | `DELETE /projects/{id}`                          | Cascades its documents (FAISS indexes included) and conversations             |
+| Delete all projects      | `DELETE /projects`                               | Same cascade as above, for every project; general-corpus documents/chats are untouched |
 | Project documents        | `GET /docs` filtered client-side by `project_id` | No scoped endpoint on the service                                             |
 | Project-scoped ingest    | `POST /ingest` with `project_id`                 |                                                                               |
 | Project-scoped chat      | `POST /conversations` with `project_id`          | Retrieval is then limited to that project                                     |

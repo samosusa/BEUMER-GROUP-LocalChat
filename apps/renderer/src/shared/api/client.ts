@@ -106,6 +106,21 @@ export const api = {
       ? { project: await service.renameProject(id, body.name) }
       : request(routes.project(id), { method: 'PATCH', body, schema: ProjectResponse }),
 
+  /**
+   * Cascades to the project's own documents and chats on both backends (the live service's
+   * `ON DELETE CASCADE`, the mock's equivalent filtering); there is no undo.
+   */
+  deleteProject: (id: string): Promise<undefined> =>
+    LIVE
+      ? service.deleteProject(id)
+      : request(routes.project(id), { method: 'DELETE', schema: z.undefined() }),
+
+  /** Every project, cascading to their documents and chats exactly like one at a time would. */
+  deleteAllProjects: (): Promise<undefined> =>
+    LIVE
+      ? service.deleteAllProjects()
+      : request(routes.projects(), { method: 'DELETE', schema: z.undefined() }),
+
   /** No scoped endpoint on the service, so this is the full corpus filtered by project_id. */
   listProjectDocuments: async (
     id: string,
@@ -165,6 +180,19 @@ export const api = {
       ? service.deleteDocument(id)
       : request(routes.document(id), { method: 'DELETE', schema: z.undefined() }),
 
+  /**
+   * Only the general (project-less) corpus — a project's own documents go with the project,
+   * via `deleteAllProjects`, so this never touches them.
+   */
+  deleteAllGeneralDocuments: (): Promise<undefined> =>
+    LIVE
+      ? service.deleteAllDocuments(null)
+      : request(routes.documents(), {
+          method: 'DELETE',
+          schema: z.undefined(),
+          query: { projectId: 'null' },
+        }),
+
   // No live branch: the service has no re-index-on-demand endpoint.
   reindex: (body: ReindexRequest) =>
     request(routes.reindex(), { method: 'POST', body, schema: ListDocumentsResponse }),
@@ -207,6 +235,12 @@ export const api = {
     LIVE
       ? service.deleteChat(id)
       : request(routes.chat(id), { method: 'DELETE', schema: z.undefined() }),
+
+  /** Every chat, cascading to their messages on both backends; there is no undo. */
+  deleteAllChats: (): Promise<undefined> =>
+    LIVE
+      ? service.deleteAllConversations()
+      : request(routes.chats(), { method: 'DELETE', schema: z.undefined() }),
 
   listMessages: async (id: string, signal?: AbortSignal): Promise<ListMessagesResponse> =>
     LIVE

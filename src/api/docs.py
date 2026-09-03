@@ -97,12 +97,6 @@ def get_document(document_id: int, db: Session = Depends(get_db)) -> Document:
     return document
 
 
-def _delete_vector_index(document_id: int) -> None:
-    # Outside the database entirely, so no foreign key can cascade into it; an orphaned
-    # index file left behind here would still match and get cited in future queries.
-    FaissVectorStore().path_for(document_id).unlink(missing_ok=True)
-
-
 @router.delete("/docs/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_document(document_id: int, db: Session = Depends(get_db)) -> Response:
     document = db.get(Document, document_id)
@@ -114,5 +108,38 @@ def delete_document(document_id: int, db: Session = Depends(get_db)) -> Response
     # file that's already gone.
     db.delete(document)
     db.commit()
-    _delete_vector_index(document_id)
+    FaissVectorStore().delete(document_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/docs", status_code=status.HTTP_204_NO_CONTENT)
+def delete_all_documents(project_id: str | None = None, db: Session = Depends(get_db)) -> Response:
+    """Bulk delete. No `project_id` removes every document; `project_id=null` removes only
+    the general corpus (no project); a numeric `project_id` removes just that project's
+    documents — mostly redundant with deleting the project itself, which cascades this the
+    same way, but kept orthogonal since a caller may want to clear a project's documents
+    without removing the project."""
+    query = db.query(Document)
+    if project_id is not None:
+        if project_id == "null":
+            query = query.filter(Document.project_id.is_(None))
+        else:
+            try:
+                query = query.filter(Document.project_id == int(project_id))
+            except ValueError:
+                raise AppError(
+                    "ERR_VALIDATION",
+                    "Request validation failed",
+                    {"project_id": "must be an integer or 'null'"},
+                )
+
+    documents = query.all()
+    document_ids = [document.id for document in documents]
+    for document in documents:
+        db.delete(document)
+    db.commit()
+    # DB rows first, then the files, for the same crash-safety reason as the single delete.
+    store = FaissVectorStore()
+    for document_id in document_ids:
+        store.delete(document_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

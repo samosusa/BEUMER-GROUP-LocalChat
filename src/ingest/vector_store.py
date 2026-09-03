@@ -46,3 +46,9 @@ class FaissVectorStore:
 
     def load(self, doc_id: int) -> Any:
         return faiss.read_index(str(self.path_for(doc_id)))
+
+    def delete(self, doc_id: int) -> None:
+        # Outside the database entirely, so no foreign key can cascade into it — a document
+        # row removed without this leaves an orphaned index file that would still match and
+        # get cited in future queries.
+        self.path_for(doc_id).unlink(missing_ok=True)

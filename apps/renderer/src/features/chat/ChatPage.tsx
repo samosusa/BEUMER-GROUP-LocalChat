@@ -1,110 +1,64 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import type { Chat, RetrievalScope } from '@localchat/contracts';
+import { useQueryClient } from '@tanstack/react-query';
+import type { RetrievalScope } from '@localchat/contracts';
 import {
+  keys,
   useChat,
   useCreateChat,
-  useDeleteDocument,
-  useDocuments,
   useIngestDocuments,
   useMessages,
   useProject,
   useProjects,
   useUpdateChatContext,
 } from '@/shared/api/queries';
-import { ContextWidget } from '@/features/context/ContextWidget';
+import { ScopeSelector } from './components/ScopeSelector';
 import { Icon } from '@/shared/ui/Icon';
 import { Mono } from '@/shared/ui/Indicators';
-import { useUiStore } from '@/shared/store/uiStore';
 import { Transcript } from './components/Transcript';
 import { Composer } from './components/Composer';
 import { NewChatIntro } from './components/NewChatIntro';
-import { UndoToast } from './components/UndoToast';
 import { useAsk } from './hooks/useAsk';
-import {
-  chooseDocuments,
-  chooseFolderDocuments,
-  type ChosenDocuments,
-} from '@/shared/lib/localFiles';
+import { chooseDocuments, type ChosenDocuments } from '@/shared/lib/localFiles';
 import { useDocumentDrop } from './hooks/useDocumentDrop';
 import styles from './ChatPage.module.css';
-
-/**
- * Stands in for the chat before it exists. Landing on `/chat` searches the general corpus
- * exactly like a freshly created one would — the chat record itself is only written on the
- * first message — so the context widget should say so instead of claiming there's nothing
- * to search.
- */
-const DRAFT_CHAT: Chat = {
-  id: 'draft',
-  title: '',
-  projectId: null,
-  scope: 'general',
-  attachmentIds: [],
-  messageCount: 0,
-  preview: '',
-  sourceCount: 0,
-  hadNoEvidence: false,
-  createdAt: new Date(0).toISOString(),
-  updatedAt: new Date(0).toISOString(),
-};
 
 export function ChatPage() {
   const { chatId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
 
   const chat = useChat(chatId);
   const messages = useMessages(chatId);
   const projects = useProjects();
-  const project = useProject(chat.data?.projectId ?? undefined);
-
-  const chatProjectId = chat.data?.projectId ?? null;
-  const projectDocuments = useDocuments(chatProjectId);
-  const generalDocuments = useDocuments(null);
+  const chatProject = useProject(chat.data?.projectId ?? undefined);
 
   const updateContext = useUpdateChatContext(chatId);
   const createChat = useCreateChat();
   const ingest = useIngestDocuments();
-  const deleteDocument = useDeleteDocument();
   const ask = useAsk(chatId);
 
   const [seed, setSeed] = useState<string | null>(null);
-  const clearRemoval = useUiStore((state) => state.clearRemoval);
+  // Scope is decided once, before the chat exists — the chat's projectId is fixed forever at
+  // creation (the service has no way to reattach one later), so this is the only moment a
+  // project can be chosen at all.
+  const [pendingScope, setPendingScope] = useState<RetrievalScope>('general');
+  const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
 
-  // A general (non-project) chat has chatProjectId === null, which makes projectDocuments
-  // and generalDocuments the exact same query — concatenating them would show every
-  // document twice. Only a project-scoped chat draws from two genuinely disjoint lists.
-  const available = useMemo(() => {
-    if (chatProjectId === null) return generalDocuments.data?.documents ?? [];
-    return [
-      ...(projectDocuments.data?.documents ?? []),
-      ...(generalDocuments.data?.documents ?? []),
-    ];
-  }, [chatProjectId, projectDocuments.data, generalDocuments.data]);
+  const pendingProject = projects.data?.find((project) => project.id === pendingProjectId);
+  const activeProject = chatId ? chatProject.data : pendingProject;
 
   const addDocuments = useCallback(
     async (chosen: ChosenDocuments) => {
       if (chosen.paths.length === 0 && chosen.files.length === 0) return;
-      const result = await ingest.mutateAsync({
-        projectId: chat.data?.projectId ?? null,
+      await ingest.mutateAsync({
+        projectId: chatId ? (chat.data?.projectId ?? null) : pendingProjectId,
         paths: chosen.paths,
         files: chosen.files,
       });
-      // Attaching is skipped against the live service: it has no per-chat context, so the
-      // next refetch of the chat wipes attachmentIds and the pin silently disappears. The
-      // document is in the general corpus and is searched either way — the corpus list in
-      // the context panel is where it shows up.
-      if (!__LIVE_SERVICE__ && chatId && result.accepted.length > 0) {
-        updateContext.mutate({
-          attachmentIds: [
-            ...(chat.data?.attachmentIds ?? []),
-            ...result.accepted.map((document) => document.id),
-          ],
-        });
-      }
     },
-    [chat.data, chatId, ingest, updateContext],
+    [chat.data, chatId, ingest, pendingProjectId],
   );
 
   const drop = useDocumentDrop(addDocuments);
@@ -123,39 +77,74 @@ export function ChatPage() {
    * question in `seed` to "resend" it later would just fight that and leave stale text
    * sitting in the box. This picks the question back up once `chatId` is live and asks it,
    * rather than making the engineer submit a second time.
+   *
+   * The scope travels in the same state rather than being read off `chat.data.scope`: this
+   * effect fires the instant `chatId` appears, which is before `useChat`'s own fetch for that
+   * brand-new id has resolved, so `chat.data` is still undefined here. Falling back to
+   * 'general' in that gap silently asked every first message in the wrong scope — the pending
+   * chat's actual choice (general/project/both) is only known for certain in `pendingScope` at
+   * the moment it was submitted, so that's what rides along.
    */
   useEffect(() => {
-    const pending = (location.state as { question?: string } | null)?.question;
-    if (!chatId || !pending) return;
-    void ask.ask(pending, chat.data?.scope ?? 'general', chat.data?.attachmentIds ?? []);
+    const pending = location.state as { question?: string; scope?: RetrievalScope } | null;
+    if (!chatId || !pending?.question) return;
+    void ask.ask(pending.question, pending.scope ?? chat.data?.scope ?? 'general', []);
     navigate(location.pathname, { replace: true, state: null });
     // Fires once per pending question: `location.state` is cleared in the same tick it runs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId, location.state]);
 
+  /**
+   * A project's "New chat" button lands here with the project pre-picked, since that's now
+   * the only place a project-scoped chat can be started — the scope selector otherwise has no
+   * way to know which project to offer. Applied during render rather than in an effect (same
+   * reasoning as the composer's seed prop below): the preset is picked up on the very render
+   * that sees it, not a frame late.
+   */
+  const presetProjectId = !chatId
+    ? (location.state as { presetProjectId?: string } | null)?.presetProjectId
+    : undefined;
+  const [appliedPreset, setAppliedPreset] = useState<string | undefined>(undefined);
+  if (presetProjectId !== undefined && presetProjectId !== appliedPreset) {
+    setAppliedPreset(presetProjectId);
+    setPendingProjectId(presetProjectId);
+    setPendingScope(
+      (location.state as { presetScope?: RetrievalScope } | null)?.presetScope ?? 'both',
+    );
+  }
+  useEffect(() => {
+    if (presetProjectId !== undefined) navigate(location.pathname, { replace: true, state: null });
+  }, [presetProjectId, location.pathname, navigate]);
+
   async function pickFiles() {
     await addDocuments(await chooseDocuments());
   }
 
-  /** Folders are a desktop concept; a browser has no way to hand one over. */
-  async function pickFolder() {
-    const { documents } = await chooseFolderDocuments();
-    if (documents.paths.length > 0) await addDocuments(documents);
-  }
-
   /** Asking from the empty state has to create the chat first, then run the turn in it. */
   async function submit(question: string) {
-    clearRemoval();
     if (chatId) {
-      void ask.ask(question, chat.data?.scope ?? 'general', chat.data?.attachmentIds ?? []);
+      void ask.ask(question, chat.data?.scope ?? 'general', []);
       return;
     }
+    // "Project" turns blue the instant it's clicked, before a project is actually picked from
+    // the dropdown — so a message can still be sent while nothing is chosen yet. There's
+    // nothing to scope to at that point, so it falls back to general rather than creating a
+    // chat claiming a project it doesn't have.
+    const scope = pendingProjectId ? pendingScope : 'general';
     const created = await createChat.mutateAsync({
-      projectId: null,
-      scope: 'general',
+      projectId: pendingProjectId,
+      scope,
       attachmentIds: [],
     });
-    navigate(`/chat/${created.chat.id}`, { state: { question } });
+    // The live service has no persistent scope of its own — it re-derives 'general'/'project'
+    // from projectId alone (see `chatFromService`), which would silently forget a 'both' pick
+    // the instant this response landed. Correcting it in the cache here, before the widget
+    // ever renders the fresh chat, means it shows the scope actually chosen, not the service's
+    // one-bit guess.
+    queryClient.setQueryData(keys.chats.detail(created.chat.id), {
+      chat: { ...created.chat, scope },
+    });
+    navigate(`/chat/${created.chat.id}`, { state: { question, scope } });
   }
 
   const hasTranscript = (messages.data?.length ?? 0) > 0 || ask.phase !== 'idle';
@@ -169,19 +158,16 @@ export function ChatPage() {
     >
       <header className={styles.topbar}>
         {chat.data || !chatId ? (
-          <ContextWidget
-            chat={chat.data ?? DRAFT_CHAT}
-            project={project.data}
-            available={available}
-            onScopeChange={(scope: RetrievalScope) => {
-              if (chatId) updateContext.mutate({ scope });
-            }}
-            onAttachmentsChange={(attachmentIds) => {
-              if (chatId) updateContext.mutate({ attachmentIds });
-            }}
-            onAddFiles={pickFiles}
-            onAddFolder={pickFolder}
-            onDeleteDocument={(document) => deleteDocument.mutate(document.id)}
+          <ScopeSelector
+            scope={chatId ? (chat.data?.scope ?? 'general') : pendingScope}
+            onScopeChange={(scope) =>
+              chatId ? updateContext.mutate({ scope }) : setPendingScope(scope)
+            }
+            projectId={chatId ? (chat.data?.projectId ?? null) : pendingProjectId}
+            projectName={activeProject?.name}
+            locked={Boolean(chatId)}
+            projects={projects.data ?? []}
+            onProjectChange={setPendingProjectId}
           />
         ) : (
           <span className={styles.topbarPlaceholder}>
@@ -194,23 +180,13 @@ export function ChatPage() {
       {hasTranscript ? (
         <Transcript messages={messages.data ?? []} ask={ask} onSuggestion={setSeed} />
       ) : (
-        <NewChatIntro
-          projects={projects.data ?? []}
-          activeProjectId={chat.data?.projectId ?? null}
-          scope={chat.data?.scope ?? 'general'}
-          generalDocumentCount={generalDocuments.data?.documents.length ?? 0}
-          onScopeChange={(scope, projectId) => {
-            if (chatId) updateContext.mutate({ scope });
-            else if (projectId) navigate(`/projects/${projectId}`);
-          }}
-          onDropFiles={pickFiles}
-        />
+        <NewChatIntro onDropFiles={pickFiles} />
       )}
 
       <Composer
         placeholder={
-          project.data
-            ? `Ask anything about ${project.data.name}…`
+          activeProject
+            ? `Ask anything about ${activeProject.name}…`
             : 'Ask about the documents in this context…'
         }
         busy={ask.busy}
@@ -220,21 +196,12 @@ export function ChatPage() {
         seed={seed}
       />
 
-      <UndoToast
-        onUndo={(documentId) => {
-          if (!chat.data) return;
-          updateContext.mutate({ attachmentIds: [...chat.data.attachmentIds, documentId] });
-        }}
-      />
-
       {drop.active && (
         <div className={styles.dropOverlay} aria-hidden="true">
           <div className={styles.dropCard}>
             <Icon name="upload" size={26} strokeWidth={1.6} />
             <p className={styles.dropTitle}>Drop to add to this chat’s context</p>
-            <Mono className={styles.dropHint}>
-              PDF, DOCX, Markdown, TXT · hold Shift to add to the project instead
-            </Mono>
+            <Mono className={styles.dropHint}>PDF, DOCX, Markdown, TXT</Mono>
           </div>
         </div>
       )}

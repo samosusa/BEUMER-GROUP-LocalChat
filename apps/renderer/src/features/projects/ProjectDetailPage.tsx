@@ -1,42 +1,24 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import type { Document, IngestionStatus } from '@localchat/contracts';
-import { useChats, useIngestDocuments, useProject, useProjectDocuments } from '@/shared/api/queries';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useChats, useDeleteDocument, useIngestDocuments, useProject, useProjectDocuments } from '@/shared/api/queries';
 import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
-import { Mono, ProgressBar, StatusDot, type Tone } from '@/shared/ui/Indicators';
+import { Mono } from '@/shared/ui/Indicators';
 import { PageHeader } from '@/shared/ui/PageHeader';
+import { DocumentTable } from '@/features/documents/DocumentTable';
 import { formatCount, formatRelative } from '@/shared/lib/format';
-import { chooseDocuments } from '@/shared/lib/localFiles';
+import { chooseDocuments, chooseFolderDocuments, hasDesktopBridge } from '@/shared/lib/localFiles';
 import { cn } from '@/shared/lib/cn';
 import styles from './ProjectDetail.module.css';
 
 type Tab = 'documents' | 'chats';
 
-const STATUS_TONE: Record<IngestionStatus, Tone> = {
-  pending: 'muted',
-  indexing: 'accent',
-  indexed: 'success',
-  superseded: 'warning',
-  no_text_layer: 'warning',
-  unsupported: 'warning',
-  failed: 'warning',
-};
-
-const STATUS_LABEL: Record<IngestionStatus, string> = {
-  pending: 'queued',
-  indexing: 'indexing',
-  indexed: 'indexed',
-  superseded: 'newer version',
-  no_text_layer: 'no text layer',
-  unsupported: 'unsupported',
-  failed: 'failed',
-};
-
 export function ProjectDetailPage() {
   const { projectId } = useParams();
+  const navigate = useNavigate();
   const project = useProject(projectId);
   const ingest = useIngestDocuments();
+  const deleteDocument = useDeleteDocument();
   const [tab, setTab] = useState<Tab>('documents');
 
   // While anything is mid-ingestion the table polls, so progress moves without a refresh.
@@ -51,6 +33,12 @@ export function ProjectDetailPage() {
       paths: chosen.paths,
       files: chosen.files,
     });
+  }
+
+  async function addFolder() {
+    const { documents: chosen } = await chooseFolderDocuments();
+    if (chosen.paths.length === 0) return;
+    await ingest.mutateAsync({ projectId: projectId ?? null, paths: chosen.paths, files: [] });
   }
 
   return (
@@ -77,9 +65,25 @@ export function ProjectDetailPage() {
           ) : undefined
         }
         actions={
-          <Button variant="accent" icon="plus" loading={ingest.isPending} onClick={addDocuments}>
-            Add documents
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              icon="chat"
+              onClick={() =>
+                navigate('/chat', { state: { presetProjectId: projectId, presetScope: 'both' } })
+              }
+            >
+              New chat
+            </Button>
+            {hasDesktopBridge() && (
+              <Button variant="outline" icon="folder" onClick={addFolder}>
+                Add folder
+              </Button>
+            )}
+            <Button variant="accent" icon="plus" loading={ingest.isPending} onClick={addDocuments}>
+              Add documents
+            </Button>
+          </>
         }
       />
 
@@ -94,7 +98,13 @@ export function ProjectDetailPage() {
 
       <div className={styles.body}>
         <div className={styles.main}>
-          {tab === 'documents' && <DocumentTable documents={rows} />}
+          {tab === 'documents' && (
+            <DocumentTable
+              documents={rows}
+              emptyLabel="No documents yet. Add a folder or drop files in."
+              onDelete={(document) => deleteDocument.mutate(document.id)}
+            />
+          )}
           {tab === 'chats' && <ChatList projectId={projectId} />}
         </div>
       </div>
@@ -167,55 +177,5 @@ function ChatList({ projectId }: { projectId: string | undefined }) {
         </li>
       ))}
     </ul>
-  );
-}
-
-function DocumentTable({ documents }: { documents: Document[] }) {
-  if (documents.length === 0) {
-    return <p className={styles.placeholder}>No documents yet. Add a folder or drop files in.</p>;
-  }
-
-  return (
-    <table className={styles.table}>
-      <thead>
-        <tr>
-          <th scope="col">Document</th>
-          <th scope="col" className={styles.colStatus}>
-            Status
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {documents.map((document) => (
-          <tr key={document.id} className={cn(document.stale && styles.rowStale)}>
-            <td>
-              <span className={styles.docCell}>
-                <Icon
-                  name={document.format === 'image' ? 'image' : 'document'}
-                  size={15}
-                  className={cn(styles.docIcon, styles[`format_${document.format}`])}
-                />
-                <span className={styles.docName}>{document.filename}</span>
-              </span>
-            </td>
-            <td className={styles.colStatus}>
-              {document.status === 'indexing' && document.progress !== null ? (
-                <span className={styles.statusProgress}>
-                  <span className={styles.statusProgressLabel}>
-                    {document.format === 'image' ? 'reading images' : 'indexing'}
-                  </span>
-                  <ProgressBar value={document.progress} thickness={2} label="Indexing" />
-                </span>
-              ) : (
-                <StatusDot
-                  tone={document.stale ? 'warning' : STATUS_TONE[document.status]}
-                  label={document.stale ? 'changed on disk' : STATUS_LABEL[document.status]}
-                />
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
   );
 }

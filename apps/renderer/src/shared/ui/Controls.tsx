@@ -55,6 +55,7 @@ export interface SegmentedOption<T extends string> {
   value: T;
   label: string;
   icon?: IconName;
+  disabled?: boolean;
 }
 
 /**
@@ -89,6 +90,7 @@ export function SegmentedControl<T extends string>({
             type="button"
             role="radio"
             aria-checked={selected}
+            disabled={option.disabled}
             tabIndex={selected ? 0 : -1}
             className={cn(styles.segment, selected && styles.segmentSelected)}
             onClick={() => onChange(option.value)}
@@ -97,8 +99,14 @@ export function SegmentedControl<T extends string>({
               event.preventDefault();
               const index = options.findIndex((entry) => entry.value === value);
               const delta = event.key === 'ArrowRight' ? 1 : -1;
-              const next = options[(index + delta + options.length) % options.length];
-              if (next) onChange(next.value);
+              // Skip disabled options rather than landing focus/selection on one.
+              for (let step = 1; step <= options.length; step += 1) {
+                const next = options[(index + delta * step + options.length * step) % options.length];
+                if (next && !next.disabled) {
+                  onChange(next.value);
+                  break;
+                }
+              }
             }}
           >
             {option.icon && <Icon name={option.icon} size={13} />}

@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from src.db import get_db
 from src.errors import AppError
+from src.ingest.vector_store import FaissVectorStore
+from src.models.document import Document
 from src.models.project import Project
 
 
@@ -92,7 +94,32 @@ def rename_project(project_id: int, payload: ProjectUpdate, db: Session = Depend
 def delete_project(project_id: int, db: Session = Depends(get_db)) -> Response:
     project = get_project_or_404(db, project_id)
     # Documents' and conversations' own rows (and their chunks/messages, transitively)
-    # cascade via the DB's ON DELETE CASCADE, mirroring conversation deletion below.
+    # cascade via the DB's ON DELETE CASCADE, mirroring conversation deletion below. That
+    # cascade is DB-only, though — it never touches the FAISS index files sitting outside
+    # the database, so those are collected before the cascade removes the rows that name them.
+    document_ids = [
+        doc_id for (doc_id,) in db.query(Document.id).filter(Document.project_id == project_id).all()
+    ]
     db.delete(project)
     db.commit()
+    store = FaissVectorStore()
+    for document_id in document_ids:
+        store.delete(document_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/projects", status_code=status.HTTP_204_NO_CONTENT)
+def delete_all_projects(db: Session = Depends(get_db)) -> Response:
+    """Bulk delete every project, cascading to their documents and conversations exactly like
+    deleting one project at a time would — general-corpus documents and conversations (no
+    project) are untouched."""
+    document_ids = [
+        doc_id for (doc_id,) in db.query(Document.id).filter(Document.project_id.isnot(None)).all()
+    ]
+    for project in db.query(Project).all():
+        db.delete(project)
+    db.commit()
+    store = FaissVectorStore()
+    for document_id in document_ids:
+        store.delete(document_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

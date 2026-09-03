@@ -19,7 +19,9 @@
 .header {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--space-3);
+  text-align: center;
 }
 
 .title {
@@ -34,83 +36,6 @@
   font-size: var(--text-chat);
   line-height: var(--leading-normal);
   color: var(--text-tertiary);
-}
-
-/* ----- scope cards ------------------------------------------------------- */
-
-.scopes {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-5);
-}
-
-.scope {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-6) var(--space-6);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  background: var(--surface-raised);
-  text-align: left;
-  transition:
-    border-color var(--duration-fast) var(--ease-out),
-    background var(--duration-fast) var(--ease-out);
-}
-
-.scope:hover:not(:disabled) {
-  border-color: var(--border-strong);
-}
-
-.scope:disabled {
-  opacity: 0.5;
-}
-
-.scopeSelected {
-  border-color: var(--accent);
-  border-width: 1.5px;
-  background: var(--surface-active);
-}
-
-.scopeHead {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.scopeIcon {
-  color: var(--text-tertiary);
-  flex-shrink: 0;
-}
-
-.scopeSelected .scopeIcon {
-  color: var(--accent-text);
-}
-
-.scopeTitle {
-  flex: 1;
-  font-size: var(--text-chat);
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
-}
-
-.scopeCheck {
-  color: var(--accent);
-}
-
-.scopeDescription {
-  font-size: var(--text-row);
-  line-height: var(--leading-normal);
-  color: var(--text-tertiary);
-}
-
-.scopeCount {
-  font-size: var(--text-meta);
-  color: var(--text-label);
-}
-
-.scopeSelected .scopeCount {
-  color: var(--accent-text);
 }
 
 /* ----- lower half -------------------------------------------------------- */

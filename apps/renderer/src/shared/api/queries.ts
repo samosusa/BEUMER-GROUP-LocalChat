@@ -97,11 +97,12 @@ export function useProjectTools(id: string | undefined) {
   });
 }
 
-export function useDocuments(projectId: string | null) {
+export function useDocuments(projectId: string | null, overrides?: QueryOverrides) {
   return useQuery({
     queryKey: keys.documents(projectId),
     queryFn: ({ signal }) => api.listDocuments(projectId, signal),
     ...LIVE,
+    ...overrides,
   });
 }
 
@@ -115,9 +116,25 @@ export function useChats(params: { projectId?: string | null; query?: string } =
 }
 
 export function useChat(id: string | undefined) {
+  const client = useQueryClient();
+  const key = keys.chats.detail(id ?? '');
   return useQuery({
-    queryKey: keys.chats.detail(id ?? ''),
-    queryFn: ({ signal }) => api.getChat(id as string, signal),
+    queryKey: key,
+    queryFn: async ({ signal }) => {
+      const data = await api.getChat(id as string, signal);
+      /**
+       * `scope` has no persistent server representation — the live service re-derives it
+       * from `projectId` alone on every fetch (see `chatFromService`), always landing on
+       * 'project' for a project-linked chat. `useUpdateChatContext` writes a client-chosen
+       * scope straight into this same cache entry, so if that entry already exists, it holds
+       * the true current choice — trust it over the server's one-bit guess. Otherwise this
+       * query would silently revert 'both' back to 'project' on ANY refetch of this chat:
+       * window focus, or — the one that actually bit here — the chat-list invalidation that
+       * runs after every turn completes (see `useAsk`'s `commit`).
+       */
+      const previous = client.getQueryData<typeof data>(key);
+      return previous ? { chat: { ...data.chat, scope: previous.chat.scope } } : data;
+    },
     select: (data) => data.chat,
     enabled: Boolean(id),
     ...LIVE,
@@ -194,6 +211,33 @@ export function useCreateProject() {
   });
 }
 
+/** Cascades to the project's own documents and chats on both backends; there is no undo. */
+export function useDeleteProject() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteProject(id),
+    onSuccess: (_data, id) => {
+      void client.invalidateQueries({ queryKey: keys.projects.all });
+      void client.invalidateQueries({ queryKey: ['documents'] });
+      void client.invalidateQueries({ queryKey: ['chats'] });
+      client.removeQueries({ queryKey: keys.projects.detail(id) });
+    },
+  });
+}
+
+/** Every project, cascading to their documents and chats on both backends; there is no undo. */
+export function useDeleteAllProjects() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.deleteAllProjects(),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.projects.all });
+      void client.invalidateQueries({ queryKey: ['documents'] });
+      void client.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+}
+
 export function useCreateChat() {
   const client = useQueryClient();
   return useMutation({
@@ -211,6 +255,15 @@ export function useDeleteChat() {
       client.removeQueries({ queryKey: keys.chats.detail(id) });
       client.removeQueries({ queryKey: keys.chats.messages(id) });
     },
+  });
+}
+
+/** Every chat, cascading to their messages on both backends; there is no undo. */
+export function useDeleteAllChats() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.deleteAllChats(),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['chats'] }),
   });
 }
 
@@ -268,6 +321,18 @@ export function useDeleteDocument() {
       void client.invalidateQueries({ queryKey: ['projects'] });
       // A pinned document that no longer exists would leave the chat claiming context it
       // cannot search, so the chat is refetched too.
+      void client.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+}
+
+/** Only the general (project-less) corpus — a project's own documents go with the project. */
+export function useDeleteAllGeneralDocuments() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.deleteAllGeneralDocuments(),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['documents'] });
       void client.invalidateQueries({ queryKey: ['chats'] });
     },
   });
