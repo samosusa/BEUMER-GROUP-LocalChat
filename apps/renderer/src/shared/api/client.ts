@@ -196,6 +196,12 @@ export const api = {
       ? { chat: await service.createChat(body.projectId) }
       : request(routes.chats(), { method: 'POST', body, schema: ChatResponse }),
 
+  /** Cascades to the chat's messages on both backends; there is no undo. */
+  deleteChat: (id: string): Promise<undefined> =>
+    LIVE
+      ? service.deleteChat(id)
+      : request(routes.chat(id), { method: 'DELETE', schema: z.undefined() }),
+
   listMessages: async (id: string, signal?: AbortSignal): Promise<ListMessagesResponse> =>
     LIVE
       ? { messages: await service.listMessages(id, signal) }

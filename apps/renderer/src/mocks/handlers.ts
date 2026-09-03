@@ -264,6 +264,17 @@ export const handlers = [
     return chat ? HttpResponse.json({ chat }) : notFound('That chat no longer exists.');
   }),
 
+  http.delete(route('/api/chats/:id'), async ({ params }) => {
+    const id = String(params.id);
+    const index = store.chats.findIndex((entry) => entry.id === id);
+    if (index === -1) return notFound('That chat no longer exists.');
+
+    store.chats.splice(index, 1);
+    store.messages.delete(id);
+    await delay(LATENCY.fast);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
   http.get(route('/api/chats/:id/messages'), async ({ params }) => {
     await delay(LATENCY.normal);
     const id = String(params.id);

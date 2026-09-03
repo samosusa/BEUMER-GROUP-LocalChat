@@ -158,6 +158,86 @@
   color: var(--text-label);
 }
 
+/* ----- chat row deletion --------------------------------------------------
+   The trash icon overlays the row rather than sitting in the flex flow, so a chat
+   title never reflows when the row is hovered — only its own reserved padding on
+   the right makes room for it. The confirm state below mirrors ContextWidget's
+   document-delete confirmation: deleting a chat cascades its messages on both
+   backends and cannot be undone, so the choice is made before, not after. */
+
+.chatRow {
+  position: relative;
+}
+
+.chatRow .row {
+  padding-right: 30px;
+}
+
+.rowDelete {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  color: var(--text-label);
+  opacity: 0;
+}
+
+.chatRow:hover .rowDelete,
+.chatRow:focus-within .rowDelete {
+  opacity: 1;
+}
+
+.confirmRow {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  background: var(--warning-surface);
+  box-shadow: inset 2px 0 0 var(--warning-border);
+  border-left-color: transparent;
+}
+
+.confirmText {
+  font-size: var(--text-meta);
+  line-height: var(--leading-normal);
+  color: var(--text-body);
+}
+
+.confirmActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.confirmCancel,
+.confirmDelete {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--text-meta);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.confirmCancel {
+  color: var(--text-label);
+}
+
+.confirmDelete {
+  color: var(--danger-text);
+  font-weight: 600;
+}
+
+.confirmCancel:hover,
+.confirmDelete:hover {
+  text-decoration: underline;
+}
+
+.confirmCancel:focus-visible,
+.confirmDelete:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
 /* ----- footer ------------------------------------------------------------ */
 
 .footer {

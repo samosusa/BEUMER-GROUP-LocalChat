@@ -38,7 +38,8 @@ export function ChatPage() {
   const projects = useProjects();
   const project = useProject(chat.data?.projectId ?? undefined);
 
-  const projectDocuments = useDocuments(chat.data?.projectId ?? null);
+  const chatProjectId = chat.data?.projectId ?? null;
+  const projectDocuments = useDocuments(chatProjectId);
   const generalDocuments = useDocuments(null);
 
   const updateContext = useUpdateChatContext(chatId);
@@ -50,15 +51,18 @@ export function ChatPage() {
   const [seed, setSeed] = useState<string | null>(null);
   const clearRemoval = useUiStore((state) => state.clearRemoval);
 
-  const available = useMemo(
-    () => [
-      ...(projectDocuments.data?.documents ?? []),
-      ...(generalDocuments.data?.documents ?? []),
-    ],
-    [projectDocuments.data, generalDocuments.data],
-  );
+  // A general (non-project) chat has chatProjectId === null, which makes projectDocuments
+  // and generalDocuments the exact same query — concatenating them would show every
+  // document twice. Only a project-scoped chat draws from two genuinely disjoint lists.
+  const available = useMemo(() => {
+    if (chatProjectId === null) return generalDocuments.data?.documents ?? [];
+    return [...(projectDocuments.data?.documents ?? []), ...(generalDocuments.data?.documents ?? [])];
+  }, [chatProjectId, projectDocuments.data, generalDocuments.data]);
 
-  const stats = projectDocuments.data?.stats ?? generalDocuments.data?.stats;
+  const stats =
+    chatProjectId === null
+      ? generalDocuments.data?.stats
+      : (projectDocuments.data?.stats ?? generalDocuments.data?.stats);
 
   const addDocuments = useCallback(
     async (chosen: ChosenDocuments) => {

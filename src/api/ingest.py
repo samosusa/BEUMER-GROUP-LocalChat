@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import shutil
+import tempfile
 from datetime import datetime
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, UploadFile, status
 from pydantic import BaseModel
@@ -34,7 +35,12 @@ class IngestStatusResponse(BaseModel):
 def process_upload(job_id: int, title: str, path: str, project_id: int | None = None) -> None:
     with SessionLocal() as db:
         run_pipeline(db, job_id, title, path, project_id=project_id)
-    Path(path).unlink(missing_ok=True)
+    temp_path = Path(path)
+    temp_path.unlink(missing_ok=True)
+    try:
+        temp_path.parent.rmdir()  # only succeeds if the per-upload temp dir is now empty
+    except OSError:
+        pass
 
 
 def _validate_suffix(filename: str) -> str:
@@ -46,6 +52,17 @@ def _validate_suffix(filename: str) -> str:
             {"file": filename or "unknown"},
         )
     return suffix
+
+
+def _safe_upload_name(filename: str) -> str:
+    """The leaf of the uploaded filename, stripped of any directory component.
+
+    This becomes part of a real filesystem path below, so a filename carrying `../` must
+    never be used as-is - `Path.name` is what keeps a crafted name from writing outside the
+    per-upload temp directory.
+    """
+    name = Path(filename).name
+    return name if name not in ("", ".", "..") else "upload"
 
 
 def _ensure_parseable(path: str, filename: str) -> None:
@@ -86,19 +103,22 @@ async def ingest_document(
         raise AppError("ERR_MISSING_FILE", "An upload file is required", {"file": "is required"})
     if project_id is not None:
         get_project_or_404(db, project_id)
-    suffix = _validate_suffix(file.filename or "")
+    _validate_suffix(file.filename or "")
 
-    temporary_file = NamedTemporaryFile(delete=False, suffix=suffix)
+    # A dedicated directory per upload, with the file kept under its own original name
+    # rather than a random tmpXXXXXX one: `Document.path` is set to this path, and the
+    # interface derives the filename it shows from that path's basename, so a meaningless
+    # temp name here means "lalala.txt" shows up on screen as "tmp6qiv1dfz.txt".
+    upload_dir = Path(tempfile.mkdtemp())
+    temp_path = upload_dir / _safe_upload_name(file.filename or "upload")
     try:
-        temporary_file.write(await file.read())
-        temporary_file.close()
-        _ensure_parseable(temporary_file.name, file.filename or "unknown")
+        temp_path.write_bytes(await file.read())
+        _ensure_parseable(str(temp_path), file.filename or "unknown")
         job = _create_queued_job(db)
-        background_tasks.add_task(process_upload, job.id, title, temporary_file.name, project_id)
+        background_tasks.add_task(process_upload, job.id, title, str(temp_path), project_id)
         return IngestResponse(job_id=job.id)
     except Exception:
-        temporary_file.close()
-        Path(temporary_file.name).unlink(missing_ok=True)
+        shutil.rmtree(upload_dir, ignore_errors=True)
         raise
 
 

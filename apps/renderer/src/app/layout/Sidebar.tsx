@@ -4,6 +4,7 @@ import type { Chat, ComputeMode } from '@localchat/contracts';
 import {
   useActiveModel,
   useChats,
+  useDeleteChat,
   useHealth,
   useModels,
   useProjects,
@@ -37,6 +38,11 @@ export function Sidebar() {
   const projects = useProjects();
   const chats = useChats({ query: search || undefined });
   const createChat = useCreateChat();
+  const deleteChat = useDeleteChat();
+  // Which chat row is asking to be confirmed. Deleting cascades the chat's messages on
+  // both backends and there is no undo, so the choice has to be made before, not after —
+  // an inline confirm in place of the row rather than a toast with a fading window.
+  const [confirmingChatId, setConfirmingChatId] = useState<string | null>(null);
 
   const grouped = useMemo(() => groupChats(chats.data ?? []), [chats.data]);
   const activeModel = models.data?.find((model) => model.id === activeModelState.data?.activeModelId);
@@ -55,6 +61,15 @@ export function Sidebar() {
       attachmentIds: [],
     });
     navigate(`/chat/${result.chat.id}`);
+  }
+
+  function handleDeleteChat(chat: Chat) {
+    setConfirmingChatId(null);
+    deleteChat.mutate(chat.id, {
+      onSuccess: () => {
+        if (chat.id === chatId) navigate('/chat');
+      },
+    });
   }
 
   return (
@@ -129,16 +144,48 @@ export function Sidebar() {
           <section className={styles.section} key={bucket}>
             <SectionLabel>{BUCKET_LABELS[bucket]}</SectionLabel>
             <ul>
-              {entries.map((chat) => (
-                <li key={chat.id}>
-                  <NavLink
-                    to={`/chat/${chat.id}`}
-                    className={({ isActive }) => cn(styles.row, isActive && styles.rowActive)}
-                  >
-                    <span className={styles.rowLabel}>{chat.title}</span>
-                  </NavLink>
-                </li>
-              ))}
+              {entries.map((chat) =>
+                confirmingChatId === chat.id ? (
+                  <li key={chat.id} className={cn(styles.row, styles.confirmRow)}>
+                    <span className={styles.confirmText}>
+                      Delete <strong>{chat.title}</strong>? This can't be undone.
+                    </span>
+                    <span className={styles.confirmActions}>
+                      <button
+                        type="button"
+                        className={styles.confirmCancel}
+                        onClick={() => setConfirmingChatId(null)}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.confirmDelete}
+                        disabled={deleteChat.isPending}
+                        onClick={() => handleDeleteChat(chat)}
+                      >
+                        Delete
+                      </button>
+                    </span>
+                  </li>
+                ) : (
+                  <li key={chat.id} className={styles.chatRow}>
+                    <NavLink
+                      to={`/chat/${chat.id}`}
+                      className={({ isActive }) => cn(styles.row, isActive && styles.rowActive)}
+                    >
+                      <span className={styles.rowLabel}>{chat.title}</span>
+                    </NavLink>
+                    <IconButton
+                      icon="trash"
+                      label={`Delete “${chat.title}”`}
+                      size={13}
+                      className={styles.rowDelete}
+                      onClick={() => setConfirmingChatId(chat.id)}
+                    />
+                  </li>
+                ),
+              )}
             </ul>
           </section>
         ))}

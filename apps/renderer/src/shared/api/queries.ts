@@ -202,6 +202,18 @@ export function useCreateChat() {
   });
 }
 
+export function useDeleteChat() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteChat(id),
+    onSuccess: (_data, id) => {
+      void client.invalidateQueries({ queryKey: ['chats'] });
+      client.removeQueries({ queryKey: keys.chats.detail(id) });
+      client.removeQueries({ queryKey: keys.chats.messages(id) });
+    },
+  });
+}
+
 export function useUpdateChatContext(chatId: string | undefined) {
   const client = useQueryClient();
   return useMutation({
