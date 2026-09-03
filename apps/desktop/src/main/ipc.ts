@@ -77,11 +77,7 @@ const MAX_FOLDER_DEPTH = 8;
  * it) is skipped rather than failing the whole pick — one bad folder should not block every
  * other file the engineer selected.
  */
-async function walkForDocuments(
-  dir: string,
-  depth: number,
-  found: string[],
-): Promise<void> {
+async function walkForDocuments(dir: string, depth: number, found: string[]): Promise<void> {
   if (depth > MAX_FOLDER_DEPTH || found.length >= MAX_FOLDER_DOCUMENTS) return;
 
   let entries;

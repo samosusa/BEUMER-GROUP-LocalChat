@@ -53,22 +53,22 @@ right and the stub is out of date.**
 
 ## What is wired
 
-| Screen                   | Service endpoint                         | Notes                                           |
-| ------------------------ | ---------------------------------------- | ----------------------------------------------- |
-| Status strip             | `GET /health` + `GET /models/active`     | Second call only to tell "up" from "can answer" |
-| Document list            | `GET /docs`                              |                                                 |
-| Remove a document        | `DELETE /docs/{id}`                      |                                                 |
-| Add documents            | `POST /ingest` → `GET /status/{job_id}`  | Multipart upload; polls to completion           |
-| Chat sidebar and history | `GET /conversations`                     |                                                 |
-| Open a chat              | `GET /conversations/{id}`                |                                                 |
-| New chat                 | `POST /conversations`                    | Title auto-generated from the first question; optional `project_id` scopes it |
-| Rename / delete          | `PATCH` / `DELETE /conversations/{id}`   |                                                 |
-| Ask a question           | `POST /conversations/{id}/messages`      | Retrieval is limited to the conversation's project, if it has one |
-| Model picker             | `GET /models`, `GET/POST /models/active` | The swap blocks; expect tens of seconds         |
-| Projects                 | `GET/POST /projects`, `GET/PATCH /projects/{id}` | Rename only, no other field — see below |
-| Project documents        | `GET /docs` filtered client-side by `project_id` | No scoped endpoint on the service |
-| Project-scoped ingest    | `POST /ingest` with `project_id`         |                                                 |
-| Project-scoped chat      | `POST /conversations` with `project_id`  | Retrieval is then limited to that project      |
+| Screen                   | Service endpoint                                 | Notes                                                                         |
+| ------------------------ | ------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Status strip             | `GET /health` + `GET /models/active`             | Second call only to tell "up" from "can answer"                               |
+| Document list            | `GET /docs`                                      |                                                                               |
+| Remove a document        | `DELETE /docs/{id}`                              |                                                                               |
+| Add documents            | `POST /ingest` → `GET /status/{job_id}`          | Multipart upload; polls to completion                                         |
+| Chat sidebar and history | `GET /conversations`                             |                                                                               |
+| Open a chat              | `GET /conversations/{id}`                        |                                                                               |
+| New chat                 | `POST /conversations`                            | Title auto-generated from the first question; optional `project_id` scopes it |
+| Rename / delete          | `PATCH` / `DELETE /conversations/{id}`           |                                                                               |
+| Ask a question           | `POST /conversations/{id}/messages`              | Retrieval is limited to the conversation's project, if it has one             |
+| Model picker             | `GET /models`, `GET/POST /models/active`         | The swap blocks; expect tens of seconds                                       |
+| Projects                 | `GET/POST /projects`, `GET/PATCH /projects/{id}` | Rename only, no other field — see below                                       |
+| Project documents        | `GET /docs` filtered client-side by `project_id` | No scoped endpoint on the service                                             |
+| Project-scoped ingest    | `POST /ingest` with `project_id`                 |                                                                               |
+| Project-scoped chat      | `POST /conversations` with `project_id`          | Retrieval is then limited to that project                                     |
 
 ## What is not wired, and why
 
