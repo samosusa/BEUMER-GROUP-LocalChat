@@ -10,7 +10,6 @@ import {
   useMessages,
   useProject,
   useProjects,
-  useSettings,
   useUpdateChatContext,
 } from '@/shared/api/queries';
 import { ContextWidget } from '@/features/context/ContextWidget';
@@ -24,7 +23,11 @@ import { Composer } from './components/Composer';
 import { NewChatIntro } from './components/NewChatIntro';
 import { UndoToast } from './components/UndoToast';
 import { useAsk } from './hooks/useAsk';
-import { chooseDocuments, chooseFolderDocuments, type ChosenDocuments } from '@/shared/lib/localFiles';
+import {
+  chooseDocuments,
+  chooseFolderDocuments,
+  type ChosenDocuments,
+} from '@/shared/lib/localFiles';
 import { useDocumentDrop } from './hooks/useDocumentDrop';
 import styles from './ChatPage.module.css';
 
@@ -34,7 +37,6 @@ export function ChatPage() {
 
   const chat = useChat(chatId);
   const messages = useMessages(chatId);
-  const settings = useSettings();
   const projects = useProjects();
   const project = useProject(chat.data?.projectId ?? undefined);
 
@@ -56,7 +58,10 @@ export function ChatPage() {
   // document twice. Only a project-scoped chat draws from two genuinely disjoint lists.
   const available = useMemo(() => {
     if (chatProjectId === null) return generalDocuments.data?.documents ?? [];
-    return [...(projectDocuments.data?.documents ?? []), ...(generalDocuments.data?.documents ?? [])];
+    return [
+      ...(projectDocuments.data?.documents ?? []),
+      ...(generalDocuments.data?.documents ?? []),
+    ];
   }, [chatProjectId, projectDocuments.data, generalDocuments.data]);
 
   const stats =
@@ -192,8 +197,6 @@ export function ChatPage() {
             : 'Ask about the documents in this context…'
         }
         busy={ask.busy}
-        topK={settings.data?.retrieval.topK ?? 6}
-        historyTurns={settings.data?.retrieval.historyTurns ?? 5}
         onSubmit={submit}
         onCancel={ask.cancel}
         onAttach={pickFiles}

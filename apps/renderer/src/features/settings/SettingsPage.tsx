@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { ComputeMode, Model, ModelBenchmarkRow } from '@localchat/contracts';
 import {
@@ -9,6 +10,7 @@ import {
   useSettings,
   useUpdateSettings,
 } from '@/shared/api/queries';
+import { describeError } from '@/shared/api/http';
 import { Button } from '@/shared/ui/Button';
 import { Toggle } from '@/shared/ui/Controls';
 import { Icon, type IconName } from '@/shared/ui/Icon';
@@ -19,7 +21,7 @@ import { useUiStore } from '@/shared/store/uiStore';
 import { cn } from '@/shared/lib/cn';
 import styles from './Settings.module.css';
 
-type Section = 'model' | 'retrieval' | 'storage' | 'tools' | 'startup' | 'benchmark';
+type Section = 'model' | 'retrieval' | 'storage' | 'tools' | 'startup';
 
 const SECTIONS: Array<{ id: Section; label: string; icon: IconName }> = [
   { id: 'model', label: 'Model & hardware', icon: 'cpu' },
@@ -27,7 +29,6 @@ const SECTIONS: Array<{ id: Section; label: string; icon: IconName }> = [
   { id: 'storage', label: 'Storage & privacy', icon: 'database' },
   { id: 'tools', label: 'Approved tools', icon: 'plug' },
   { id: 'startup', label: 'Startup & window', icon: 'settings' },
-  { id: 'benchmark', label: 'Benchmark', icon: 'chart' },
 ];
 
 const SECTION_IDS = new Set(SECTIONS.map((entry) => entry.id));
@@ -165,7 +166,9 @@ export function SettingsPage() {
                           : 'GPU acceleration, if the installed build supports it.'
                       }
                       selected={activeModelState.data?.compute === 'gpu'}
-                      disabled={setActiveModel.isPending || activeModelState.data?.gpuAvailable === false}
+                      disabled={
+                        setActiveModel.isPending || activeModelState.data?.gpuAvailable === false
+                      }
                       onSelect={() => setActiveModel.mutate({ compute: 'gpu' })}
                     />
                   </div>
@@ -206,10 +209,17 @@ export function SettingsPage() {
                     Change
                   </Button>
                 </section>
+
+                {/*
+                  The benchmark sits under the model list on purpose. It measures exactly
+                  the thing the list asks you to choose between, and on its own page the
+                  choice was made on one screen and the evidence for it lived on another.
+                  Full width because six numeric columns were unreadable in the rail.
+                */}
+                <BenchmarkCard />
               </div>
 
               <div className={styles.rail}>
-                <BenchmarkCard />
                 {settings.data && (
                   <section className={styles.card}>
                     <SectionLabel>Network</SectionLabel>
@@ -239,10 +249,7 @@ export function SettingsPage() {
             {retrieval ? (
               <section className={styles.card}>
                 <dl className={styles.definitions}>
-                  <Definition
-                    label="Passages per answer (top-k)"
-                    value={String(retrieval.topK)}
-                  />
+                  <Definition label="Passages per answer (top-k)" value={String(retrieval.topK)} />
                   <Definition
                     label="Conversation turns kept"
                     value={String(retrieval.historyTurns)}
@@ -330,18 +337,6 @@ export function SettingsPage() {
             <section className={styles.card}>
               <p className={styles.hint}>Enable a tool per project on the project screen.</p>
             </section>
-          </>
-        )}
-
-        {section === 'benchmark' && (
-          <>
-            <PageHeader
-              title="Benchmark"
-              description="The same evaluation questions run against a fixed corpus snapshot, so results are comparable across hardware."
-            />
-            <div className={styles.rail}>
-              <BenchmarkCard />
-            </div>
           </>
         )}
       </div>
@@ -457,11 +452,49 @@ function ComputeCard({
  */
 function BenchmarkCard() {
   const benchmark = useBenchmark();
+  const models = useModels();
+  const activeModel = useActiveModel();
   const run = useRunBenchmark();
   const result = benchmark.data;
   const running = result?.status === 'running' || run.isPending;
 
-  const start = () => run.mutate({ devices: ['cpu', 'gpu'], models: null });
+  /** Empty means every installed model, which is what the service does with `models: null`. */
+  const [only, setOnly] = useState('');
+
+  /**
+   * Ask only for devices this machine has.
+   *
+   * Requesting `gpu` where llama-cpp-python was installed without a CUDA build is refused
+   * with ERR_GPU_UNAVAILABLE, and the service refuses the WHOLE request — not just the GPU
+   * rows — so nothing runs at all. Since that is the ordinary case on a laptop, asking for
+   * both unconditionally meant the button could never work.
+   */
+  const gpuAvailable = activeModel.data?.gpuAvailable ?? false;
+  const start = () =>
+    run.mutate({
+      devices: gpuAvailable ? ['cpu', 'gpu'] : ['cpu'],
+      models: only ? [only] : null,
+    });
+
+  const picker = (
+    <label className={styles.benchPicker}>
+      <span className={styles.benchPickerLabel}>Benchmark</span>
+      <select
+        className={styles.benchSelect}
+        value={only}
+        disabled={running}
+        onChange={(event) => setOnly(event.target.value)}
+      >
+        <option value="">all installed models</option>
+        {(models.data ?? []).map((model) => (
+          <option key={model.id} value={model.id}>
+            {model.name}
+          </option>
+        ))}
+      </select>
+      {!gpuAvailable && <span className={styles.benchPickerNote}>CPU only — no GPU build</span>}
+    </label>
+  );
 
   if (!result) {
     return (
@@ -471,6 +504,8 @@ function BenchmarkCard() {
           Compares the installed models on this machine — load time, time to first token and
           generation speed. It does not measure retrieval quality.
         </p>
+        {picker}
+        {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
         <Button variant="outline" size="sm" loading={running} onClick={start}>
           Run benchmark
         </Button>
@@ -513,6 +548,8 @@ function BenchmarkCard() {
       {result.status === 'failed' && (
         <p className={styles.benchWarning}>The run did not finish. Start it again below.</p>
       )}
+
+      {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
 
       <div className={styles.benchScroll}>
         <table className={styles.benchTable}>
@@ -571,6 +608,8 @@ function BenchmarkCard() {
           </tbody>
         </table>
       </div>
+
+      {picker}
 
       <Button variant="outline" size="sm" loading={running} onClick={start}>
         Run benchmark again

@@ -315,12 +315,15 @@
 
 .benchTable th,
 .benchTable td {
-  padding: var(--space-4) 0;
+  padding: var(--space-4) var(--space-4) var(--space-4) 0;
   text-align: right;
   font-size: var(--text-row);
+  /* Figures must not break mid-value: "4.2 s" wrapping to two lines was unreadable. */
+  white-space: nowrap;
 }
 
 .benchTable thead th {
+  white-space: nowrap;
   padding-bottom: var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
   font-size: var(--text-micro);
@@ -435,4 +438,49 @@
   border-color: var(--accent);
   background: var(--surface-active);
   color: var(--accent-text);
+}
+
+/* ---------------------------------------------------------------------------
+   Benchmark scope picker
+
+   A run loads every installed model in sequence and takes minutes, so being able to
+   benchmark one model is not a convenience — it is the difference between checking a
+   single change and waiting out the whole set.
+   --------------------------------------------------------------------------- */
+
+.benchPicker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.benchPickerLabel {
+  font-size: var(--text-meta);
+  color: var(--text-label);
+}
+
+.benchSelect {
+  font: inherit;
+  font-size: var(--text-meta);
+  color: var(--text-body);
+  background: var(--surface-sunken, var(--surface-hover));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+.benchSelect:disabled {
+  opacity: 0.5;
+}
+
+.benchSelect:focus-visible {
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+
+.benchPickerNote {
+  font-size: var(--text-micro);
+  color: var(--text-label);
 }

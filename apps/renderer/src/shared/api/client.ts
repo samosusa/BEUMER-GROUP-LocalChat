@@ -107,8 +107,12 @@ export const api = {
       : request(routes.project(id), { method: 'PATCH', body, schema: ProjectResponse }),
 
   /** No scoped endpoint on the service, so this is the full corpus filtered by project_id. */
-  listProjectDocuments: async (id: string, signal?: AbortSignal): Promise<ListDocumentsResponse> => {
-    if (!LIVE) return request(routes.projectDocuments(id), { schema: ListDocumentsResponse, signal });
+  listProjectDocuments: async (
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<ListDocumentsResponse> => {
+    if (!LIVE)
+      return request(routes.projectDocuments(id), { schema: ListDocumentsResponse, signal });
     const documents = (await service.listDocuments(signal)).filter((doc) => doc.projectId === id);
     return { documents, stats: statsFromDocuments(documents.length) };
   },
@@ -183,7 +187,9 @@ export const api = {
     const scoped =
       params.projectId === undefined ? all : all.filter((c) => c.projectId === params.projectId);
     const needle = params.query?.trim().toLowerCase();
-    return { chats: needle ? scoped.filter((c) => c.title.toLowerCase().includes(needle)) : scoped };
+    return {
+      chats: needle ? scoped.filter((c) => c.title.toLowerCase().includes(needle)) : scoped,
+    };
   },
 
   getChat: async (id: string, signal?: AbortSignal): Promise<ChatResponse> =>

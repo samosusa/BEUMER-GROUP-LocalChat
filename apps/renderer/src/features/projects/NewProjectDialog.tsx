@@ -143,8 +143,8 @@ export function NewProjectDialog({
           {queued.length > 0 && (
             <p className={styles.hint}>
               <Icon name="upload" size={12} />
-              {formatCount(queued.length)} {queued.length === 1 ? 'document' : 'documents'} will
-              be added once the project is created.
+              {formatCount(queued.length)} {queued.length === 1 ? 'document' : 'documents'} will be
+              added once the project is created.
             </p>
           )}
         </div>

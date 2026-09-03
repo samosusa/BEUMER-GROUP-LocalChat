@@ -34,6 +34,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import platform
 import threading
 import time
 from datetime import datetime, timezone
@@ -63,8 +64,9 @@ class State:
         self.jobs: dict[int, dict] = {}
         # document id -> parsed sections, so answers can come out of the real file
         self.sections: dict[int, list] = {}
+        self.benchmark_jobs: dict[int, dict] = {}
         self.active = {"model": None, "device": None}
-        self._next = {"document": 1, "conversation": 1, "message": 1, "job": 1}
+        self._next = {"document": 1, "conversation": 1, "message": 1, "job": 1, "benchmark": 1}
 
     def id_for(self, kind: str) -> int:
         value = self._next[kind]
@@ -79,6 +81,16 @@ REFUSAL = {
     "citations": [],
     "not_found": True,
     "suggestion": "Try a more specific question about the ingested project documentation.",
+}
+
+# The stub has no GPU offload, exactly like a llama-cpp-python installed without CUDA —
+# which is the common laptop case and the one the interface has to handle.
+GPU_AVAILABLE = False
+
+# Roughly what a 0.5B and a 3B model do on a laptop CPU, so the table has a real spread.
+BENCHMARK_PROFILE = {
+    "Llama-3.2-3B-Instruct-Q5_K_M.gguf": {"load_s": 4.18, "ttft_s": 1.92, "tok_s": 7.4, "mem": 2480.0},
+    "Qwen2.5-0.5B-Instruct-Q5_K_M.gguf": {"load_s": 0.86, "ttft_s": 0.31, "tok_s": 31.6, "mem": 620.0},
 }
 
 MODELS = [
@@ -144,6 +156,73 @@ def run_ingestion(job_id: int, title: str, filename: str, text: str = "") -> Non
             }
         )
         state.sections[document_id] = split_sections(text)
+
+
+def run_benchmark(job_id: int) -> None:
+    """
+    Walks each model x device combination, the way src/benchmark.py does: load the model,
+    generate a fixed prompt, record load time, time to first token and tokens per second.
+
+    Deliberately slow. A real run loads several gigabytes per combination, and a benchmark
+    that finished instantly would never exercise the polling, the progress line, or the
+    warning that answering is unavailable while it runs.
+    """
+    job = state.benchmark_jobs[job_id]
+    for model in job["models"]:
+        for device in job["devices"]:
+            with state.lock:
+                job["current_model"] = model
+                job["current_device"] = device
+
+            time.sleep(2.0)
+            profile = BENCHMARK_PROFILE.get(model, {"load_s": 2.0, "ttft_s": 1.0, "tok_s": 12.0, "mem": 1500.0})
+
+            if device == "gpu" and not GPU_AVAILABLE:
+                row = {
+                    "model": model,
+                    "device": device,
+                    "device_name": None,
+                    "status": "skipped",
+                    "detail": (
+                        "This build of llama-cpp-python has no CUDA/GPU offload support "
+                        "installed."
+                    ),
+                    "load_s": None,
+                    "ttft_s": None,
+                    "gen_tokens": None,
+                    "tok_s": None,
+                    "total_s": None,
+                    "peak_mem_mb": None,
+                    "peak_vram_mb": None,
+                    "run_at": now(),
+                }
+            else:
+                gen_tokens = 128
+                row = {
+                    "model": model,
+                    "device": device,
+                    "device_name": platform.processor() or platform.machine(),
+                    "status": "ok",
+                    "detail": None,
+                    "load_s": profile["load_s"],
+                    "ttft_s": profile["ttft_s"],
+                    "gen_tokens": gen_tokens,
+                    "tok_s": profile["tok_s"],
+                    "total_s": profile["load_s"] + profile["ttft_s"] + gen_tokens / profile["tok_s"],
+                    "peak_mem_mb": profile["mem"],
+                    "peak_vram_mb": None,
+                    "run_at": now(),
+                }
+
+            with state.lock:
+                job["results"].append(row)
+                job["completed_runs"] += 1
+
+    with state.lock:
+        job["status"] = "completed"
+        job["current_model"] = None
+        job["current_device"] = None
+        job["finished_at"] = now()
 
 
 def answer_for(question: str) -> dict:
@@ -307,7 +386,52 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, MODELS)
 
         if path == "/models/active":
-            return self._send(200, {**state.active, "gpu_available": False})
+            return self._send(200, {**state.active, "gpu_available": GPU_AVAILABLE})
+
+        if path == "/benchmark/results":
+            return self._send(
+                200,
+                [
+                    {
+                        "benchmark_job_id": job["id"],
+                        "status": job["status"],
+                        "devices": job["devices"],
+                        "models": job["models"],
+                        "created_at": job["created_at"],
+                        "finished_at": job["finished_at"],
+                    }
+                    for job in state.benchmark_jobs.values()
+                ],
+            )
+
+        if match := re.fullmatch(r"/benchmark/results/(\d+)", path):
+            job = state.benchmark_jobs.get(int(match.group(1)))
+            if not job:
+                return self._error(404, "ERR_NOT_FOUND", "Benchmark job not found")
+            return self._send(
+                200,
+                {
+                    "benchmark_job_id": job["id"],
+                    "status": job["status"],
+                    "results": job["results"],
+                },
+            )
+
+        if match := re.fullmatch(r"/benchmark/status/(\d+)", path):
+            job = state.benchmark_jobs.get(int(match.group(1)))
+            if not job:
+                return self._error(404, "ERR_NOT_FOUND", "Benchmark job not found")
+            current = (
+                f"{job['current_model']} on {job['current_device']}"
+                if job["current_model"]
+                else None
+            )
+            progress = (
+                f"{job['completed_runs']} of {job['total_runs']}"
+                if job["total_runs"]
+                else "starting"
+            )
+            return self._send(200, {"status": job["status"], "progress": progress, "current": current})
 
         return self._error(404, "ERR_NOT_FOUND", f"No route for GET {path}")
 
@@ -386,6 +510,47 @@ class Handler(BaseHTTPRequestHandler):
                 conversation["title"] = question[:59] + "…" if len(question) > 60 else question
             conversation["updated_at"] = assistant["created_at"]
             return self._send(201, assistant)
+
+        if path == "/benchmark":
+            body = self._json_body()
+            devices = body.get("devices") or []
+            if not devices:
+                return self._error(
+                    400, "ERR_VALIDATION", "Request validation failed", {"devices": "is required"}
+                )
+            unknown = [d for d in devices if d not in ("cpu", "gpu")]
+            if unknown:
+                return self._error(
+                    400, "ERR_VALIDATION", "Request validation failed",
+                    {"devices": f"must only contain ['cpu', 'gpu'], got {unknown}"},
+                )
+            if "gpu" in devices and not GPU_AVAILABLE:
+                return self._error(
+                    422,
+                    "ERR_GPU_UNAVAILABLE",
+                    'devices includes "gpu" but this build of llama-cpp-python has no '
+                    "CUDA/GPU offload support installed. Install the CUDA-enabled wheel, "
+                    "or benchmark cpu only.",
+                    {"devices": devices},
+                )
+
+            models = body.get("models") or [entry["name"] for entry in MODELS]
+            job_id = state.id_for("benchmark")
+            state.benchmark_jobs[job_id] = {
+                "id": job_id,
+                "status": "running",
+                "devices": devices,
+                "models": models,
+                "results": [],
+                "completed_runs": 0,
+                "total_runs": len(models) * len(devices),
+                "current_model": None,
+                "current_device": None,
+                "created_at": now(),
+                "finished_at": None,
+            }
+            threading.Thread(target=run_benchmark, args=(job_id,), daemon=True).start()
+            return self._send(202, {"benchmark_job_id": job_id})
 
         if path == "/models/active":
             body = self._json_body()

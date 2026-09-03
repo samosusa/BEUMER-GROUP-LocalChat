@@ -45,12 +45,15 @@ export function Sidebar() {
   const [confirmingChatId, setConfirmingChatId] = useState<string | null>(null);
 
   const grouped = useMemo(() => groupChats(chats.data ?? []), [chats.data]);
-  const activeModel = models.data?.find((model) => model.id === activeModelState.data?.activeModelId);
+  const activeModel = models.data?.find(
+    (model) => model.id === activeModelState.data?.activeModelId,
+  );
   // Distinct from "still fetching": once both queries have settled, a model that isn't
   // active yet is a real state — the picker starts with nothing loaded — not a stuck spinner.
-  const modelLabel = !activeModelState.data || !models.data
-    ? 'Loading model…'
-    : (activeModel?.name ?? 'No model selected');
+  const modelLabel =
+    !activeModelState.data || !models.data
+      ? 'Loading model…'
+      : (activeModel?.name ?? 'No model selected');
 
   const activeProjectId = projectId ?? chats.data?.find((chat) => chat.id === chatId)?.projectId;
 
@@ -221,7 +224,8 @@ export function Sidebar() {
           <IconButton
             icon="settings"
             label="Settings"
-            onClick={() => navigate('/settings?section=benchmark')}
+            // The generic settings button opens the first section, not a specific one.
+            onClick={() => navigate('/settings')}
           />
         </div>
       </footer>

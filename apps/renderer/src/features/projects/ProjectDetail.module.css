@@ -265,3 +265,70 @@
   font-size: var(--text-meta);
   color: var(--text-label);
 }
+
+/* ---------------------------------------------------------------------------
+   Chats in this project
+   --------------------------------------------------------------------------- */
+
+.chatList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chatRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-3);
+  border-radius: var(--radius-md);
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.chatRow:hover {
+  background: var(--surface-hover);
+}
+
+.chatRow:focus-visible {
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+
+.chatIcon {
+  color: var(--text-label);
+  flex-shrink: 0;
+}
+
+.chatText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.chatTitle {
+  font-size: var(--text-row);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chatPreview {
+  font-size: var(--text-meta);
+  color: var(--text-label);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chatMeta {
+  font-size: var(--text-micro);
+  color: var(--text-label);
+  flex-shrink: 0;
+}

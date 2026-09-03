@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Document, IngestionStatus } from '@localchat/contracts';
 import {
+  useChats,
   useIngestDocuments,
   useProject,
   useProjectDocuments,
@@ -121,12 +122,7 @@ export function ProjectDetailPage() {
       <div className={styles.body}>
         <div className={styles.main}>
           {tab === 'documents' && <DocumentTable documents={rows} />}
-          {tab === 'chats' && (
-            <p className={styles.placeholder}>
-              {formatCount(project.data?.chatCount ?? 0)} chats in this project. Open one from the
-              sidebar.
-            </p>
-          )}
+          {tab === 'chats' && <ChatList projectId={projectId} />}
           {tab === 'instructions' && (
             <p className={styles.instructionsFull}>
               {project.data?.instructions || 'No project instructions set.'}
@@ -210,6 +206,46 @@ function Tab({
       {children}
       {count !== undefined && <Mono className={styles.tabCount}>{formatCount(count)}</Mono>}
     </button>
+  );
+}
+
+/**
+ * The project's chats, opened from here.
+ *
+ * Previously this tab said "open one from the sidebar", which asked the engineer to leave
+ * the screen they were on and find the chat among every other project's. A project page
+ * that lists its own chats but cannot open them is a dead end.
+ */
+function ChatList({ projectId }: { projectId: string | undefined }) {
+  const chats = useChats({ projectId: projectId ?? null });
+
+  if (chats.isPending) return <p className={styles.placeholder}>Loading chats…</p>;
+
+  const rows = chats.data ?? [];
+  if (rows.length === 0) {
+    return <p className={styles.placeholder}>No chats in this project yet.</p>;
+  }
+
+  return (
+    <ul className={styles.chatList}>
+      {rows.map((chat) => (
+        <li key={chat.id}>
+          <Link to={`/chat/${chat.id}`} className={styles.chatRow}>
+            <Icon name="chat" size={15} className={styles.chatIcon} />
+            <span className={styles.chatText}>
+              <span className={styles.chatTitle}>{chat.title}</span>
+              {/*
+                The conversation list endpoint returns no messages, so a preview and a
+                message count are not knowable here without one request per row. Show the
+                time instead of a zero that would read as an empty chat.
+              */}
+              {chat.preview && <span className={styles.chatPreview}>{chat.preview}</span>}
+            </span>
+            <Mono className={styles.chatMeta}>{formatRelative(chat.updatedAt)}</Mono>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 
