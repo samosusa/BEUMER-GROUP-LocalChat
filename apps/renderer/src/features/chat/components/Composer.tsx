@@ -1,14 +1,11 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { IconButton } from '@/shared/ui/Button';
-import { Mono } from '@/shared/ui/Indicators';
 import styles from './Composer.module.css';
 
 interface ComposerProps {
   placeholder: string;
   busy: boolean;
-  topK: number;
-  historyTurns: number;
   disabled?: boolean;
   onSubmit: (question: string) => void;
   onCancel: () => void;
@@ -22,8 +19,6 @@ const MAX_ROWS = 8;
 export function Composer({
   placeholder,
   busy,
-  topK,
-  historyTurns,
   disabled = false,
   onSubmit,
   onCancel,
@@ -88,12 +83,14 @@ export function Composer({
           />
 
           <div className={styles.toolbar}>
+            {/*
+              No image button: the service has no image understanding, so an "attach a
+              drawing or screenshot" affordance promised something nothing behind it could
+              do. Nor a "top-k N · last N turns kept" readout — those were fixture values,
+              and /query accepts neither a top_k nor a history parameter, so the numbers
+              described a system that does not exist.
+            */}
             <IconButton icon="paperclip" label="Attach documents to this chat" onClick={onAttach} />
-            <IconButton icon="image" label="Attach a drawing or screenshot" onClick={onAttach} />
-            <span className={styles.divider} aria-hidden="true" />
-            <Mono className={styles.retrievalHint}>
-              top-k {topK} · last {historyTurns} turns kept
-            </Mono>
             <span className={styles.spacer} />
             {busy ? (
               <button

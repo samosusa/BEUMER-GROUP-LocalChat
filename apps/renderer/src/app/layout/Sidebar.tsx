@@ -1,14 +1,22 @@
 import { useMemo, useState } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
-import type { Chat } from '@localchat/contracts';
-import { useChats, useHealth, useModels, useProjects, useSettings } from '@/shared/api/queries';
+import type { Chat, ComputeMode } from '@localchat/contracts';
+import {
+  useActiveModel,
+  useChats,
+  useDeleteAllChats,
+  useDeleteChat,
+  useHealth,
+  useModels,
+  useSettings,
+} from '@/shared/api/queries';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { SearchField } from '@/shared/ui/Controls';
+import { DangerAction } from '@/shared/ui/DangerAction';
 import { Icon } from '@/shared/ui/Icon';
 import { Mono, SectionLabel } from '@/shared/ui/Indicators';
 import { formatBytes, historyBucket } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/cn';
-import { useCreateChat } from '@/shared/api/queries';
 import styles from './Sidebar.module.css';
 
 const BUCKET_LABELS = {
@@ -20,28 +28,45 @@ const BUCKET_LABELS = {
 
 export function Sidebar() {
   const navigate = useNavigate();
-  const { chatId, projectId } = useParams();
+  const { chatId } = useParams();
   const [search, setSearch] = useState('');
 
   const health = useHealth();
   const settings = useSettings();
+  const activeModelState = useActiveModel();
   const models = useModels();
-  const projects = useProjects();
   const chats = useChats({ query: search || undefined });
-  const createChat = useCreateChat();
+  const deleteChat = useDeleteChat();
+  const deleteAllChats = useDeleteAllChats();
+  // Which chat row is asking to be confirmed. Deleting cascades the chat's messages on
+  // both backends and there is no undo, so the choice has to be made before, not after —
+  // an inline confirm in place of the row rather than a toast with a fading window.
+  const [confirmingChatId, setConfirmingChatId] = useState<string | null>(null);
 
   const grouped = useMemo(() => groupChats(chats.data ?? []), [chats.data]);
-  const activeModel = models.data?.find((model) => model.id === settings.data?.activeModelId);
+  const activeModel = models.data?.find(
+    (model) => model.id === activeModelState.data?.activeModelId,
+  );
+  // Distinct from "still fetching": once both queries have settled, a model that isn't
+  // active yet is a real state — the picker starts with nothing loaded — not a stuck spinner.
+  const modelLabel =
+    !activeModelState.data || !models.data
+      ? 'Loading model…'
+      : (activeModel?.name ?? 'No model selected');
 
-  const activeProjectId = projectId ?? chats.data?.find((chat) => chat.id === chatId)?.projectId;
-
-  async function startChat() {
-    const result = await createChat.mutateAsync({
-      projectId: activeProjectId ?? null,
-      scope: activeProjectId ? 'both' : 'general',
-      attachmentIds: [],
+  function handleDeleteChat(chat: Chat) {
+    setConfirmingChatId(null);
+    deleteChat.mutate(chat.id, {
+      onSuccess: () => {
+        if (chat.id === chatId) navigate('/chat');
+      },
     });
-    navigate(`/chat/${result.chat.id}`);
+  }
+
+  function handleDeleteAllChats() {
+    deleteAllChats.mutate(undefined, {
+      onSuccess: () => navigate('/chat'),
+    });
   }
 
   return (
@@ -61,71 +86,86 @@ export function Sidebar() {
 
         <OfflineBadge offline={health.data?.offline ?? settings.data?.strictOffline ?? true} />
 
-        <Button
-          variant="cta"
-          size="lg"
-          icon="plus"
-          fullWidth
-          onClick={startChat}
-          loading={createChat.isPending}
-        >
+        <Button variant="cta" size="lg" icon="plus" fullWidth onClick={() => navigate('/chat')}>
           New chat
         </Button>
 
-        <SearchField
-          value={search}
-          onChange={setSearch}
-          placeholder="Search chats and documents"
-          label="Search chats and documents"
-        />
+        <div className={styles.searchRow}>
+          <div className={styles.searchField}>
+            <SearchField
+              value={search}
+              onChange={setSearch}
+              placeholder="Search chats"
+              label="Search chats"
+            />
+          </div>
+          {/* Ambiguous what "all" would mean while a search is narrowing the list, so this
+              only acts — and is only enabled — on the true, unfiltered set of chats. */}
+          <DangerAction
+            label="Delete all chats"
+            confirmText={`Delete all ${chats.data?.length ?? 0} chats? This can't be undone.`}
+            pending={deleteAllChats.isPending}
+            disabled={Boolean(search) || !chats.data?.length}
+            onConfirm={handleDeleteAllChats}
+          />
+        </div>
       </header>
 
       <div className={styles.scroll}>
-        <section className={styles.section}>
-          <SectionLabel
-            action={
-              <IconButton
-                icon="plus"
-                label="New project"
-                size={14}
-                onClick={() => navigate('/projects')}
-              />
-            }
-          >
-            Projects
-          </SectionLabel>
-          <ul>
-            {projects.data?.map((project) => (
-              <li key={project.id}>
-                <NavLink
-                  to={`/projects/${project.id}`}
-                  className={({ isActive }) =>
-                    cn(styles.row, (isActive || project.id === activeProjectId) && styles.rowActive)
-                  }
-                >
-                  <Icon name="folder" size={15} className={styles.rowIcon} />
-                  <span className={styles.rowLabel}>{project.name}</span>
-                  <Mono className={styles.rowCount}>{project.documentCount}</Mono>
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <NavLink
+          to="/projects"
+          className={({ isActive }) => cn(styles.row, isActive && styles.rowActive)}
+        >
+          <Icon name="folder" size={15} className={styles.rowIcon} />
+          <span className={styles.rowLabel}>Documents &amp; Projects</span>
+        </NavLink>
 
         {grouped.map(([bucket, entries]) => (
           <section className={styles.section} key={bucket}>
             <SectionLabel>{BUCKET_LABELS[bucket]}</SectionLabel>
             <ul>
-              {entries.map((chat) => (
-                <li key={chat.id}>
-                  <NavLink
-                    to={`/chat/${chat.id}`}
-                    className={({ isActive }) => cn(styles.row, isActive && styles.rowActive)}
-                  >
-                    <span className={styles.rowLabel}>{chat.title}</span>
-                  </NavLink>
-                </li>
-              ))}
+              {entries.map((chat) =>
+                confirmingChatId === chat.id ? (
+                  <li key={chat.id} className={cn(styles.row, styles.confirmRow)}>
+                    <span className={styles.confirmText}>
+                      Delete <strong>{chat.title}</strong>? This can't be undone.
+                    </span>
+                    <span className={styles.confirmActions}>
+                      <button
+                        type="button"
+                        className={styles.confirmCancel}
+                        onClick={() => setConfirmingChatId(null)}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.confirmDelete}
+                        disabled={deleteChat.isPending}
+                        onClick={() => handleDeleteChat(chat)}
+                      >
+                        Delete
+                      </button>
+                    </span>
+                  </li>
+                ) : (
+                  <li key={chat.id} className={styles.chatRow}>
+                    <NavLink
+                      to={`/chat/${chat.id}`}
+                      className={({ isActive }) => cn(styles.row, isActive && styles.rowActive)}
+                    >
+                      <span className={styles.rowLabel}>{chat.title}</span>
+                    </NavLink>
+                    <IconButton
+                      icon="trash"
+                      label={`Delete “${chat.title}”`}
+                      size={13}
+                      className={styles.rowDelete}
+                      onClick={() => setConfirmingChatId(chat.id)}
+                    />
+                  </li>
+                ),
+              )}
             </ul>
           </section>
         ))}
@@ -140,13 +180,15 @@ export function Sidebar() {
       <footer className={styles.footer}>
         <NavLink to="/settings" className={styles.modelChip}>
           <Icon
-            name={settings.data?.compute === 'gpu' ? 'gpu' : 'cpu'}
+            name={activeModelState.data?.compute === 'gpu' ? 'gpu' : 'cpu'}
             size={14}
             className={styles.modelIcon}
           />
           <span className={styles.modelText}>
-            <span className={styles.modelName}>{activeModel?.name ?? 'Loading model…'}</span>
-            <Mono className={styles.modelMeta}>{computeLabel(settings.data)}</Mono>
+            <span className={styles.modelName}>{modelLabel}</span>
+            <Mono className={styles.modelMeta}>
+              {computeLabel(activeModelState.data?.compute, settings.data)}
+            </Mono>
           </span>
           <Icon name="chevronDown" size={13} className={styles.modelChevron} />
         </NavLink>
@@ -156,7 +198,12 @@ export function Sidebar() {
             MP
           </span>
           <span className={styles.userName}>M. Palas</span>
-          <IconButton icon="settings" label="Settings" onClick={() => navigate('/settings')} />
+          <IconButton
+            icon="settings"
+            label="Settings"
+            // The generic settings button opens the first section, not a specific one.
+            onClick={() => navigate('/settings')}
+          />
         </div>
       </footer>
     </nav>
@@ -180,10 +227,20 @@ function OfflineBadge({ offline }: { offline: boolean }) {
   );
 }
 
-function computeLabel(settings: ReturnType<typeof useSettings>['data']): string {
-  if (!settings) return '—';
-  if (settings.compute === 'cpu') return `CPU · ${settings.hardware.cpuThreads} threads`;
-  const used = settings.hardware.gpuMemoryUsedBytes;
+/**
+ * The device comes from `useActiveModel` (the service's own truth); thread count and VRAM
+ * are decorative extras from the settings mock, since the service reports neither. Either
+ * being unavailable still leaves an honest label rather than blocking on both.
+ */
+function computeLabel(
+  compute: ComputeMode | undefined,
+  settings: ReturnType<typeof useSettings>['data'],
+): string {
+  if (!compute) return '—';
+  if (compute === 'cpu') {
+    return settings ? `CPU · ${settings.hardware.cpuThreads} threads` : 'CPU';
+  }
+  const used = settings?.hardware.gpuMemoryUsedBytes;
   return used ? `GPU · ${formatBytes(used)} VRAM` : 'GPU';
 }
 

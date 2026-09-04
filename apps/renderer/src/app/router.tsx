@@ -2,6 +2,7 @@ import { createHashRouter, Navigate } from 'react-router-dom';
 import { AppLayout } from './layout/AppLayout';
 import { ChatPage } from '@/features/chat/ChatPage';
 import { ProjectsPage } from '@/features/projects/ProjectsPage';
+import { GeneralDocumentsPage } from '@/features/projects/GeneralDocumentsPage';
 import { ProjectDetailPage } from '@/features/projects/ProjectDetailPage';
 import { HistoryPage } from '@/features/history/HistoryPage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
@@ -26,6 +27,7 @@ export const router = createHashRouter([
       { path: 'chat/:chatId', element: <ChatPage /> },
       { path: 'projects', element: <ProjectsPage /> },
       { path: 'projects/:projectId', element: <ProjectDetailPage /> },
+      { path: 'documents', element: <GeneralDocumentsPage /> },
       { path: 'history', element: <HistoryPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: '*', element: <Navigate to="/chat" replace /> },

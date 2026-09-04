@@ -1,0 +1,11 @@
+.confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.confirmText {
+  font-size: var(--text-meta);
+  color: var(--text-secondary);
+}

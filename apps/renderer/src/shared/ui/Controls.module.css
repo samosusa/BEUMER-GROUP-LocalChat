@@ -98,9 +98,14 @@ button.chipBody:hover {
   border-left: 1px solid var(--border-default);
 }
 
-.segment:hover:not(.segmentSelected) {
+.segment:hover:not(.segmentSelected):not(:disabled) {
   background: var(--surface-hover);
   color: var(--text-body);
+}
+
+.segment:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .segmentSelected {

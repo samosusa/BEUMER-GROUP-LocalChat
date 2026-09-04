@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ServiceBenchmarkRow, ServiceDocument, ServiceMessage } from './dto';
+import type { ServiceBenchmarkRow, ServiceDocument, ServiceMessage, ServiceProject } from './dto';
 import {
   benchmarkRowFromService,
   benchmarkRunFromService,
@@ -13,6 +13,7 @@ import {
   messageFromService,
   modelFromService,
   noEvidenceFromService,
+  projectFromService,
   toIso,
   toServiceId,
 } from './map';
@@ -23,6 +24,7 @@ const document = (over: Partial<ServiceDocument> = {}): ServiceDocument => ({
   path: '/Users/pk/docs/conveyor-guide.pdf',
   checksum: 'abc123',
   version: 1,
+  project_id: null,
   uploaded_at: '2026-08-30T09:15:00',
   indexed_at: '2026-08-30T09:17:30',
   ...over,
@@ -90,6 +92,11 @@ describe('documents', () => {
     const mapped = documentFromService(document());
     expect(mapped.chunkCount).toBe(0);
     expect(mapped.pageCount).toBeNull();
+  });
+
+  it('carries the project id, or null for the general corpus', () => {
+    expect(documentFromService(document({ project_id: null })).projectId).toBeNull();
+    expect(documentFromService(document({ project_id: 5 })).projectId).toBe('5');
   });
 });
 
@@ -190,6 +197,7 @@ describe('chats', () => {
   const conversation = {
     id: 3,
     title: null,
+    project_id: null,
     created_at: '2026-08-30T09:00:00',
     updated_at: '2026-08-30T09:20:00',
   };
@@ -219,6 +227,57 @@ describe('chats', () => {
   it('flags a chat that ever failed to find evidence', () => {
     const chat = chatFromService(conversation, [message({ not_found: true })]);
     expect(chat.hadNoEvidence).toBe(true);
+  });
+
+  it('scopes to the project the conversation was created in, general otherwise', () => {
+    const general = chatFromService(conversation);
+    expect(general.projectId).toBeNull();
+    expect(general.scope).toBe('general');
+
+    const scoped = chatFromService({ ...conversation, project_id: 9 });
+    expect(scoped.projectId).toBe('9');
+    expect(scoped.scope).toBe('project');
+  });
+});
+
+describe('projects', () => {
+  const project = (over: Partial<ServiceProject> = {}): ServiceProject => ({
+    id: 2,
+    name: 'CPH T3 — LS-4000E',
+    created_at: '2026-08-30T09:00:00',
+    updated_at: '2026-08-30T09:00:00',
+    ...over,
+  });
+
+  it('reports fields the service has no column for as the honest empty value', () => {
+    const mapped = projectFromService(project(), [], 0);
+    expect(mapped.description).toBe('');
+    expect(mapped.folderPath).toBeNull();
+    expect(mapped.watched).toBe(false);
+    expect(mapped.instructions).toBe('');
+    expect(mapped.indexProgress).toBeNull();
+    expect(mapped.indexEtaSeconds).toBeNull();
+    expect(mapped.lastOpenedAt).toBeNull();
+  });
+
+  it('counts documents and chats from the caller-supplied slices, not a guess', () => {
+    const documents = [
+      documentFromService(document({ id: 1 })),
+      documentFromService(document({ id: 2 })),
+    ];
+    const mapped = projectFromService(project(), documents, 4);
+    expect(mapped.documentCount).toBe(2);
+    expect(mapped.chatCount).toBe(4);
+  });
+
+  it('derives index state from real document status rather than inventing one', () => {
+    expect(projectFromService(project(), [], 0).indexState).toBe('empty');
+
+    const indexed = [documentFromService(document({ indexed_at: '2026-08-30T09:17:30' }))];
+    expect(projectFromService(project(), indexed, 0).indexState).toBe('ready');
+
+    const pending = [documentFromService(document({ indexed_at: null }))];
+    expect(projectFromService(project(), pending, 0).indexState).toBe('indexing');
   });
 });
 

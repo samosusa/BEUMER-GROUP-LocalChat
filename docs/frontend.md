@@ -89,6 +89,19 @@ Serves a production build with the mock service still in it, so a supervisor or 
 owner can open the interface in a browser without installing anything. It is a review target,
 not the shipping artefact — the product ships as the installer from `npm run package`.
 
+To review the interface against the real RAG service instead — e.g. to exercise ingestion,
+retrieval and a real model end to end in a browser — build `app` and `ui-live` together:
+
+```bash
+docker compose up --build app ui-live   # interface at http://localhost:8081
+                                         # Swagger at http://localhost:8000/api-docs
+```
+
+`ui-live` builds the renderer with `LOCALCHAT_SERVICE=live` (no mocks) and its nginx proxies
+the service's routes to the `app` container, so the browser's calls stay same-origin — see
+`docker/nginx.live.conf` and [docs/backend-wiring.md](backend-wiring.md). It needs a GGUF
+under `data/models/` (mounted into `app`) to actually answer questions.
+
 ### If it goes wrong
 
 | Symptom                                          | Cause                                                                                                                                         |

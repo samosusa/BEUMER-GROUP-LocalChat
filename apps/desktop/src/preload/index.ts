@@ -25,6 +25,12 @@ const bridge = {
   readDocument: (path: string): Promise<{ name: string; bytes: ArrayBuffer }> =>
     ipcRenderer.invoke(CHANNELS.readDocument, path),
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke(CHANNELS.pickFolder),
+  /**
+   * Documents found inside a previously-picked folder, ready to be read the same way an
+   * individually-picked file is via `readDocument`.
+   */
+  listFolderDocuments: (folderPath: string): Promise<string[]> =>
+    ipcRenderer.invoke(CHANNELS.listFolderDocuments, folderPath),
   revealInFolder: (path: string): Promise<void> =>
     ipcRenderer.invoke(CHANNELS.revealInFolder, path),
 

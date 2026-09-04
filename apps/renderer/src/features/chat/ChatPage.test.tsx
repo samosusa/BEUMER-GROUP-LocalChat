@@ -1,10 +1,11 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
+import { http, HttpResponse } from 'msw';
 import { server } from '@/mocks/server';
-import { useUiStore } from '@/shared/store/uiStore';
+import { store } from '@/mocks/db';
 import { ChatPage } from './ChatPage';
 
 /**
@@ -18,15 +19,6 @@ import { ChatPage } from './ChatPage';
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
-
-/**
- * The UI store is a module-level singleton, so an open context panel survives from one test
- * into the next and quietly changes what is on screen. Reset it explicitly rather than
- * letting test order decide.
- */
-beforeEach(() => {
-  useUiStore.setState({ contextPanelOpen: false, lastRemovedAttachment: null });
-});
 
 function renderChat(chatId: string) {
   const queryClient = new QueryClient({
@@ -94,67 +86,197 @@ describe('ChatPage', () => {
     });
   }, 20_000);
 
-  it('changes retrieval scope from inside the chat in two clicks', async () => {
+  it('changes retrieval scope from inside the chat in one click', async () => {
     const { user } = renderChat('chat-throughput');
 
-    // Click one: open the widget.
-    const trigger = await screen.findByRole('button', { name: /Context/ });
-    await user.click(trigger);
-
-    // Click two: pick the scope.
+    // The scope control is always on screen — no popover to open first.
     const scope = await screen.findByRole('radiogroup', { name: /retrieval scope/i });
-    await user.click(within(scope).getByRole('radio', { name: 'General' }));
+    const general = within(scope).getByRole('radio', { name: 'General' });
+    await user.click(general);
 
-    await waitFor(() => expect(screen.getByText('General only')).toBeInTheDocument());
-  });
-
-  it('offers undo after a document is removed from context', async () => {
-    const { user } = renderChat('chat-throughput');
-
-    const remove = await screen.findByRole('button', {
-      name: /Remove LS-4000E Commissioning Manual from context/i,
-    });
-    await user.click(remove);
-
-    const toast = await screen.findByRole('status');
-    expect(toast).toHaveTextContent('Removed');
-    expect(within(toast).getByRole('button', { name: 'Undo' })).toBeInTheDocument();
+    await waitFor(() => expect(general).toHaveAttribute('aria-checked', 'true'));
+    expect(
+      await screen.findByText('Searching company-wide documentation only.'),
+    ).toBeInTheDocument();
   });
 
   /**
-   * Deleting a document is the only action in the panel that cannot be undone: the vectors
-   * are dropped and the original file was never kept. So it asks first, and one stray click
-   * must not be enough to lose an index.
-   *
-   * A named document rather than "the first row": the corpus list fills in as the general
-   * and project queries resolve, so an early match can be replaced before it is clicked.
+   * Regression test: the chat this creates does not exist yet when the effect that fires its
+   * first message runs — `useChat` for the brand-new id hasn't resolved — so if that effect
+   * ever again falls back to reading `chat.data.scope` instead of the scope the engineer
+   * actually picked before sending, it silently asks in 'general' no matter what was chosen.
    */
-  const TARGET = 'LS-4000E Commissioning Manual.pdf';
-  const removeLabel = `Remove ${TARGET} from the index`;
-
-  it('asks before removing a document from the index, and cancelling changes nothing', async () => {
-    const { user } = renderChat('chat-throughput');
-
-    await user.click(await screen.findByRole('button', { name: /Context/ }));
-    await user.click(await screen.findByRole('button', { name: removeLabel }));
-
-    expect(await screen.findByText(/cannot be undone/i)).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
-
-    expect(screen.queryByText(/cannot be undone/i)).not.toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: removeLabel })).toBeInTheDocument();
-  });
-
-  it('removes the document from the corpus once the removal is confirmed', async () => {
-    const { user } = renderChat('chat-throughput');
-
-    await user.click(await screen.findByRole('button', { name: /Context/ }));
-    await user.click(await screen.findByRole('button', { name: removeLabel }));
-    await user.click(await screen.findByRole('button', { name: 'Remove' }));
-
-    await waitFor(() =>
-      expect(screen.queryByRole('button', { name: removeLabel })).not.toBeInTheDocument(),
+  it('asks the first message in the scope chosen before the chat existed, not general', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    const router = createMemoryRouter(
+      [
+        { path: '/chat', element: <ChatPage /> },
+        { path: '/chat/:chatId', element: <ChatPage /> },
+      ],
+      { initialEntries: ['/chat'] },
     );
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    const scope = await screen.findByRole('radiogroup', { name: /retrieval scope/i });
+    await user.click(within(scope).getByRole('radio', { name: 'Project' }));
+
+    // The project list loads asynchronously; the dropdown starts with only its placeholder.
+    await screen.findByRole('option', { name: 'CPH T3 — LS-4000E' });
+    await user.selectOptions(screen.getByLabelText('Project to search'), 'CPH T3 — LS-4000E');
+
+    const composer = await screen.findByLabelText(/Ask a question/);
+    await user.type(composer, 'What blocks a restart after an e-stop?');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => expect(router.state.location.pathname).not.toBe('/chat'));
+    const newChatId = router.state.location.pathname.replace('/chat/', '');
+
+    await waitFor(() => {
+      const chat = store.chats.find((entry) => entry.id === newChatId);
+      expect(chat?.scope).toBe('project');
+    });
   });
+
+  it('hides the project picker after switching back to General', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    const router = createMemoryRouter([{ path: '/chat', element: <ChatPage /> }], {
+      initialEntries: ['/chat'],
+    });
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    const scopeGroup = await screen.findByRole('radiogroup', { name: /retrieval scope/i });
+    await user.click(within(scopeGroup).getByRole('radio', { name: 'Project' }));
+    await screen.findByRole('option', { name: 'CPH T3 — LS-4000E' });
+    await user.selectOptions(screen.getByLabelText('Project to search'), 'CPH T3 — LS-4000E');
+    expect(screen.getByLabelText('Project to search')).toBeInTheDocument();
+
+    await user.click(within(scopeGroup).getByRole('radio', { name: 'General' }));
+
+    // General never draws on the project, so the picker has no business still showing here
+    // even though a project was picked a moment ago.
+    expect(screen.queryByLabelText('Project to search')).not.toBeInTheDocument();
+
+    // Switching back to Project remembers the earlier pick rather than forcing it again.
+    await user.click(within(scopeGroup).getByRole('radio', { name: 'Project' }));
+    expect(screen.getByLabelText('Project to search')).toHaveValue('prj-cph-t3');
+  });
+
+  it('marks Project as the active scope the instant it is clicked, before any project is picked', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    const router = createMemoryRouter([{ path: '/chat', element: <ChatPage /> }], {
+      initialEntries: ['/chat'],
+    });
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    const scopeGroup = await screen.findByRole('radiogroup', { name: /retrieval scope/i });
+    const project = within(scopeGroup).getByRole('radio', { name: 'Project' });
+    await user.click(project);
+
+    // The picker is showing (nothing chosen yet) but the click itself must already register.
+    await screen.findByLabelText('Project to search');
+    expect(project).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('sends a message as general if Project was clicked but nothing was ever picked', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    const router = createMemoryRouter(
+      [
+        { path: '/chat', element: <ChatPage /> },
+        { path: '/chat/:chatId', element: <ChatPage /> },
+      ],
+      { initialEntries: ['/chat'] },
+    );
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    const scopeGroup = await screen.findByRole('radiogroup', { name: /retrieval scope/i });
+    await user.click(within(scopeGroup).getByRole('radio', { name: 'Project' }));
+    await screen.findByLabelText('Project to search');
+
+    const composer = await screen.findByLabelText(/Ask a question/);
+    await user.type(composer, 'What blocks a restart after an e-stop?');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => expect(router.state.location.pathname).not.toBe('/chat'));
+    const newChatId = router.state.location.pathname.replace('/chat/', '');
+
+    await waitFor(() => {
+      const chat = store.chats.find((entry) => entry.id === newChatId);
+      expect(chat).toMatchObject({ scope: 'general', projectId: null });
+    });
+  });
+
+  /**
+   * Regression test: `scope` has no persistent representation on the live service — it's
+   * re-derived from `projectId` alone on every fetch (always 'project' for a project-linked
+   * chat, never 'both'). `commit()` in `useAsk` invalidates `['chats']` once a turn finishes,
+   * which refetches the currently-open chat too — so without `useChat` preserving the scope
+   * already in its own cache over whatever a fresh fetch says, finishing a turn on a 'both'
+   * chat would silently drop it back to 'project'. The mock genuinely persists scope, so to
+   * prove the protection actually does something this makes it briefly lie the way the live
+   * service would, starting only after the real ('both') value has already loaded once.
+   */
+  it('keeps the chosen scope across the refetch that follows a completed turn', async () => {
+    const { user } = renderChat('chat-throughput');
+
+    const scope = await screen.findByRole('radiogroup', { name: /retrieval scope/i });
+    const both = within(scope).getByRole('radio', { name: 'Both' });
+    // Forced explicitly rather than trusted from the fixture default: the mock store is a
+    // module-level singleton shared across every test in this file, and an earlier test
+    // here already flips this same chat to 'general' — this only needs a known starting
+    // point, not that specific one.
+    await user.click(both);
+    await waitFor(() => expect(both).toHaveAttribute('aria-checked', 'true'));
+
+    let refetchedAsLiveServiceWould = false;
+    server.use(
+      http.get('*/api/chats/:id', ({ params }) => {
+        const chat = store.chats.find((entry) => entry.id === params.id);
+        if (!chat) return HttpResponse.json({}, { status: 404 });
+        refetchedAsLiveServiceWould = true;
+        return HttpResponse.json({ chat: { ...chat, scope: 'project' } });
+      }),
+    );
+
+    const composer = await screen.findByLabelText(/Ask a question/);
+    await user.type(composer, 'What blocks a restart after an e-stop?');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => expect(screen.getByText(/dual-channel/)).toBeInTheDocument(), {
+      timeout: 15_000,
+    });
+    // `both`'s checked state would still read "true" as a stale snapshot from before the
+    // post-turn refetch lands — wait for that refetch to have actually happened before
+    // trusting the assertion below, or this would pass by accident rather than by the fix.
+    await waitFor(() => expect(refetchedAsLiveServiceWould).toBe(true), { timeout: 5000 });
+
+    expect(both).toHaveAttribute('aria-checked', 'true');
+  }, 20_000);
 });

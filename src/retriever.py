@@ -6,6 +6,7 @@ from pathlib import Path
 
 import faiss
 import numpy as np
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.ingest.embedder import embed_query
@@ -26,17 +27,36 @@ def retrieve(
     db: Session,
     top_k: int = 5,
     vector_dir: Path | None = None,
+    project_id: int | None = None,
+    include_general: bool = False,
 ) -> list[RetrievedChunk]:
     if top_k <= 0 or not query.strip():
         return []
 
     query_vector = np.asarray(embed_query([query]), dtype="float32")
     vector_dir = vector_dir or Path(os.getenv("LOCALCHAT_VECTOR_DIR", VECTOR_DIR))
+
+    # project_id is None here means "the general corpus", i.e. documents that also have no
+    # project - not "every document regardless of project". SQLAlchemy turns
+    # `Document.project_id == None` into `IS NULL`, so this one filter covers both cases.
+    # `include_general` is "both" mode: a project-scoped query that should also draw on the
+    # project-less corpus, so the filter widens to project_id match OR project_id IS NULL
+    # instead of narrowing to one or the other.
+    if include_general and project_id is not None:
+        document_filter = or_(Document.project_id == project_id, Document.project_id.is_(None))
+    else:
+        document_filter = Document.project_id == project_id
+    allowed_doc_ids = {
+        doc_id for (doc_id,) in db.query(Document.id).filter(document_filter).all()
+    }
+
     results: list[RetrievedChunk] = []
     for index_path in vector_dir.glob("*.index"):
         try:
             doc_id = int(index_path.stem)
         except ValueError:
+            continue
+        if doc_id not in allowed_doc_ids:
             continue
         index = faiss.read_index(str(index_path))
         if index.ntotal == 0 or index.d != query_vector.shape[1]:
@@ -58,5 +78,11 @@ def retrieve(
     return results[:top_k]
 
 
-def retrieve_chunks(query: str, db: Session, top_k: int = 5) -> list[RetrievedChunk]:
-    return retrieve(query, db, top_k=top_k)
+def retrieve_chunks(
+    query: str,
+    db: Session,
+    top_k: int = 5,
+    project_id: int | None = None,
+    include_general: bool = False,
+) -> list[RetrievedChunk]:
+    return retrieve(query, db, top_k=top_k, project_id=project_id, include_general=include_general)

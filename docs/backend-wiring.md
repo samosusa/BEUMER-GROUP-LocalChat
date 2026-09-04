@@ -53,30 +53,51 @@ right and the stub is out of date.**
 
 ## What is wired
 
-| Screen                   | Service endpoint                         | Notes                                           |
-| ------------------------ | ---------------------------------------- | ----------------------------------------------- |
-| Status strip             | `GET /health` + `GET /models/active`     | Second call only to tell "up" from "can answer" |
-| Document list            | `GET /docs`                              |                                                 |
-| Remove a document        | `DELETE /docs/{id}`                      |                                                 |
-| Add documents            | `POST /ingest` → `GET /status/{job_id}`  | Multipart upload; polls to completion           |
-| Chat sidebar and history | `GET /conversations`                     |                                                 |
-| Open a chat              | `GET /conversations/{id}`                |                                                 |
-| New chat                 | `POST /conversations`                    | Title auto-generated from the first question    |
-| Rename / delete          | `PATCH` / `DELETE /conversations/{id}`   |                                                 |
-| Ask a question           | `POST /conversations/{id}/messages`      |                                                 |
-| Model picker             | `GET /models`, `GET/POST /models/active` | The swap blocks; expect tens of seconds         |
+| Screen                   | Service endpoint                                 | Notes                                                                         |
+| ------------------------ | ------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Status strip             | `GET /health` + `GET /models/active`             | Second call only to tell "up" from "can answer"                               |
+| Document list            | `GET /docs`                                      |                                                                               |
+| Remove a document        | `DELETE /docs/{id}`                              |                                                                               |
+| Remove all documents     | `DELETE /docs`                                   | Optional `project_id` (an id, or the literal string `null` for the general corpus only); also deletes each document's FAISS index |
+| Add documents            | `POST /ingest` → `GET /status/{job_id}`          | Multipart upload; polls to completion                                         |
+| Chat sidebar and history | `GET /conversations`                             |                                                                               |
+| Open a chat              | `GET /conversations/{id}`                        |                                                                               |
+| New chat                 | `POST /conversations`                            | Title auto-generated from the first question; optional `project_id` scopes it |
+| Rename / delete          | `PATCH` / `DELETE /conversations/{id}`           |                                                                               |
+| Delete all chats         | `DELETE /conversations`                          | Messages cascade with each conversation                                       |
+| Ask a question           | `POST /conversations/{id}/messages`              | Retrieval is limited to the conversation's project, if it has one             |
+| Model picker             | `GET /models`, `GET/POST /models/active`         | The swap blocks; expect tens of seconds                                       |
+| Projects                 | `GET/POST /projects`, `GET/PATCH /projects/{id}` | Rename only, no other field — see below                                       |
+| Delete a project         | `DELETE /projects/{id}`                          | Cascades its documents (FAISS indexes included) and conversations             |
+| Delete all projects      | `DELETE /projects`                               | Same cascade as above, for every project; general-corpus documents/chats are untouched |
+| Project documents        | `GET /docs` filtered client-side by `project_id` | No scoped endpoint on the service                                             |
+| Project-scoped ingest    | `POST /ingest` with `project_id`                 |                                                                               |
+| Project-scoped chat      | `POST /conversations` with `project_id`          | Retrieval is then limited to that project                                     |
 
 ## What is not wired, and why
 
-**Projects.** The service has no project entity — only a `project: bool` flag on ingest.
-Agreed as out of scope for this pass. The projects screens stay wholly on fixtures: asking
-the live client for a project's documents returns an empty list rather than the whole corpus
-mislabelled as belonging to that project, and ingesting _from_ a project page goes to the
-mock as well, because uploading to the service's single corpus would put the file somewhere
-that page cannot show it.
+**Projects, beyond scoped retrieval.** The service now has a real `Project` entity: a
+document ingested with a `project_id` (`POST /ingest`) belongs to that project, and a
+conversation created with a `project_id` only ever retrieves from that project's documents
+— `retriever.retrieve()` restricts the FAISS indexes it searches to that project's document
+ids. A document or conversation with no `project_id` behaves exactly as before (general
+corpus). Deleting a project cascades to its documents and conversations, the same way
+deleting a conversation cascades its messages.
 
-**So in live mode, add documents from the chat screen's context widget, not from a project.**
-That is the general corpus, and it is the one backed by `POST /ingest`.
+`documentCount` and `chatCount` are real numbers, not server fields: the service has no
+scoped count endpoint, so `apps/renderer/src/shared/api/service/index.ts` fetches the whole
+document and conversation lists once and counts each project's slice client-side.
+
+What is still missing relative to `packages/contracts`' `ProjectSchema`, because the
+service's `Project` row has no matching column: `description`, `folderPath`/`watched`
+(folder watching), `instructions` (per-project system prompt), and `indexState`/
+`indexProgress` beyond the `empty`/`indexing`/`ready` guess `projectFromService` derives
+from document status. Editing any of the first three still only reaches the mock.
+
+Also still missing: the `RetrievalScope` enum's `both` value and per-chat `attachmentIds` —
+today a scoped conversation is strictly project-only, there is no "project + general" or
+per-chat-attachment mode, because the service picks retrieval scope from the conversation's
+own `project_id` and nothing else.
 
 **Retrieval evaluation.** The benchmark that _is_ wired measures models, not retrieval:
 `src/benchmark.py` uses one hardcoded question with its context pasted inline, and never
@@ -101,11 +122,15 @@ Keep the two named apart — **model benchmark** and **retrieval evaluation** �
 will conflate them.
 
 **Most of settings.** Theme, hotkey, launch-on-startup, retrieval parameters and hardware
-have no server-side home. Only the model and device swap reaches the service.
+have no server-side home and stay in the mock. `activeModelId` and `compute` are the
+exception in both directions: reading settings overlays `GET /models/active` onto the mock
+row, and writing them calls `POST /models/active` — otherwise a stale mock fixture id would
+never match a real installed model's filename and the model picker would look stuck loading.
 
-**Retrieval scope.** `POST /query` accepts a question and nothing else — no scope, no
-document filter, and `top_k` is a Python-side default. The scope control still works and
-still records the engineer's choice, but that choice does not yet reach the retriever.
+**Retrieval scope, beyond a project.** `POST /query` and `POST /conversations/{id}/messages`
+accept a `project_id` (conversation-level, set once at creation) but no per-chat document
+filter, and `top_k` is a Python-side default. The attachment picker still works and still
+records the engineer's choice, but that choice does not yet reach the retriever.
 
 ## Where the two contracts disagree
 

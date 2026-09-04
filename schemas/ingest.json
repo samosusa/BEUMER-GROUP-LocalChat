@@ -8,8 +8,8 @@
       "minLength": 1,
       "maxLength": 200
     },
-    "project": {
-      "type": "boolean"
+    "project_id": {
+      "type": "integer"
     }
   }
 }

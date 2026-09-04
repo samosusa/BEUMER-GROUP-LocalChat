@@ -26,8 +26,16 @@ def build_prompt(question: str, retrieved: list[RetrievedChunk]) -> str:
     )
 
 
-def answer(question: str, db: Session, top_k: int = TOP_K) -> dict:
-    retrieved = retrieve_chunks(question, db, top_k=top_k)
+def answer(
+    question: str,
+    db: Session,
+    top_k: int = TOP_K,
+    project_id: int | None = None,
+    include_general: bool = False,
+) -> dict:
+    retrieved = retrieve_chunks(
+        question, db, top_k=top_k, project_id=project_id, include_general=include_general
+    )
     if not retrieved or retrieved[0].score < MIN_SIMILARITY:
         return {
             "answer": None,

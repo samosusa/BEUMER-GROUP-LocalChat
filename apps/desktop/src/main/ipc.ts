@@ -1,5 +1,5 @@
-import { readFile, stat } from 'node:fs/promises';
-import { basename, extname, isAbsolute, normalize } from 'node:path';
+import { readFile, readdir, stat } from 'node:fs/promises';
+import { basename, extname, isAbsolute, join, normalize } from 'node:path';
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { getMainWindow, revealInFolder } from './windows';
 
@@ -20,6 +20,7 @@ export const CHANNELS = {
   windowHide: 'window:hide',
   quickAskSubmit: 'quick-ask:submit',
   readDocument: 'documents:read',
+  listFolderDocuments: 'dialog:list-folder-documents',
 } as const;
 
 /** Formats the ingestion pipeline accepts. Anything else is rejected before it is offered. */
@@ -55,8 +56,47 @@ const ALLOWED_EXTENSIONS = new Set([
  */
 const pickedDocuments = new Set<string>();
 
+/**
+ * Folders this session's own folder dialog returned. Same reasoning as `pickedDocuments`:
+ * enumerating an arbitrary path the renderer hands over would let model output that ever
+ * became reachable here walk the whole disk, so only a folder the engineer explicitly chose
+ * through our dialog may be listed.
+ */
+const pickedFolders = new Set<string>();
+
 /** A generous ceiling on one document; the pipeline is not the place to discover OOM. */
 const MAX_DOCUMENT_BYTES = 256 * 1024 * 1024;
+
+/** Stops a folder pick from turning into "index my entire drive" by accident. */
+const MAX_FOLDER_DOCUMENTS = 500;
+const MAX_FOLDER_DEPTH = 8;
+
+/**
+ * Recursively collects documents under `dir`, in whatever format the ingestion pipeline
+ * already accepts. An unreadable subdirectory (permissions, a race with something deleting
+ * it) is skipped rather than failing the whole pick — one bad folder should not block every
+ * other file the engineer selected.
+ */
+async function walkForDocuments(dir: string, depth: number, found: string[]): Promise<void> {
+  if (depth > MAX_FOLDER_DEPTH || found.length >= MAX_FOLDER_DOCUMENTS) return;
+
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    if (found.length >= MAX_FOLDER_DOCUMENTS) return;
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      await walkForDocuments(full, depth + 1, found);
+    } else if (entry.isFile() && isAllowedDocument(full)) {
+      found.push(normalize(full));
+    }
+  }
+}
 
 export function registerIpcHandlers(): void {
   ipcMain.handle(CHANNELS.pickDocuments, async (event) => {
@@ -114,7 +154,31 @@ export function registerIpcHandlers(): void {
       properties: ['openDirectory', 'dontAddToRecent'],
     });
 
-    return result.canceled ? null : (result.filePaths[0] ?? null);
+    if (result.canceled || !result.filePaths[0]) return null;
+    const folder = normalize(result.filePaths[0]);
+    pickedFolders.add(folder);
+    return folder;
+  });
+
+  /**
+   * Lists the documents inside a previously-picked folder, so they can be queued for
+   * ingestion the same way individually-picked files are. Refuses any folder the dialog did
+   * not produce, and the paths it returns become readable through `readDocument` exactly
+   * like an individual pick — there is no other way bytes leave the disk.
+   */
+  ipcMain.handle(CHANNELS.listFolderDocuments, async (_event, rawPath: unknown) => {
+    if (typeof rawPath !== 'string' || !isAbsolute(rawPath)) {
+      throw new Error('A folder path is required.');
+    }
+    const folder = normalize(rawPath);
+    if (!pickedFolders.has(folder)) {
+      throw new Error('That folder was not chosen through the LocalChat folder picker.');
+    }
+
+    const found: string[] = [];
+    await walkForDocuments(folder, 0, found);
+    for (const path of found) pickedDocuments.add(path);
+    return found;
   });
 
   /**

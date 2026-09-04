@@ -12,16 +12,9 @@ type ThemePreference = 'dark' | 'light' | 'system';
 interface UiState {
   theme: ThemePreference;
   sidebarCollapsed: boolean;
-  /** The context widget's expanded panel. One at a time, app-wide. */
-  contextPanelOpen: boolean;
-  /** Undo buffer for a document removed from context, cleared on the next action. */
-  lastRemovedAttachment: { chatId: string; documentId: string; title: string } | null;
 
   setTheme(theme: ThemePreference): void;
   toggleSidebar(): void;
-  setContextPanelOpen(open: boolean): void;
-  rememberRemoval(entry: NonNullable<UiState['lastRemovedAttachment']>): void;
-  clearRemoval(): void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -29,14 +22,9 @@ export const useUiStore = create<UiState>()(
     (set) => ({
       theme: 'dark',
       sidebarCollapsed: false,
-      contextPanelOpen: false,
-      lastRemovedAttachment: null,
 
       setTheme: (theme) => set({ theme }),
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
-      setContextPanelOpen: (contextPanelOpen) => set({ contextPanelOpen }),
-      rememberRemoval: (lastRemovedAttachment) => set({ lastRemovedAttachment }),
-      clearRemoval: () => set({ lastRemovedAttachment: null }),
     }),
     {
       name: 'localchat.ui',

@@ -1,48 +1,42 @@
 import { useState } from 'react';
 import type { ComputeMode, Model, ModelBenchmarkRow } from '@localchat/contracts';
 import {
+  useActiveModel,
   useBenchmark,
   useModels,
   useRunBenchmark,
+  useSetActiveModel,
   useSettings,
   useUpdateSettings,
 } from '@/shared/api/queries';
+import { describeError } from '@/shared/api/http';
 import { Button } from '@/shared/ui/Button';
 import { Toggle } from '@/shared/ui/Controls';
 import { Icon, type IconName } from '@/shared/ui/Icon';
 import { Mono, ProgressBar, SectionLabel } from '@/shared/ui/Indicators';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { formatBytes, formatCount, formatDuration, formatRelative } from '@/shared/lib/format';
-import { useUiStore } from '@/shared/store/uiStore';
 import { cn } from '@/shared/lib/cn';
 import styles from './Settings.module.css';
 
-type Section = 'model' | 'retrieval' | 'storage' | 'tools' | 'startup' | 'benchmark';
-
-const SECTIONS: Array<{ id: Section; label: string; icon: IconName }> = [
-  { id: 'model', label: 'Model & hardware', icon: 'cpu' },
-  { id: 'retrieval', label: 'Retrieval', icon: 'search' },
-  { id: 'storage', label: 'Storage & privacy', icon: 'database' },
-  { id: 'tools', label: 'Approved tools', icon: 'plug' },
-  { id: 'startup', label: 'Startup & window', icon: 'settings' },
-  { id: 'benchmark', label: 'Benchmark', icon: 'chart' },
-];
-
 export function SettingsPage() {
-  const [section, setSection] = useState<Section>('model');
   const settings = useSettings();
+  const activeModelState = useActiveModel();
   const models = useModels();
   const update = useUpdateSettings();
-  const theme = useUiStore((state) => state.theme);
-  const setTheme = useUiStore((state) => state.setTheme);
+  const setActiveModel = useSetActiveModel();
 
-  if (!settings.data) {
-    return <div className={styles.page} />;
-  }
+  // Applying a model or switching device is one blocking call that can take tens of
+  // seconds on a multi-gigabyte GGUF — the row picked has to say so, or a second click
+  // during the wait reads as the first one having failed.
+  const pendingModelId =
+    setActiveModel.isPending && setActiveModel.variables?.modelId !== undefined
+      ? setActiveModel.variables.modelId
+      : null;
 
-  const { hardware, retrieval } = settings.data;
+  const hardware = settings.data?.hardware;
   const vramFraction =
-    hardware.gpuMemoryBytes && hardware.gpuMemoryUsedBytes
+    hardware?.gpuMemoryBytes && hardware.gpuMemoryUsedBytes
       ? hardware.gpuMemoryUsedBytes / hardware.gpuMemoryBytes
       : 0;
 
@@ -50,242 +44,141 @@ export function SettingsPage() {
     <div className={styles.page}>
       <nav className={styles.nav} aria-label="Settings sections">
         <h1 className={styles.navTitle}>Settings</h1>
-        {SECTIONS.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            className={cn(styles.navItem, section === entry.id && styles.navItemActive)}
-            onClick={() => setSection(entry.id)}
-          >
-            <Icon name={entry.icon} size={16} />
-            {entry.label}
-          </button>
-        ))}
+        <span className={cn(styles.navItem, styles.navItemActive)}>
+          <Icon name="cpu" size={16} />
+          Model &amp; hardware
+        </span>
         <span className={styles.navSpacer} />
         <Mono className={styles.navVersion}>LocalChat 0.4.1</Mono>
       </nav>
 
       <div className={styles.content}>
-        {section === 'model' && (
-          <>
-            <PageHeader
-              title="Model & hardware"
-              description="The model, the index and every question stay on this machine."
-            />
+        <PageHeader
+          title="Model & hardware"
+          description="The model, the index and every question stay on this machine."
+        />
 
-            <div className={styles.columns}>
-              <div className={styles.column}>
-                <section className={styles.card}>
-                  <header className={styles.cardHeader}>
-                    <SectionLabel
-                      action={
-                        <Mono className={styles.cardHeaderMeta}>
-                          {models.data?.length ?? 0} installed ·{' '}
-                          {formatBytes(
-                            (models.data ?? []).reduce((total, m) => total + m.sizeBytes, 0),
-                          )}{' '}
-                          on disk
-                        </Mono>
-                      }
-                    >
-                      Answer model
-                    </SectionLabel>
-                  </header>
-                  <div className={styles.modelList} role="radiogroup" aria-label="Answer model">
-                    {models.data?.map((model) => (
-                      <ModelRow
-                        key={model.id}
-                        model={model}
-                        selected={model.id === settings.data.activeModelId}
-                        onSelect={() => update.mutate({ activeModelId: model.id })}
-                      />
-                    ))}
-                  </div>
-                </section>
-
-                <section className={styles.card}>
-                  <SectionLabel>Compute</SectionLabel>
-                  <div className={styles.computeRow}>
-                    <ComputeCard
-                      mode="cpu"
-                      icon="cpu"
-                      title="CPU only"
-                      detail={`Works on any machine. ${hardware.cpuThreads} threads available.`}
-                      selected={settings.data.compute === 'cpu'}
-                      onSelect={() => update.mutate({ compute: 'cpu' })}
-                    />
-                    <ComputeCard
-                      mode="gpu"
-                      icon="gpu"
-                      title="GPU acceleration"
-                      detail={
-                        hardware.gpuName
-                          ? `${hardware.gpuName} · ${formatBytes(hardware.gpuMemoryBytes ?? 0)} · ${hardware.gpuLayersOffloaded} of ${hardware.gpuLayersTotal} layers offloaded`
-                          : 'No compatible GPU detected.'
-                      }
-                      selected={settings.data.compute === 'gpu'}
-                      disabled={!hardware.gpuName}
-                      onSelect={() => update.mutate({ compute: 'gpu' })}
-                    />
-                  </div>
-
-                  {hardware.gpuMemoryBytes && (
-                    <div className={styles.vram}>
-                      <div className={styles.vramRow}>
-                        <span>VRAM in use</span>
-                        <Mono>
-                          {formatBytes(hardware.gpuMemoryUsedBytes ?? 0)} /{' '}
-                          {formatBytes(hardware.gpuMemoryBytes)}
-                        </Mono>
-                      </div>
-                      <ProgressBar
-                        value={vramFraction}
-                        thickness={5}
-                        tone={vramFraction > 0.85 ? 'warning' : 'accent'}
-                        label="VRAM in use"
-                      />
-                      <p className={styles.hint}>
-                        A model with a larger context window would exceed this card — LocalChat
-                        falls back to partial offload rather than failing.
-                      </p>
-                    </div>
-                  )}
-                </section>
-
-                <section className={cn(styles.card, styles.cardRow)}>
-                  <div className={styles.cardRowText}>
-                    <span className={styles.cardRowTitle}>
-                      Embedding model — {settings.data.embeddingModel}
-                    </span>
-                    <span className={styles.hint}>
-                      Changing this rebuilds every index from scratch.
-                    </span>
-                  </div>
-                  <Button variant="outline" size="sm">
-                    Change
-                  </Button>
-                </section>
-              </div>
-
-              <div className={styles.rail}>
-                <BenchmarkCard />
-                <section className={styles.card}>
-                  <SectionLabel>Network</SectionLabel>
-                  <Toggle
-                    checked={settings.data.strictOffline}
-                    onChange={(strictOffline) => update.mutate({ strictOffline })}
-                    label="Strict offline mode"
-                    description="Blocks every outbound request, including approved tools."
+        <div className={styles.columns}>
+          <div className={styles.column}>
+            <section className={styles.card}>
+              <header className={styles.cardHeader}>
+                <SectionLabel
+                  action={
+                    <Mono className={styles.cardHeaderMeta}>
+                      {models.data?.length ?? 0} installed ·{' '}
+                      {formatBytes(
+                        (models.data ?? []).reduce((total, m) => total + m.sizeBytes, 0),
+                      )}{' '}
+                      on disk
+                    </Mono>
+                  }
+                >
+                  Answer model
+                </SectionLabel>
+              </header>
+              <div className={styles.modelList} role="radiogroup" aria-label="Answer model">
+                {models.data?.map((model) => (
+                  <ModelRow
+                    key={model.id}
+                    model={model}
+                    selected={model.id === activeModelState.data?.activeModelId}
+                    pending={model.id === pendingModelId}
+                    disabled={pendingModelId !== null && model.id !== pendingModelId}
+                    onSelect={() => setActiveModel.mutate({ modelId: model.id })}
                   />
-                  <Mono className={styles.outbound}>
-                    outbound requests this session:{' '}
-                    {formatCount(settings.data.outboundRequestsThisSession)}
-                  </Mono>
-                </section>
+                ))}
               </div>
-            </div>
-          </>
-        )}
-
-        {section === 'retrieval' && (
-          <>
-            <PageHeader
-              title="Retrieval"
-              description="How much of the corpus each answer is allowed to draw on."
-            />
-            <section className={styles.card}>
-              <dl className={styles.definitions}>
-                <Definition label="Passages per answer (top-k)" value={String(retrieval.topK)} />
-                <Definition
-                  label="Conversation turns kept"
-                  value={String(retrieval.historyTurns)}
-                />
-                <Definition
-                  label="Minimum relevance score"
-                  value={retrieval.minScore.toFixed(2)}
-                  hint="Below this, LocalChat refuses to answer rather than guessing."
-                />
-              </dl>
             </section>
-          </>
-        )}
 
-        {section === 'storage' && (
-          <>
-            <PageHeader
-              title="Storage & privacy"
-              description="Everything LocalChat writes stays inside your user profile."
-            />
             <section className={styles.card}>
-              <dl className={styles.definitions}>
-                <Definition label="Index location" value={settings.data.indexLocation} mono />
-                <Definition label="Embedding model" value={settings.data.embeddingModel} mono />
-              </dl>
-            </section>
-          </>
-        )}
+              <SectionLabel>Compute</SectionLabel>
+              <div className={styles.computeRow}>
+                <ComputeCard
+                  mode="cpu"
+                  icon="cpu"
+                  title="CPU only"
+                  detail={
+                    hardware
+                      ? `Works on any machine. ${hardware.cpuThreads} threads available.`
+                      : 'Works on any machine.'
+                  }
+                  selected={activeModelState.data?.compute === 'cpu'}
+                  disabled={setActiveModel.isPending}
+                  onSelect={() => setActiveModel.mutate({ compute: 'cpu' })}
+                />
+                <ComputeCard
+                  mode="gpu"
+                  icon="gpu"
+                  title="GPU acceleration"
+                  detail={
+                    activeModelState.data?.gpuAvailable === false
+                      ? 'No CUDA-enabled build of llama-cpp-python installed — GPU offload is unavailable on this machine.'
+                      : hardware?.gpuName
+                        ? `${hardware.gpuName} · ${formatBytes(hardware.gpuMemoryBytes ?? 0)} · ${hardware.gpuLayersOffloaded} of ${hardware.gpuLayersTotal} layers offloaded`
+                        : 'GPU acceleration, if the installed build supports it.'
+                  }
+                  selected={activeModelState.data?.compute === 'gpu'}
+                  disabled={
+                    setActiveModel.isPending || activeModelState.data?.gpuAvailable === false
+                  }
+                  onSelect={() => setActiveModel.mutate({ compute: 'gpu' })}
+                />
+              </div>
 
-        {section === 'startup' && (
-          <>
-            <PageHeader
-              title="Startup & window"
-              description="LocalChat runs in the tray so the model is already loaded when you need it."
-            />
-            <section className={styles.card}>
-              <Toggle
-                checked={settings.data.launchOnStartup}
-                onChange={(launchOnStartup) => update.mutate({ launchOnStartup })}
-                label="Start with Windows"
-                description="Loads the model in the background at sign-in."
-              />
-              <dl className={styles.definitions}>
-                <Definition label="Quick-ask hotkey" value={settings.data.quickAskHotkey} mono />
-              </dl>
-              <div className={styles.themeRow}>
-                <span className={styles.cardRowTitle}>Theme</span>
-                <div className={styles.themeButtons}>
-                  {(['dark', 'light', 'system'] as const).map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      className={cn(styles.themeButton, theme === option && styles.themeActive)}
-                      onClick={() => {
-                        setTheme(option);
-                        update.mutate({ theme: option });
-                      }}
-                    >
-                      {option}
-                    </button>
-                  ))}
+              {setActiveModel.isError && (
+                <p className={styles.benchWarning}>{describeError(setActiveModel.error)}</p>
+              )}
+
+              {hardware?.gpuMemoryBytes && (
+                <div className={styles.vram}>
+                  <div className={styles.vramRow}>
+                    <span>VRAM in use</span>
+                    <Mono>
+                      {formatBytes(hardware.gpuMemoryUsedBytes ?? 0)} /{' '}
+                      {formatBytes(hardware.gpuMemoryBytes)}
+                    </Mono>
+                  </div>
+                  <ProgressBar
+                    value={vramFraction}
+                    thickness={5}
+                    tone={vramFraction > 0.85 ? 'warning' : 'accent'}
+                    label="VRAM in use"
+                  />
+                  <p className={styles.hint}>
+                    A model with a larger context window would exceed this card — LocalChat falls
+                    back to partial offload rather than failing.
+                  </p>
                 </div>
-              </div>
+              )}
             </section>
-          </>
-        )}
 
-        {section === 'tools' && (
-          <>
-            <PageHeader
-              title="Approved tools"
-              description="Tool results are always labelled separately from document citations."
-            />
-            <section className={styles.card}>
-              <p className={styles.hint}>Enable a tool per project on the project screen.</p>
-            </section>
-          </>
-        )}
+            {/*
+              The benchmark sits under the model list on purpose. It measures exactly
+              the thing the list asks you to choose between, and on its own page the
+              choice was made on one screen and the evidence for it lived on another.
+              Full width because six numeric columns were unreadable in the rail.
+            */}
+            <BenchmarkCard />
+          </div>
 
-        {section === 'benchmark' && (
-          <>
-            <PageHeader
-              title="Benchmark"
-              description="The same evaluation questions run against a fixed corpus snapshot, so results are comparable across hardware."
-            />
-            <div className={styles.rail}>
-              <BenchmarkCard />
-            </div>
-          </>
-        )}
+          <div className={styles.rail}>
+            {settings.data && (
+              <section className={styles.card}>
+                <SectionLabel>Network</SectionLabel>
+                <Toggle
+                  checked={settings.data.strictOffline}
+                  onChange={(strictOffline) => update.mutate({ strictOffline })}
+                  label="Strict offline mode"
+                  description="Blocks every outbound request, including approved tools."
+                />
+                <Mono className={styles.outbound}>
+                  outbound requests this session:{' '}
+                  {formatCount(settings.data.outboundRequestsThisSession)}
+                </Mono>
+              </section>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -294,10 +187,14 @@ export function SettingsPage() {
 function ModelRow({
   model,
   selected,
+  pending,
+  disabled,
   onSelect,
 }: {
   model: Model;
   selected: boolean;
+  pending: boolean;
+  disabled: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -305,10 +202,16 @@ function ModelRow({
       type="button"
       role="radio"
       aria-checked={selected}
+      aria-busy={pending || undefined}
+      disabled={disabled}
       className={cn(styles.modelRow, selected && styles.modelRowSelected)}
       onClick={onSelect}
     >
-      <span className={cn(styles.radio, selected && styles.radioSelected)} aria-hidden="true" />
+      {pending ? (
+        <Icon name="refresh" size={16} className={styles.modelSpinner} />
+      ) : (
+        <span className={cn(styles.radio, selected && styles.radioSelected)} aria-hidden="true" />
+      )}
       <span className={styles.modelText}>
         <span className={styles.modelName}>
           {[model.name, model.quantization].filter(Boolean).join(' · ')}
@@ -320,18 +223,20 @@ function ModelRow({
           "NaNk context" beside a real file size.
         */}
         <Mono className={styles.modelMeta}>
-          {[
-            formatBytes(model.sizeBytes),
-            model.contextTokens === null
-              ? null
-              : `${formatCount(model.contextTokens / 1024)}k context`,
-            model.note || null,
-          ]
-            .filter(Boolean)
-            .join(' · ')}
+          {pending
+            ? 'Loading onto device — this can take a minute for a large model…'
+            : [
+                formatBytes(model.sizeBytes),
+                model.contextTokens === null
+                  ? null
+                  : `${formatCount(model.contextTokens / 1024)}k context`,
+                model.note || null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
         </Mono>
       </span>
-      {model.medianLatencyMs !== null && (
+      {!pending && model.medianLatencyMs !== null && (
         <Mono className={styles.modelLatency}>{formatDuration(model.medianLatencyMs)} median</Mono>
       )}
     </button>
@@ -387,11 +292,82 @@ function ComputeCard({
  */
 function BenchmarkCard() {
   const benchmark = useBenchmark();
+  const models = useModels();
+  const activeModel = useActiveModel();
   const run = useRunBenchmark();
   const result = benchmark.data;
   const running = result?.status === 'running' || run.isPending;
 
-  const start = () => run.mutate({ devices: ['cpu', 'gpu'], models: null });
+  /** Empty means every installed model, which is what the service does with `models: null`. */
+  const [only, setOnly] = useState('');
+
+  // Which devices to run this pass, engineer-chosen rather than always-both: a run loads
+  // every installed model on every checked device in sequence, so narrowing to one device is
+  // the difference between checking a single change and waiting out the whole matrix.
+  const [useCpu, setUseCpu] = useState(true);
+  const [useGpu, setUseGpu] = useState(true);
+
+  /**
+   * GPU stays off the request entirely when this build cannot honour it. Requesting `gpu`
+   * where llama-cpp-python was installed without a CUDA build is refused with
+   * ERR_GPU_UNAVAILABLE, and the service refuses the WHOLE request — not just the GPU rows —
+   * so nothing runs at all.
+   */
+  const gpuAvailable = activeModel.data?.gpuAvailable ?? false;
+  const devices: ComputeMode[] = [
+    ...(useCpu ? (['cpu'] as const) : []),
+    ...(gpuAvailable && useGpu ? (['gpu'] as const) : []),
+  ];
+  const start = () =>
+    run.mutate({
+      devices,
+      models: only ? [only] : null,
+    });
+
+  const picker = (
+    <div className={styles.benchPickerRow}>
+      <label className={styles.benchPicker}>
+        <span className={styles.benchPickerLabel}>Benchmark</span>
+        <select
+          className={styles.benchSelect}
+          value={only}
+          disabled={running}
+          onChange={(event) => setOnly(event.target.value)}
+        >
+          <option value="">all installed models</option>
+          {(models.data ?? []).map((model) => (
+            <option key={model.id} value={model.id}>
+              {model.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <span className={styles.benchDevices}>
+        <span className={styles.benchPickerLabel}>Devices</span>
+        <label className={styles.benchDeviceOption}>
+          <input
+            type="checkbox"
+            checked={useCpu}
+            disabled={running}
+            onChange={(event) => setUseCpu(event.target.checked)}
+          />
+          CPU
+        </label>
+        <label
+          className={cn(styles.benchDeviceOption, !gpuAvailable && styles.benchDeviceOptionDisabled)}
+        >
+          <input
+            type="checkbox"
+            checked={gpuAvailable && useGpu}
+            disabled={running || !gpuAvailable}
+            onChange={(event) => setUseGpu(event.target.checked)}
+          />
+          GPU
+        </label>
+        {!gpuAvailable && <span className={styles.benchPickerNote}>No CUDA build installed</span>}
+      </span>
+    </div>
+  );
 
   if (!result) {
     return (
@@ -401,7 +377,15 @@ function BenchmarkCard() {
           Compares the installed models on this machine — load time, time to first token and
           generation speed. It does not measure retrieval quality.
         </p>
-        <Button variant="outline" size="sm" loading={running} onClick={start}>
+        {picker}
+        {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
+        <Button
+          variant="outline"
+          size="sm"
+          loading={running}
+          disabled={devices.length === 0}
+          onClick={start}
+        >
           Run benchmark
         </Button>
       </section>
@@ -443,6 +427,8 @@ function BenchmarkCard() {
       {result.status === 'failed' && (
         <p className={styles.benchWarning}>The run did not finish. Start it again below.</p>
       )}
+
+      {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
 
       <div className={styles.benchScroll}>
         <table className={styles.benchTable}>
@@ -502,7 +488,15 @@ function BenchmarkCard() {
         </table>
       </div>
 
-      <Button variant="outline" size="sm" loading={running} onClick={start}>
+      {picker}
+
+      <Button
+        variant="outline"
+        size="sm"
+        loading={running}
+        disabled={devices.length === 0}
+        onClick={start}
+      >
         Run benchmark again
       </Button>
     </section>
@@ -519,22 +513,3 @@ function formatPeakMemory(memoryBytes: number | null, vramBytes: number | null):
   return '—';
 }
 
-function Definition({
-  label,
-  value,
-  hint,
-  mono = false,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  mono?: boolean;
-}) {
-  return (
-    <div className={styles.definition}>
-      <dt>{label}</dt>
-      <dd>{mono ? <Mono>{value}</Mono> : value}</dd>
-      {hint && <p className={styles.hint}>{hint}</p>}
-    </div>
-  );
-}

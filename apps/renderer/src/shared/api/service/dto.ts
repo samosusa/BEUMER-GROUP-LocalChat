@@ -39,12 +39,32 @@ export const ServiceDocument = z.object({
   path: z.string(),
   checksum: z.string(),
   version: z.number().int().positive(),
+  project_id: pk.nullable(),
   uploaded_at: naiveDateTime,
   indexed_at: naiveDateTime.nullable(),
 });
 export type ServiceDocument = z.infer<typeof ServiceDocument>;
 
 export const ServiceDocumentList = z.array(ServiceDocument);
+
+// ---------------------------------------------------------------------------
+// Projects — GET/POST /projects, GET/PATCH/DELETE /projects/{id}
+// ---------------------------------------------------------------------------
+
+/**
+ * The service knows only a name and its timestamps. Description, folder watching,
+ * per-project instructions and index/chat counts all live in `map.ts`'s honest defaults
+ * or are computed client-side from documents/conversations — see `projectFromService`.
+ */
+export const ServiceProject = z.object({
+  id: pk,
+  name: z.string(),
+  created_at: naiveDateTime,
+  updated_at: naiveDateTime,
+});
+export type ServiceProject = z.infer<typeof ServiceProject>;
+
+export const ServiceProjectList = z.array(ServiceProject);
 
 // ---------------------------------------------------------------------------
 // Ingestion — POST /ingest, GET /status/{job_id}
@@ -96,6 +116,7 @@ export type ServiceAnswer = z.infer<typeof ServiceAnswer>;
 export const ServiceConversation = z.object({
   id: pk,
   title: z.string().nullable(),
+  project_id: pk.nullable(),
   created_at: naiveDateTime,
   updated_at: naiveDateTime,
 });

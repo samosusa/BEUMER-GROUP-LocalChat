@@ -7,6 +7,8 @@ import type {
   Message,
   Model,
   ModelBenchmarkRun,
+  Project,
+  RetrievalScope,
 } from '@localchat/contracts';
 import { request } from '../http';
 import {
@@ -23,6 +25,8 @@ import {
   ServiceIngestStatus,
   ServiceMessage,
   ServiceModelList,
+  ServiceProject,
+  ServiceProjectList,
 } from './dto';
 import {
   benchmarkRunFromService,
@@ -34,6 +38,7 @@ import {
   ingestionStatusFromService,
   messageFromService,
   modelFromService,
+  projectFromService,
   toId,
   toServiceId,
 } from './map';
@@ -92,6 +97,80 @@ export async function health(signal?: AbortSignal): Promise<HealthResponse> {
 }
 
 // ---------------------------------------------------------------------------
+// Projects
+// ---------------------------------------------------------------------------
+
+/**
+ * The service has no scoped "documents in this project" or "chats in this project"
+ * endpoint, so counts come from the same full lists every other screen already fetches,
+ * filtered here rather than trusting a number the service was never asked to compute.
+ */
+async function withProjectCounts(project: ServiceProject, signal?: AbortSignal): Promise<Project> {
+  const id = toId(project.id);
+  const [documents, chats] = await Promise.all([listDocuments(signal), listChats(signal)]);
+  return projectFromService(
+    project,
+    documents.filter((document) => document.projectId === id),
+    chats.filter((chat) => chat.projectId === id).length,
+  );
+}
+
+export async function listProjects(signal?: AbortSignal): Promise<Project[]> {
+  const [projects, documents, chats] = await Promise.all([
+    request('/projects', { schema: ServiceProjectList, signal }),
+    listDocuments(signal),
+    listChats(signal),
+  ]);
+  return projects.map((project) => {
+    const id = toId(project.id);
+    return projectFromService(
+      project,
+      documents.filter((document) => document.projectId === id),
+      chats.filter((chat) => chat.projectId === id).length,
+    );
+  });
+}
+
+export async function getProject(id: string, signal?: AbortSignal): Promise<Project> {
+  const dto = await request(`/projects/${toServiceId(id, 'project')}`, {
+    schema: ServiceProject,
+    signal,
+  });
+  return withProjectCounts(dto, signal);
+}
+
+export async function createProject(name: string): Promise<Project> {
+  const dto = await request('/projects', {
+    method: 'POST',
+    body: { name },
+    schema: ServiceProject,
+  });
+  // A project is created empty; no document or chat can reference it yet.
+  return projectFromService(dto, [], 0);
+}
+
+export async function renameProject(id: string, name: string): Promise<Project> {
+  const dto = await request(`/projects/${toServiceId(id, 'project')}`, {
+    method: 'PATCH',
+    body: { name },
+    schema: ServiceProject,
+  });
+  return withProjectCounts(dto);
+}
+
+export function deleteProject(id: string): Promise<undefined> {
+  return request(`/projects/${toServiceId(id, 'project')}`, {
+    method: 'DELETE',
+    schema: z.undefined(),
+  });
+}
+
+/** Every project, cascading to their documents (and each one's vector index) and chats. */
+export function deleteAllProjects(): Promise<undefined> {
+  return request('/projects', { method: 'DELETE', schema: z.undefined() });
+}
+
+// ---------------------------------------------------------------------------
 // Documents
 // ---------------------------------------------------------------------------
 
@@ -110,14 +189,30 @@ export function deleteDocument(id: string): Promise<undefined> {
 }
 
 /**
+ * `projectId: null` maps to the service's `project_id=null` sentinel, meaning the general
+ * (project-less) corpus — the only case the renderer actually calls this with today.
+ */
+export function deleteAllDocuments(projectId: string | null): Promise<undefined> {
+  return request('/docs', {
+    method: 'DELETE',
+    schema: z.undefined(),
+    query: { project_id: projectId === null ? 'null' : toServiceId(projectId, 'project') },
+  });
+}
+
+/**
  * Ingestion is a multipart upload followed by polling, so this returns the job id rather
  * than a document: the row does not exist until the pipeline has finished chunking it.
  */
-export async function startIngestion(file: File, title: string): Promise<string> {
+export async function startIngestion(
+  file: File,
+  title: string,
+  projectId: string | null,
+): Promise<string> {
   const form = new FormData();
   form.set('file', file, file.name);
   form.set('title', title);
-  form.set('project', 'false');
+  if (projectId !== null) form.set('project_id', String(toServiceId(projectId, 'project')));
   const dto = await request('/ingest', {
     method: 'POST',
     body: form,
@@ -158,10 +253,13 @@ export async function getChat(id: string, signal?: AbortSignal): Promise<Chat> {
   return chatDetailFromService(dto);
 }
 
-export async function createChat(title?: string): Promise<Chat> {
+export async function createChat(projectId: string | null): Promise<Chat> {
   const dto = await request('/conversations', {
     method: 'POST',
-    body: { title: title ?? null },
+    body: {
+      title: null,
+      project_id: projectId === null ? null : toServiceId(projectId, 'project'),
+    },
     schema: ServiceConversationDetail.omit({ messages: true }),
   });
   return chatFromService(dto);
@@ -183,6 +281,11 @@ export function deleteChat(id: string): Promise<undefined> {
   });
 }
 
+/** Every chat, cascading to their messages the same way the single delete does. */
+export function deleteAllConversations(): Promise<undefined> {
+  return request('/conversations', { method: 'DELETE', schema: z.undefined() });
+}
+
 export async function listMessages(chatId: string, signal?: AbortSignal): Promise<Message[]> {
   const dto = await request(`/conversations/${toServiceId(chatId, 'conversation')}`, {
     schema: ServiceConversationDetail,
@@ -194,11 +297,20 @@ export async function listMessages(chatId: string, signal?: AbortSignal): Promis
 /**
  * Ask a question inside a conversation. Blocking: the service generates the whole answer
  * before responding. `client.ts` wraps this to produce the event sequence the UI expects.
+ *
+ * `scope` is a per-turn override of the conversation's own project: 'general' searches the
+ * project-less corpus even from inside a project-linked conversation, 'both' adds that
+ * project-less corpus on top of the conversation's own project, and anything else keeps
+ * the conversation's own project scope.
  */
-export async function postMessage(chatId: string, question: string): Promise<Message> {
+export async function postMessage(
+  chatId: string,
+  question: string,
+  scope?: RetrievalScope,
+): Promise<Message> {
   const dto = await request(`/conversations/${toServiceId(chatId, 'conversation')}/messages`, {
     method: 'POST',
-    body: { q: question },
+    body: { q: question, scope },
     schema: ServiceMessage,
   });
   return messageFromService(dto, resolveDocumentId);

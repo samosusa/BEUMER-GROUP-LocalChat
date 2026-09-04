@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from src.api.projects import get_project_or_404
 from src.db import get_db
 from src.errors import AppError
 from src.models.conversation import Conversation
@@ -22,6 +23,7 @@ TITLE_MAX_LENGTH = 60
 
 class ConversationCreate(BaseModel):
     title: str | None = None
+    project_id: int | None = None
 
 
 class ConversationUpdate(BaseModel):
@@ -30,11 +32,17 @@ class ConversationUpdate(BaseModel):
 
 class MessageCreate(BaseModel):
     q: str | None = None
+    # Optional per-turn override of the conversation's own project. 'general' searches the
+    # corpus that has no project (project_id IS NULL) even for a project-linked conversation;
+    # 'both' searches the conversation's project plus that project-less corpus; anything else
+    # keeps the conversation's own project scope.
+    scope: str | None = None
 
 
 class ConversationResponse(BaseModel):
     id: int
     title: str | None
+    project_id: int | None
     created_at: datetime
     updated_at: datetime
 
@@ -88,8 +96,12 @@ def create_conversation(payload: ConversationCreate, db: Session = Depends(get_d
     title = payload.title.strip() if payload.title else None
     if title:
         _validate_title(title)
+    if payload.project_id is not None:
+        get_project_or_404(db, payload.project_id)
     now = _now()
-    conversation = Conversation(title=title or None, created_at=now, updated_at=now)
+    conversation = Conversation(
+        title=title or None, project_id=payload.project_id, created_at=now, updated_at=now
+    )
     db.add(conversation)
     db.commit()
     db.refresh(conversation)
@@ -110,6 +122,7 @@ def get_conversation(conversation_id: int, db: Session = Depends(get_db)) -> dic
     return {
         "id": conversation.id,
         "title": conversation.title,
+        "project_id": conversation.project_id,
         "created_at": conversation.created_at,
         "updated_at": conversation.updated_at,
         "messages": messages,
@@ -140,6 +153,17 @@ def delete_conversation(conversation_id: int, db: Session = Depends(get_db)) -> 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.delete("/conversations", status_code=status.HTTP_204_NO_CONTENT)
+def delete_all_conversations(db: Session = Depends(get_db)) -> Response:
+    """Bulk delete every conversation. Message rows cascade the same as the single delete;
+    there's no FAISS or other external state tied to a conversation, so nothing else to
+    clean up."""
+    for conversation in db.query(Conversation).all():
+        db.delete(conversation)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post(
     "/conversations/{conversation_id}/messages",
     response_model=MessageResponse,
@@ -152,7 +176,9 @@ def post_message(conversation_id: int, payload: MessageCreate, db: Session = Dep
 
     db.add(Message(conversation_id=conversation.id, role="user", text=question, created_at=_now()))
 
-    result = answer(question, db)
+    project_id = None if payload.scope == "general" else conversation.project_id
+    include_general = payload.scope == "both" and conversation.project_id is not None
+    result = answer(question, db, project_id=project_id, include_general=include_general)
 
     assistant_message = Message(
         conversation_id=conversation.id,

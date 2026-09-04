@@ -1,0 +1,169 @@
+.placeholder {
+  font-size: var(--text-ui);
+  color: var(--text-label);
+  padding: var(--space-6) 0;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+/* ----- table --------------------------------------------------------------- */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  padding: 0 var(--space-5) var(--space-4);
+  text-align: left;
+  font-size: var(--text-micro);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+
+.table td {
+  padding: var(--space-5);
+  font-size: var(--text-ui);
+  color: var(--text-body);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.table tbody tr:hover td {
+  background: var(--surface-hover);
+}
+
+.rowStale td {
+  background: color-mix(in srgb, var(--warning-surface) 60%, transparent);
+}
+
+.colStatus {
+  width: 150px;
+}
+
+.colActions {
+  width: 40px;
+}
+
+.docCell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.docIcon {
+  flex-shrink: 0;
+}
+
+.format_pdf {
+  color: #c25b4e;
+}
+
+.format_docx {
+  color: #4a8fc0;
+}
+
+.format_markdown,
+.format_text {
+  color: var(--text-tertiary);
+}
+
+.format_image {
+  color: var(--accent-text);
+}
+
+.docText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.docName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docMeta {
+  font-size: var(--text-meta);
+  color: var(--text-label);
+}
+
+.statusProgress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.statusProgressLabel {
+  font-size: var(--text-meta);
+  color: var(--accent-text);
+}
+
+/* ---------------------------------------------------------------------------
+   Delete confirmation
+
+   Replaces the row in place rather than opening a dialog. The wording states the
+   consequence, because this is the one action here that cannot be undone.
+   --------------------------------------------------------------------------- */
+
+.confirmRow td {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  background: var(--warning-surface);
+  box-shadow: inset 2px 0 0 var(--warning-border);
+}
+
+.confirmText {
+  font-size: var(--text-meta);
+  line-height: var(--leading-normal);
+  color: var(--text-body);
+}
+
+.confirmActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.confirmCancel,
+.confirmDelete {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--text-meta);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.confirmCancel {
+  color: var(--text-label);
+}
+
+.confirmDelete {
+  color: var(--danger-text);
+  font-weight: 600;
+}
+
+.confirmCancel:hover,
+.confirmDelete:hover {
+  text-decoration: underline;
+}
+
+.confirmCancel:focus-visible,
+.confirmDelete:focus-visible {
+  box-shadow: var(--focus-ring);
+}

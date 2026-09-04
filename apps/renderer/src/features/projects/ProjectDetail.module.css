@@ -65,7 +65,6 @@
 
 .body {
   display: flex;
-  gap: var(--space-8);
   flex: 1;
   min-height: 0;
   padding-bottom: var(--space-8);
@@ -83,185 +82,69 @@
   padding: var(--space-6) 0;
 }
 
-.instructionsFull {
-  max-width: 70ch;
-  font-size: var(--text-ui);
-  line-height: var(--leading-chat);
-  color: var(--text-body);
+/* ---------------------------------------------------------------------------
+   Chats in this project
+   --------------------------------------------------------------------------- */
+
+.chatList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-/* ----- document table ---------------------------------------------------- */
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.table th {
-  padding: 0 var(--space-5) var(--space-4);
-  text-align: left;
-  font-size: var(--text-micro);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-  color: var(--text-label);
-}
-
-.table td {
-  padding: var(--space-5);
-  font-size: var(--text-ui);
-  color: var(--text-body);
-  border-top: 1px solid var(--border-subtle);
-}
-
-.table tbody tr:hover td {
-  background: var(--surface-hover);
-}
-
-.rowStale td {
-  background: color-mix(in srgb, var(--warning-surface) 60%, transparent);
-}
-
-.colRevision {
-  width: 130px;
-}
-
-.colChunks {
-  width: 90px;
-}
-
-.colStatus {
-  width: 150px;
-}
-
-.docCell {
+.chatRow {
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  min-width: 0;
+  padding: var(--space-4) var(--space-3);
+  border-radius: var(--radius-md);
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
-.docIcon {
+.chatRow:hover {
+  background: var(--surface-hover);
+}
+
+.chatRow:focus-visible {
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+
+.chatIcon {
+  color: var(--text-label);
   flex-shrink: 0;
 }
 
-.format_pdf {
-  color: #c25b4e;
+.chatText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
 }
 
-.format_docx {
-  color: #4a8fc0;
-}
-
-.format_markdown,
-.format_text {
-  color: var(--text-tertiary);
-}
-
-.format_image {
-  color: var(--accent-text);
-}
-
-.docName {
+.chatTitle {
+  font-size: var(--text-row);
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.superseded {
-  color: var(--text-label);
-  text-decoration: line-through;
-}
-
-.statusProgress {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.statusProgressLabel {
+.chatPreview {
   font-size: var(--text-meta);
-  color: var(--accent-text);
+  color: var(--text-label);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* ----- rail -------------------------------------------------------------- */
-
-.rail {
-  width: 300px;
+.chatMeta {
+  font-size: var(--text-micro);
+  color: var(--text-label);
   flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  overflow-y: auto;
-}
-
-.railCard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-6);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--surface-raised);
-}
-
-.instructions {
-  font-size: var(--text-row);
-  line-height: var(--leading-chat);
-  color: var(--text-secondary);
-}
-
-.railFoot {
-  font-size: var(--text-meta);
-  color: var(--text-label);
-}
-
-.railStats,
-.statList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.statList {
-  max-width: 420px;
-}
-
-.stat {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-5);
-}
-
-.stat dt {
-  font-size: var(--text-row);
-  color: var(--text-secondary);
-}
-
-.stat dd {
-  margin: 0;
-  font-size: var(--text-row);
-  color: var(--text-body);
-}
-
-.toolRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.toolName {
-  flex: 1;
-  font-size: var(--text-row);
-  color: var(--text-secondary);
-}
-
-.toolOff {
-  color: var(--text-label);
-}
-
-.toolMode {
-  font-size: var(--text-meta);
-  color: var(--text-label);
 }

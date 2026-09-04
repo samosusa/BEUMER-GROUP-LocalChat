@@ -3,6 +3,7 @@ import {
   type AskRequest,
   BenchmarkResponse,
   ChatResponse,
+  type ComputeMode,
   type CreateChatRequest,
   type CreateProjectRequest,
   HealthResponse,
@@ -38,14 +39,22 @@ import * as service from './service';
  * in-process mock and the app needs no Python, no model and no GPU.
  *
  * When it is true, the calls below fork. Read the `LIVE ?` branches and you have the exact
- * list of what is real; everything without one is still a fixture. Three groups have no
- * live branch, each for a stated reason:
+ * list of what is real; everything without one is still a fixture. Two groups have no live
+ * branch, each for a stated reason:
  *
- *   projects   The service has no project entity at all — only a `project: bool` flag on
- *              ingest. Agreed as out of scope for this pass.
- *   settings   The service holds model and device; theme, hotkey, hardware and retrieval
- *              parameters have no server-side home. Only the model swap is wired through.
+ *   settings   Theme, hotkey, hardware and retrieval parameters have no server-side home —
+ *              the service has no `/api/settings` route at all — so these stay mock-only in
+ *              both modes. The active model and device are the one part of "settings" that
+ *              IS real, which is exactly why they are not handled here: see
+ *              `getActiveModel`/`setActiveModel` below, which talk to
+ *              `GET/POST /models/active` directly and never touch this mock row.
  *   benchmark  The two sides measure different things. See `service/index.ts`.
+ *
+ * Projects, and project-scoped documents/ingestion/chats, ARE wired: the service has a
+ * real `Project` entity and a `project_id` on documents and conversations. What it does
+ * not have — description, folder watching, per-project instructions, approved tools, index
+ * rebuild stats, re-index-on-demand — stays mocked or falls back to the honest empty value;
+ * see the comments on each of those below.
  */
 const LIVE = __LIVE_SERVICE__;
 
@@ -71,23 +80,59 @@ export const api = {
   health: (signal?: AbortSignal): Promise<HealthResponse> =>
     LIVE ? service.health(signal) : request(routes.health(), { schema: HealthResponse, signal }),
 
-  // --- projects -----------------------------------------------------------
-  // No live branch: the service has no project entity.
-  listProjects: (signal?: AbortSignal) =>
-    request(routes.projects(), { schema: ListProjectsResponse, signal }),
+  // --- projects -------------------------------------------------------------
+  listProjects: async (signal?: AbortSignal): Promise<ListProjectsResponse> =>
+    LIVE
+      ? { projects: await service.listProjects(signal) }
+      : request(routes.projects(), { schema: ListProjectsResponse, signal }),
 
-  getProject: (id: string, signal?: AbortSignal) =>
-    request(routes.project(id), { schema: ProjectResponse, signal }),
+  getProject: async (id: string, signal?: AbortSignal): Promise<ProjectResponse> =>
+    LIVE
+      ? { project: await service.getProject(id, signal) }
+      : request(routes.project(id), { schema: ProjectResponse, signal }),
 
-  createProject: (body: CreateProjectRequest) =>
-    request(routes.projects(), { method: 'POST', body, schema: ProjectResponse }),
+  createProject: async (body: CreateProjectRequest): Promise<ProjectResponse> =>
+    LIVE
+      ? { project: await service.createProject(body.name) }
+      : request(routes.projects(), { method: 'POST', body, schema: ProjectResponse }),
 
-  updateProject: (id: string, body: UpdateProjectRequest) =>
-    request(routes.project(id), { method: 'PATCH', body, schema: ProjectResponse }),
+  /**
+   * Only a rename reaches the service: `description`, `folderPath` and `instructions` have
+   * no column on the service's `Project` row, so editing them stays mock-only, the same way
+   * theme and hotkey do for settings.
+   */
+  updateProject: async (id: string, body: UpdateProjectRequest): Promise<ProjectResponse> =>
+    LIVE && body.name !== undefined
+      ? { project: await service.renameProject(id, body.name) }
+      : request(routes.project(id), { method: 'PATCH', body, schema: ProjectResponse }),
 
-  listProjectDocuments: (id: string, signal?: AbortSignal) =>
-    request(routes.projectDocuments(id), { schema: ListDocumentsResponse, signal }),
+  /**
+   * Cascades to the project's own documents and chats on both backends (the live service's
+   * `ON DELETE CASCADE`, the mock's equivalent filtering); there is no undo.
+   */
+  deleteProject: (id: string): Promise<undefined> =>
+    LIVE
+      ? service.deleteProject(id)
+      : request(routes.project(id), { method: 'DELETE', schema: z.undefined() }),
 
+  /** Every project, cascading to their documents and chats exactly like one at a time would. */
+  deleteAllProjects: (): Promise<undefined> =>
+    LIVE
+      ? service.deleteAllProjects()
+      : request(routes.projects(), { method: 'DELETE', schema: z.undefined() }),
+
+  /** No scoped endpoint on the service, so this is the full corpus filtered by project_id. */
+  listProjectDocuments: async (
+    id: string,
+    signal?: AbortSignal,
+  ): Promise<ListDocumentsResponse> => {
+    if (!LIVE)
+      return request(routes.projectDocuments(id), { schema: ListDocumentsResponse, signal });
+    const documents = (await service.listDocuments(signal)).filter((doc) => doc.projectId === id);
+    return { documents, stats: statsFromDocuments(documents.length) };
+  },
+
+  // No live branch: the service has no concept of an approved tool.
   listProjectTools: (id: string, signal?: AbortSignal) =>
     request(routes.projectTools(id), { schema: ListApprovedToolsResponse, signal }),
 
@@ -103,10 +148,8 @@ export const api = {
         query: { projectId },
       });
     }
-    // The service knows one corpus. A project filter cannot be honoured, so asking for a
-    // project's documents returns nothing rather than the whole corpus mislabelled.
-    if (projectId !== null) return { documents: [], stats: statsFromDocuments(0) };
-    const documents = await service.listDocuments(signal);
+    const all = await service.listDocuments(signal);
+    const documents = projectId === null ? all : all.filter((doc) => doc.projectId === projectId);
     return { documents, stats: statsFromDocuments(documents.length) };
   },
 
@@ -116,11 +159,7 @@ export const api = {
    * callers, because which one the host can supply is not the caller's business.
    */
   ingestDocuments: async (input: IngestInput): Promise<IngestDocumentsResponse> => {
-    // Project screens read their documents from the mock, because the service has no
-    // project entity. Ingesting from one must therefore go to the mock too: uploading to
-    // the service's single corpus would put the file somewhere the page cannot show it,
-    // and the row would simply never appear. The general corpus is the live one.
-    if (LIVE && input.projectId === null) return ingestLive(input);
+    if (LIVE) return ingestLive(input);
     // The mock indexes by path. A browser cannot supply one, so the file's name stands in;
     // the mock only ever reads the extension and the basename off it.
     const body: IngestDocumentsRequest = {
@@ -141,6 +180,20 @@ export const api = {
       ? service.deleteDocument(id)
       : request(routes.document(id), { method: 'DELETE', schema: z.undefined() }),
 
+  /**
+   * Only the general (project-less) corpus — a project's own documents go with the project,
+   * via `deleteAllProjects`, so this never touches them.
+   */
+  deleteAllGeneralDocuments: (): Promise<undefined> =>
+    LIVE
+      ? service.deleteAllDocuments(null)
+      : request(routes.documents(), {
+          method: 'DELETE',
+          schema: z.undefined(),
+          query: { projectId: 'null' },
+        }),
+
+  // No live branch: the service has no re-index-on-demand endpoint.
   reindex: (body: ReindexRequest) =>
     request(routes.reindex(), { method: 'POST', body, schema: ListDocumentsResponse }),
 
@@ -156,11 +209,15 @@ export const api = {
         query: { projectId: params.projectId, query: params.query },
       });
     }
-    const chats = await service.listChats(signal);
-    // The service offers no search parameter, so filtering happens here. Titles are the
-    // only text the list endpoint returns; a body search would need N detail requests.
+    const all = await service.listChats(signal);
+    // The service offers no filter or search parameter, so both happen here. Titles are
+    // the only text the list endpoint returns; a body search would need N detail requests.
+    const scoped =
+      params.projectId === undefined ? all : all.filter((c) => c.projectId === params.projectId);
     const needle = params.query?.trim().toLowerCase();
-    return { chats: needle ? chats.filter((c) => c.title.toLowerCase().includes(needle)) : chats };
+    return {
+      chats: needle ? scoped.filter((c) => c.title.toLowerCase().includes(needle)) : scoped,
+    };
   },
 
   getChat: async (id: string, signal?: AbortSignal): Promise<ChatResponse> =>
@@ -170,8 +227,20 @@ export const api = {
 
   createChat: async (body: CreateChatRequest): Promise<ChatResponse> =>
     LIVE
-      ? { chat: await service.createChat() }
+      ? { chat: await service.createChat(body.projectId) }
       : request(routes.chats(), { method: 'POST', body, schema: ChatResponse }),
+
+  /** Cascades to the chat's messages on both backends; there is no undo. */
+  deleteChat: (id: string): Promise<undefined> =>
+    LIVE
+      ? service.deleteChat(id)
+      : request(routes.chat(id), { method: 'DELETE', schema: z.undefined() }),
+
+  /** Every chat, cascading to their messages on both backends; there is no undo. */
+  deleteAllChats: (): Promise<undefined> =>
+    LIVE
+      ? service.deleteAllConversations()
+      : request(routes.chats(), { method: 'DELETE', schema: z.undefined() }),
 
   listMessages: async (id: string, signal?: AbortSignal): Promise<ListMessagesResponse> =>
     LIVE
@@ -179,9 +248,11 @@ export const api = {
       : request(routes.chatMessages(id), { schema: ListMessagesResponse, signal }),
 
   /**
-   * Scope and per-chat attachments have no server-side representation: `/query` accepts
-   * only a question. The change is kept client-side so the control still works and the
-   * chat still records what the engineer chose, but it does not yet reach the retriever.
+   * Scope and per-chat attachments have no *persistent* server-side representation: there is
+   * no endpoint to store a chat's chosen scope, so this only updates the local cache (the
+   * widget still records what the engineer picked, and `askLive` below re-sends `scope` with
+   * every turn so it actually reaches the retriever — attachments still don't, `/messages`
+   * has no field for them).
    */
   updateChatContext: async (id: string, body: UpdateChatContextRequest): Promise<ChatResponse> => {
     if (!LIVE) {
@@ -198,18 +269,78 @@ export const api = {
   },
 
   // --- settings and hardware ---------------------------------------------
-  getSettings: (signal?: AbortSignal) =>
+  // No live branch: the service has no `/api/settings` route. Theme, hotkey, hardware and
+  // retrieval parameters stay mock-only in both modes — see docs/backend-wiring.md. The
+  // model and device, which ARE real, are handled below by getActiveModel/setActiveModel
+  // instead of here, so this blob never has to guess at a value the service actually owns.
+  getSettings: (signal?: AbortSignal): Promise<SettingsResponse> =>
     request(routes.settings(), { schema: SettingsResponse, signal }),
 
-  /** A model or device change is a real service call; everything else is local. */
-  updateSettings: async (body: UpdateSettingsRequest): Promise<SettingsResponse> => {
-    if (LIVE && (body.activeModelId !== undefined || body.compute !== undefined)) {
-      const current = await service.activeModel();
-      const model = body.activeModelId ?? current.model;
-      const device = body.compute ?? (current.device === 'gpu' ? 'gpu' : 'cpu');
-      if (model) await service.setActiveModel(model, device);
+  updateSettings: (body: UpdateSettingsRequest): Promise<SettingsResponse> =>
+    request(routes.settings(), { method: 'PATCH', body, schema: SettingsResponse }),
+
+  /**
+   * The active model and device, read straight off the service's own `GET /models/active`
+   * — no mock involved. That endpoint is the only place this is actually known; folding it
+   * into the settings mock meant the model chip depended on a route
+   * (`GET /api/settings`) the real service does not have, and could never resolve.
+   *
+   * `gpuAvailable` comes from the same response: whether the installed `llama-cpp-python`
+   * build actually has CUDA/GPU offload compiled in. That is the real reason a GPU option
+   * would be disabled, not whatever GPU name happens to be sitting in the settings mock.
+   */
+  getActiveModel: async (
+    signal?: AbortSignal,
+  ): Promise<{ activeModelId: string | null; compute: ComputeMode; gpuAvailable: boolean }> => {
+    if (!LIVE) {
+      const { settings } = await request(routes.settings(), { schema: SettingsResponse, signal });
+      return {
+        activeModelId: settings.activeModelId,
+        compute: settings.compute,
+        gpuAvailable: settings.hardware.gpuName !== null,
+      };
     }
-    return request(routes.settings(), { method: 'PATCH', body, schema: SettingsResponse });
+    const active = await service.activeModel(signal);
+    return {
+      activeModelId: active.model,
+      compute: active.device === 'gpu' ? 'gpu' : 'cpu',
+      gpuAvailable: active.gpu_available,
+    };
+  },
+
+  /**
+   * Loads a model onto a device via the service's own `POST /models/active`. That call is
+   * one combined operation, not two independent toggles — switching only the device (or
+   * only the model) reads the currently active one first and fills in the other half.
+   */
+  setActiveModel: async (body: {
+    modelId?: string;
+    compute?: ComputeMode;
+  }): Promise<{ activeModelId: string | null; compute: ComputeMode; gpuAvailable: boolean }> => {
+    if (!LIVE) {
+      const { settings } = await request(routes.settings(), {
+        method: 'PATCH',
+        body: { activeModelId: body.modelId, compute: body.compute },
+        schema: SettingsResponse,
+      });
+      return {
+        activeModelId: settings.activeModelId,
+        compute: settings.compute,
+        gpuAvailable: settings.hardware.gpuName !== null,
+      };
+    }
+    const current = await service.activeModel();
+    const modelId = body.modelId ?? current.model;
+    if (!modelId) {
+      throw new ApiError(0, 'no_model_selected', 'Choose a model before changing the device.');
+    }
+    const device = body.compute ?? (current.device === 'gpu' ? 'gpu' : 'cpu');
+    const active = await service.setActiveModel(modelId, device);
+    return {
+      activeModelId: active.model,
+      compute: active.device === 'gpu' ? 'gpu' : 'cpu',
+      gpuAvailable: active.gpu_available,
+    };
   },
 
   listModels: async (signal?: AbortSignal): Promise<ListModelsResponse> =>
@@ -271,7 +402,7 @@ async function ingestLive(input: IngestInput): Promise<IngestDocumentsResponse> 
 
   const start = async (label: string, file: File) => {
     const title = file.name.replace(/\.[^.]+$/, '');
-    jobs.push({ path: label, jobId: await service.startIngestion(file, title) });
+    jobs.push({ path: label, jobId: await service.startIngestion(file, title, input.projectId) });
   };
 
   // Files the host already handed over need no bridge at all.
@@ -348,7 +479,7 @@ async function* askLive(
 
   let message: Message;
   try {
-    message = await service.postMessage(chatId, body.question);
+    message = await service.postMessage(chatId, body.question, body.scope);
   } catch (cause) {
     if (cause instanceof DOMException && cause.name === 'AbortError') return;
     yield {

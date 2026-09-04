@@ -27,12 +27,15 @@ def _get_job(db: Session, job_id: int) -> IngestionJob:
     return job
 
 
-def _create_document(db: Session, job: IngestionJob, title: str, path: Path) -> tuple[Document, list[TextChunk]]:
+def _create_document(
+    db: Session, job: IngestionJob, title: str, path: Path, project_id: int | None
+) -> tuple[Document, list[TextChunk]]:
     document = Document(
         title=title,
         path=str(path),
         checksum=file_checksum(path),
         version=1,
+        project_id=project_id,
         uploaded_at=datetime.utcnow(),
     )
     db.add(document)
@@ -101,12 +104,13 @@ def run_pipeline(
     source_path: str | Path,
     embedder: Embedder = embed,
     vector_store: FaissVectorStore | None = None,
+    project_id: int | None = None,
 ) -> None:
     path = Path(source_path)
     job = _get_job(db, job_id)
 
     try:
-        document, chunks = _create_document(db, job, title, path)
+        document, chunks = _create_document(db, job, title, path, project_id)
         store = vector_store or FaissVectorStore()
         for start in range(0, len(chunks), CHECKPOINT_SIZE):
             batch = chunks[start:start + CHECKPOINT_SIZE]

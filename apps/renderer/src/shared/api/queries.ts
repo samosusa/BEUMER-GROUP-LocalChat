@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  ComputeMode,
   CreateChatRequest,
   CreateProjectRequest,
   ReindexRequest,
@@ -31,6 +32,7 @@ export const keys = {
     messages: (id: string) => ['chats', id, 'messages'] as const,
   },
   settings: ['settings'] as const,
+  activeModel: ['activeModel'] as const,
   models: ['models'] as const,
   benchmark: ['benchmark'] as const,
 };
@@ -95,11 +97,12 @@ export function useProjectTools(id: string | undefined) {
   });
 }
 
-export function useDocuments(projectId: string | null) {
+export function useDocuments(projectId: string | null, overrides?: QueryOverrides) {
   return useQuery({
     queryKey: keys.documents(projectId),
     queryFn: ({ signal }) => api.listDocuments(projectId, signal),
     ...LIVE,
+    ...overrides,
   });
 }
 
@@ -113,9 +116,25 @@ export function useChats(params: { projectId?: string | null; query?: string } =
 }
 
 export function useChat(id: string | undefined) {
+  const client = useQueryClient();
+  const key = keys.chats.detail(id ?? '');
   return useQuery({
-    queryKey: keys.chats.detail(id ?? ''),
-    queryFn: ({ signal }) => api.getChat(id as string, signal),
+    queryKey: key,
+    queryFn: async ({ signal }) => {
+      const data = await api.getChat(id as string, signal);
+      /**
+       * `scope` has no persistent server representation — the live service re-derives it
+       * from `projectId` alone on every fetch (see `chatFromService`), always landing on
+       * 'project' for a project-linked chat. `useUpdateChatContext` writes a client-chosen
+       * scope straight into this same cache entry, so if that entry already exists, it holds
+       * the true current choice — trust it over the server's one-bit guess. Otherwise this
+       * query would silently revert 'both' back to 'project' on ANY refetch of this chat:
+       * window focus, or — the one that actually bit here — the chat-list invalidation that
+       * runs after every turn completes (see `useAsk`'s `commit`).
+       */
+      const previous = client.getQueryData<typeof data>(key);
+      return previous ? { chat: { ...data.chat, scope: previous.chat.scope } } : data;
+    },
     select: (data) => data.chat,
     enabled: Boolean(id),
     ...LIVE,
@@ -137,6 +156,20 @@ export function useSettings() {
     queryKey: keys.settings,
     queryFn: ({ signal }) => api.getSettings(signal),
     select: (data) => data.settings,
+    ...STATIC,
+  });
+}
+
+/**
+ * The model and device actually loaded, straight off `GET /models/active` in live mode —
+ * see `api.getActiveModel`. Deliberately its own query rather than a field on `useSettings`:
+ * the service has no settings route at all, so folding this into that blob meant it could
+ * never resolve on a real deployment.
+ */
+export function useActiveModel() {
+  return useQuery({
+    queryKey: keys.activeModel,
+    queryFn: ({ signal }) => api.getActiveModel(signal),
     ...STATIC,
   });
 }
@@ -178,10 +211,58 @@ export function useCreateProject() {
   });
 }
 
+/** Cascades to the project's own documents and chats on both backends; there is no undo. */
+export function useDeleteProject() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteProject(id),
+    onSuccess: (_data, id) => {
+      void client.invalidateQueries({ queryKey: keys.projects.all });
+      void client.invalidateQueries({ queryKey: ['documents'] });
+      void client.invalidateQueries({ queryKey: ['chats'] });
+      client.removeQueries({ queryKey: keys.projects.detail(id) });
+    },
+  });
+}
+
+/** Every project, cascading to their documents and chats on both backends; there is no undo. */
+export function useDeleteAllProjects() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.deleteAllProjects(),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.projects.all });
+      void client.invalidateQueries({ queryKey: ['documents'] });
+      void client.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+}
+
 export function useCreateChat() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateChatRequest) => api.createChat(body),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['chats'] }),
+  });
+}
+
+export function useDeleteChat() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteChat(id),
+    onSuccess: (_data, id) => {
+      void client.invalidateQueries({ queryKey: ['chats'] });
+      client.removeQueries({ queryKey: keys.chats.detail(id) });
+      client.removeQueries({ queryKey: keys.chats.messages(id) });
+    },
+  });
+}
+
+/** Every chat, cascading to their messages on both backends; there is no undo. */
+export function useDeleteAllChats() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.deleteAllChats(),
     onSuccess: () => client.invalidateQueries({ queryKey: ['chats'] }),
   });
 }
@@ -204,11 +285,18 @@ export function useUpdateChatContext(chatId: string | undefined) {
       );
       return { previous, key };
     },
+    /**
+     * Written directly into the cache rather than invalidated: a refetch would re-derive
+     * `scope` from `projectId` (the live service has no independent scope field, see
+     * `chatFromService`), which would immediately overwrite a client-chosen 'general'/'both'
+     * scope on a project chat right back to 'project'.
+     */
+    onSuccess: (data, _body, context) => {
+      const key = context?.key ?? (chatId ? keys.chats.detail(chatId) : undefined);
+      if (key) client.setQueryData(key, data);
+    },
     onError: (_error, _body, context) => {
       if (context?.key) client.setQueryData(context.key, context.previous);
-    },
-    onSettled: () => {
-      if (chatId) void client.invalidateQueries({ queryKey: keys.chats.detail(chatId) });
     },
   });
 }
@@ -238,6 +326,18 @@ export function useDeleteDocument() {
   });
 }
 
+/** Only the general (project-less) corpus — a project's own documents go with the project. */
+export function useDeleteAllGeneralDocuments() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.deleteAllGeneralDocuments(),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['documents'] });
+      void client.invalidateQueries({ queryKey: ['chats'] });
+    },
+  });
+}
+
 export function useReindex() {
   const client = useQueryClient();
   return useMutation({
@@ -257,6 +357,19 @@ export function useUpdateSettings() {
       client.setQueryData(keys.settings, data);
       void client.invalidateQueries({ queryKey: keys.models });
     },
+  });
+}
+
+/**
+ * Loads a model onto a device via `POST /models/active` in live mode. Kept apart from
+ * `useUpdateSettings` for the same reason `useActiveModel` is kept apart from `useSettings`:
+ * this is the one field of "settings" the service actually owns.
+ */
+export function useSetActiveModel() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { modelId?: string; compute?: ComputeMode }) => api.setActiveModel(body),
+    onSuccess: (data) => client.setQueryData(keys.activeModel, data),
   });
 }
 

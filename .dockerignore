@@ -9,3 +9,15 @@ coverage
 *.tsbuildinfo
 *.md
 !README.md
+
+# Python RAG service (root Dockerfile)
+data/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+.env
+.env.*
+!.env.example
