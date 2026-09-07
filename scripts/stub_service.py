@@ -58,6 +58,7 @@ class State:
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
+        self.projects: list[dict] = []
         self.documents: list[dict] = []
         self.conversations: list[dict] = []
         self.messages: list[dict] = []
@@ -66,7 +67,14 @@ class State:
         self.sections: dict[int, list] = {}
         self.benchmark_jobs: dict[int, dict] = {}
         self.active = {"model": None, "device": None}
-        self._next = {"document": 1, "conversation": 1, "message": 1, "job": 1, "benchmark": 1}
+        self._next = {
+            "document": 1,
+            "conversation": 1,
+            "message": 1,
+            "job": 1,
+            "benchmark": 1,
+            "project": 1,
+        }
 
     def id_for(self, kind: str) -> int:
         value = self._next[kind]
@@ -128,7 +136,9 @@ def words(text: str) -> set:
     return {w for w in re.findall(r"[a-z]{3,}", text.lower()) if w not in STOPWORDS}
 
 
-def run_ingestion(job_id: int, title: str, filename: str, text: str = "") -> None:
+def run_ingestion(
+    job_id: int, title: str, filename: str, text: str = "", project_id: int | None = None
+) -> None:
     """Mirrors the real pipeline's shape: chunk count discovered, then offset advances."""
     job = state.jobs[job_id]
     time.sleep(0.4)
@@ -151,6 +161,7 @@ def run_ingestion(job_id: int, title: str, filename: str, text: str = "") -> Non
                 "path": f"/Users/engineer/Documents/{filename}",
                 "checksum": f"{job_id:064x}",
                 "version": 1,
+                "project_id": project_id,
                 "uploaded_at": now(),
                 "indexed_at": now(),
             }
@@ -225,7 +236,22 @@ def run_benchmark(job_id: int) -> None:
         job["finished_at"] = now()
 
 
-def answer_for(question: str) -> dict:
+def documents_in_scope(project_id: int | None, include_general: bool) -> list:
+    """
+    Mirrors src/retriever.py: project_id None means the project-LESS corpus, not everything.
+    `include_general` is the 'both' mode - the project plus the unfiled documents.
+    """
+    if project_id is None:
+        return [d for d in state.documents if d["project_id"] is None]
+    scoped = [d for d in state.documents if d["project_id"] == project_id]
+    if include_general:
+        scoped += [d for d in state.documents if d["project_id"] is None]
+    return scoped
+
+
+def answer_for(
+    question: str, project_id: int | None = None, include_general: bool = False
+) -> dict:
     """
     Extractive retrieval over the ingested text.
 
@@ -240,7 +266,7 @@ def answer_for(question: str) -> dict:
         return REFUSAL
 
     scored = []
-    for document in state.documents:
+    for document in documents_in_scope(project_id, include_general):
         for position, section in enumerate(state.sections.get(document["id"], []), start=1):
             overlap = asked & words(f"{section['heading'] or ''} {section['body']}")
             if not overlap:
@@ -303,13 +329,21 @@ class Handler(BaseHTTPRequestHandler):
         self._send(status, {"code": code, "message": message, "details": details or {}})
 
     def _json_body(self) -> dict:
+        """
+        Reads and caches the body. A request stream can only be read once, and two handlers
+        below need different fields out of the same body.
+        """
+        if getattr(self, "_json_body_cache", None) is not None:
+            return self._json_body_cache
         length = int(self.headers.get("Content-Length") or 0)
         if not length:
-            return {}
+            self._json_body_cache = {}
+            return self._json_body_cache
         try:
-            return json.loads(self.rfile.read(length) or b"{}")
+            self._json_body_cache = json.loads(self.rfile.read(length) or b"{}")
         except json.JSONDecodeError:
-            return {}
+            self._json_body_cache = {}
+        return self._json_body_cache
 
     def _multipart(self) -> dict:
         """
@@ -329,7 +363,7 @@ class Handler(BaseHTTPRequestHandler):
         if not match:
             return {"title": "", "filename": "", "text": ""}
 
-        fields = {"title": "", "filename": "", "text": ""}
+        fields = {"title": "", "filename": "", "text": "", "project_id": ""}
         for part in text.split("--" + match.group(1).strip('"')):
             if "\r\n\r\n" not in part:
                 continue
@@ -337,6 +371,8 @@ class Handler(BaseHTTPRequestHandler):
             body = body.rstrip("\r\n-")
             if 'name="title"' in headers:
                 fields["title"] = body.strip()
+            elif 'name="project_id"' in headers:
+                fields["project_id"] = body.strip()
             elif "filename=" in headers:
                 name = re.search(r'filename="([^"]*)"', headers)
                 fields["filename"] = name.group(1) if name else ""
@@ -353,6 +389,15 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/health":
             return self._send(200, {"status": "ok"})
+
+        if path == "/projects":
+            return self._send(200, sorted(state.projects, key=lambda p: p["name"]))
+
+        if match := re.fullmatch(r"/projects/(\d+)", path):
+            project = self._project(int(match.group(1)))
+            if project is None:
+                return self._error(404, "ERR_NOT_FOUND", "Project not found")
+            return self._send(200, project)
 
         if path == "/docs":
             return self._send(200, state.documents)
@@ -442,6 +487,9 @@ class Handler(BaseHTTPRequestHandler):
             fields = self._multipart()
             if not fields["filename"]:
                 return self._error(400, "ERR_MISSING_FILE", "An upload file is required")
+            project_id = int(fields["project_id"]) if fields["project_id"] else None
+            if project_id is not None and self._project(project_id) is None:
+                return self._error(404, "ERR_NOT_FOUND", "Project not found")
             job_id = state.id_for("job")
             state.jobs[job_id] = {
                 "status": "running",
@@ -456,16 +504,36 @@ class Handler(BaseHTTPRequestHandler):
                     fields["title"] or fields["filename"],
                     fields["filename"],
                     fields["text"],
+                    project_id,
                 ),
                 daemon=True,
             ).start()
             return self._send(202, {"job_id": job_id})
 
+        if path == "/projects":
+            name = (self._json_body().get("name") or "").strip()
+            if not name:
+                return self._error(
+                    400, "ERR_VALIDATION", "Request validation failed", {"name": "must not be empty"}
+                )
+            project = {
+                "id": state.id_for("project"),
+                "name": name,
+                "created_at": now(),
+                "updated_at": now(),
+            }
+            state.projects.append(project)
+            return self._send(201, project)
+
         if path == "/conversations":
             body = self._json_body()
+            project_id = body.get("project_id")
+            if project_id is not None and self._project(project_id) is None:
+                return self._error(404, "ERR_NOT_FOUND", "Project not found")
             conversation = {
                 "id": state.id_for("conversation"),
                 "title": (body.get("title") or None),
+                "project_id": project_id,
                 "created_at": now(),
                 "updated_at": now(),
             }
@@ -493,9 +561,22 @@ class Handler(BaseHTTPRequestHandler):
                     "created_at": now(),
                 }
             )
+            # `scope` overrides the conversation's own project for this turn:
+            #   general -> the project-less corpus only
+            #   both    -> the conversation's project plus the project-less corpus
+            #   project -> the conversation's project alone
+            scope = self._json_body_cache.get("scope") if self._json_body_cache else None
+            own = conversation["project_id"]
+            if scope == "general":
+                project_id, include_general = None, False
+            elif scope == "both":
+                project_id, include_general = own, True
+            else:
+                project_id, include_general = own, False
+
             # The real service generates before responding; the pause is the point.
             time.sleep(1.2)
-            result = answer_for(question)
+            result = answer_for(question, project_id, include_general)
             assistant = {
                 "id": state.id_for("message"),
                 "conversation_id": conversation["id"],
@@ -573,6 +654,19 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_PATCH(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
+
+        if match := re.fullmatch(r"/projects/(\d+)", path):
+            project = self._project(int(match.group(1)))
+            if project is None:
+                return self._error(404, "ERR_NOT_FOUND", "Project not found")
+            name = (self._json_body().get("name") or "").strip()
+            if not name:
+                return self._error(
+                    400, "ERR_VALIDATION", "Request validation failed", {"name": "must not be empty"}
+                )
+            project["name"] = name
+            project["updated_at"] = now()
+            return self._send(200, project)
         if match := re.fullmatch(r"/conversations/(\d+)", path):
             conversation = self._conversation(int(match.group(1)))
             if conversation is None:
@@ -588,6 +682,33 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
+
+        if match := re.fullmatch(r"/projects/(\d+)", path):
+            target = int(match.group(1))
+            if self._project(target) is None:
+                return self._error(404, "ERR_NOT_FOUND", "Project not found")
+            # ON DELETE CASCADE in migration 0010: the project takes its documents and
+            # conversations with it.
+            state.projects[:] = [p for p in state.projects if p["id"] != target]
+            gone = {d["id"] for d in state.documents if d["project_id"] == target}
+            state.documents[:] = [d for d in state.documents if d["project_id"] != target]
+            for document_id in gone:
+                state.sections.pop(document_id, None)
+            dropped = {c["id"] for c in state.conversations if c["project_id"] == target}
+            state.conversations[:] = [c for c in state.conversations if c["project_id"] != target]
+            state.messages[:] = [m for m in state.messages if m["conversation_id"] not in dropped]
+            return self._send(204, None)
+
+        if path == "/projects":
+            state.projects.clear()
+            state.documents[:] = [d for d in state.documents if d["project_id"] is None]
+            state.conversations[:] = [c for c in state.conversations if c["project_id"] is None]
+            return self._send(204, None)
+
+        if path == "/conversations":
+            state.conversations.clear()
+            state.messages.clear()
+            return self._send(204, None)
 
         if match := re.fullmatch(r"/docs/(\d+)", path):
             target = int(match.group(1))
@@ -606,6 +727,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(204, None)
 
         return self._error(404, "ERR_NOT_FOUND", f"No route for DELETE {path}")
+
+    def _project(self, project_id: int) -> dict | None:
+        return next((p for p in state.projects if p["id"] == project_id), None)
 
     def _conversation(self, conversation_id: int) -> dict | None:
         return next((c for c in state.conversations if c["id"] == conversation_id), None)
