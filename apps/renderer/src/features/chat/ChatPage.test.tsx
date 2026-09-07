@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
@@ -303,5 +303,41 @@ describe('ChatPage', () => {
     expect(
       await screen.findByText(/retrieved in 820 ms · answered in 6\.4 s/i),
     ).toBeInTheDocument();
+  });
+
+  /**
+   * A rejected document used to be indistinguishable from an accepted one: the contract
+   * returned `rejected: [{ path, reason }]` and nothing rendered it, so the screen simply
+   * did not change. The reason the backend gives is the actionable part.
+   *
+   * Driven through the drop handler rather than the file picker: the browser picker
+   * resolves on a real dialog, which jsdom has none of.
+   */
+  it('says why a document was rejected instead of silently doing nothing', async () => {
+    server.use(
+      http.post('*/api/documents/ingest', () =>
+        HttpResponse.json({
+          accepted: [],
+          rejected: [
+            {
+              path: '/site/notes.zip',
+              reason: 'LocalChat reads PDF, DOCX, Markdown and plain text.',
+            },
+          ],
+        }),
+      ),
+    );
+
+    const { container } = renderChat('chat-throughput');
+    await screen.findByRole('button', { name: /Context|General|Project/ });
+
+    const page = container.firstElementChild as HTMLElement;
+    fireEvent.drop(page, {
+      dataTransfer: { files: [new File(['x'], 'notes.zip')], types: ['Files'] },
+    });
+
+    const note = await screen.findByRole('status');
+    expect(note).toHaveTextContent('notes.zip');
+    expect(note).toHaveTextContent(/reads PDF, DOCX, Markdown and plain text/i);
   });
 });

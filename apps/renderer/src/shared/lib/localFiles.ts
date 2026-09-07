@@ -12,8 +12,18 @@
  * either.
  */
 
-/** Formats either backend will consider. Each rejects what it cannot read, with a reason. */
-const ACCEPT = '.pdf,.docx,.md,.markdown,.txt,.png,.jpg,.jpeg';
+/*
+ * No `accept` filter, deliberately.
+ *
+ * macOS resolves each extension in `accept` to a Uniform Type Identifier, and `.md` /
+ * `.markdown` have no registered UTI on a stock machine — so the native dialog shows
+ * markdown files and refuses to let you select them. A picker that displays a file greyed
+ * out gives the engineer no way to find out why.
+ *
+ * Both backends already reject an unreadable file with a reason worth reading — the mock
+ * suggests exporting to PDF, and the service returns ERR_UNSUPPORTED_FORMAT — and those
+ * reasons are now shown. Explaining a rejection beats silently preventing a selection.
+ */
 
 export interface ChosenDocuments {
   /** Absolute paths, from the desktop file picker. Empty in a browser. */
@@ -40,7 +50,6 @@ function pickInBrowser(): Promise<File[]> {
     const input = document.createElement('input');
     input.type = 'file';
     input.multiple = true;
-    input.accept = ACCEPT;
 
     // A cancelled picker fires no event in most browsers, so the promise would otherwise
     // never settle and the mutation would sit pending forever. `oncancel` covers modern

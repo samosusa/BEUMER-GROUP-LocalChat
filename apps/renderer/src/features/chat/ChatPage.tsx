@@ -14,8 +14,10 @@ import {
 } from '@/shared/api/queries';
 import { ScopeSelector } from './components/ScopeSelector';
 import { Icon } from '@/shared/ui/Icon';
+import { IconButton } from '@/shared/ui/Button';
 import { Mono } from '@/shared/ui/Indicators';
 import { Transcript } from './components/Transcript';
+import { describeError } from '@/shared/api/http';
 import { Composer } from './components/Composer';
 import { NewChatIntro } from './components/NewChatIntro';
 import { useAsk } from './hooks/useAsk';
@@ -49,14 +51,36 @@ export function ChatPage() {
   const pendingProject = projects.data?.find((project) => project.id === pendingProjectId);
   const activeProject = chatId ? chatProject.data : pendingProject;
 
+  /**
+   * Why a document did not make it in.
+   *
+   * The contract has always returned `rejected: [{ path, reason }]` with a reason worth
+   * reading, and nothing rendered it — so a file the service would not take looked exactly
+   * like a file that worked. A thrown error was worse: `mutateAsync` rejected into an
+   * unhandled promise and the screen did not change at all.
+   */
+  const [ingestNote, setIngestNote] = useState<string | null>(null);
+
   const addDocuments = useCallback(
     async (chosen: ChosenDocuments) => {
       if (chosen.paths.length === 0 && chosen.files.length === 0) return;
-      await ingest.mutateAsync({
-        projectId: chatId ? (chat.data?.projectId ?? null) : pendingProjectId,
-        paths: chosen.paths,
-        files: chosen.files,
-      });
+      setIngestNote(null);
+      try {
+        const result = await ingest.mutateAsync({
+          projectId: chatId ? (chat.data?.projectId ?? null) : pendingProjectId,
+          paths: chosen.paths,
+          files: chosen.files,
+        });
+        if (result.rejected.length > 0) {
+          setIngestNote(
+            result.rejected
+              .map((entry) => `${entry.path.split(/[\\/]/).pop()}: ${entry.reason}`)
+              .join('\n'),
+          );
+        }
+      } catch (cause) {
+        setIngestNote(describeError(cause));
+      }
     },
     [chat.data, chatId, ingest, pendingProjectId],
   );
@@ -181,6 +205,14 @@ export function ChatPage() {
         <Transcript messages={messages.data ?? []} ask={ask} onSuggestion={setSeed} />
       ) : (
         <NewChatIntro onDropFiles={pickFiles} />
+      )}
+
+      {ingestNote && (
+        <div className={styles.ingestNote} role="status">
+          <Icon name="warning" size={15} className={styles.ingestNoteIcon} />
+          <p className={styles.ingestNoteText}>{ingestNote}</p>
+          <IconButton icon="close" label="Dismiss" size={14} onClick={() => setIngestNote(null)} />
+        </div>
       )}
 
       <Composer
