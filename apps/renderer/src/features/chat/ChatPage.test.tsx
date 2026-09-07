@@ -279,4 +279,29 @@ describe('ChatPage', () => {
 
     expect(both).toHaveAttribute('aria-checked', 'true');
   }, 20_000);
+
+  /**
+   * The timing used to live in the sources header, which only renders when an answer HAS
+   * sources — so a refusal, the case where "why did that take so long?" is most likely to
+   * be asked, showed nothing at all.
+   */
+  it('shows how long a refused answer took, not only a successful one', async () => {
+    renderChat('chat-anchor-bolt');
+    expect(await screen.findByText(/answered in 2\.7 s/i)).toBeInTheDocument();
+  });
+
+  it('reports a round trip alone when the source gives no retrieval/generation split', async () => {
+    // Halving a total into two plausible-looking numbers would put a fabricated figure
+    // beside a measured one.
+    renderChat('chat-anchor-bolt');
+    expect(await screen.findByText(/answered in 2\.7 s/i)).toBeInTheDocument();
+    expect(screen.queryByText(/retrieved in/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the breakdown when the source does report it', async () => {
+    renderChat('chat-throughput');
+    expect(
+      await screen.findByText(/retrieved in 820 ms · answered in 6\.4 s/i),
+    ).toBeInTheDocument();
+  });
 });

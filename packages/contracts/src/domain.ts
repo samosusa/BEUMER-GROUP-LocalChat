@@ -184,9 +184,19 @@ export type MessageRole = z.infer<typeof MessageRole>;
 export const NoEvidenceReason = z.enum(['nothing_retrieved', 'below_threshold', 'out_of_scope']);
 export type NoEvidenceReason = z.infer<typeof NoEvidenceReason>;
 
+/**
+ * How long a turn took.
+ *
+ * `totalMs` is the round trip and is always measurable by the client, so it is required.
+ * The split is not: the service reports neither a retrieval nor a generation time today,
+ * and dividing a round trip into two plausible halves would put a fabricated number beside
+ * a real one. When the service starts reporting them, these fill in and the same readout
+ * shows the breakdown.
+ */
 export const AnswerTimingsSchema = z.object({
-  retrievalMs: z.number().int().nonnegative(),
-  generationMs: z.number().int().nonnegative(),
+  totalMs: z.number().int().nonnegative(),
+  retrievalMs: z.number().int().nonnegative().nullable(),
+  generationMs: z.number().int().nonnegative().nullable(),
 });
 export type AnswerTimings = z.infer<typeof AnswerTimingsSchema>;
 

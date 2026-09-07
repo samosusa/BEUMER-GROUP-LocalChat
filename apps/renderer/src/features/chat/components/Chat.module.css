@@ -427,3 +427,10 @@
     opacity: 1;
   }
 }
+
+/* The turn's duration, sitting quietly at the head of the reactions row. */
+.turnTimings {
+  font-size: var(--text-micro);
+  color: var(--text-label);
+  margin-right: var(--space-3);
+}

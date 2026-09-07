@@ -456,7 +456,7 @@ export const MESSAGES: Record<string, Message[]> = {
       toolCalls: [],
       noEvidence: null,
       suggestions: [],
-      timings: { retrievalMs: 820, generationMs: 6_400 },
+      timings: { totalMs: 7_220, retrievalMs: 820, generationMs: 6_400 },
       scope: 'both',
       modelId: 'qwen2.5-7b-instruct-q4km',
     },
@@ -502,7 +502,8 @@ export const MESSAGES: Record<string, Message[]> = {
       ],
       noEvidence: 'nothing_retrieved',
       suggestions: ['Add the Steel Structure Spec to context', 'Search General documentation too'],
-      timings: { retrievalMs: 640, generationMs: 2_100 },
+      // Round trip only, the way the live service reports it — no retrieval/generation split.
+      timings: { totalMs: 2_740, retrievalMs: null, generationMs: null },
       scope: 'project',
       modelId: 'qwen2.5-7b-instruct-q4km',
     },

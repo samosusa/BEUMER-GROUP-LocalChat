@@ -492,9 +492,18 @@ async function* askLive(
 
   if (signal?.aborted) return;
 
-  yield { type: 'retrieval', citations: message.citations, elapsedMs: Date.now() - startedAt };
+  const totalMs = Date.now() - startedAt;
+  yield { type: 'retrieval', citations: message.citations, elapsedMs: totalMs };
   if (message.content) yield { type: 'token', text: message.content };
-  yield { type: 'done', message };
+  /*
+    The mapper cannot know how long the turn took — it only sees the response body — so the
+    timing is attached here, where it was measured. Retrieval and generation stay null
+    because the service does not report the split; see AnswerTimingsSchema.
+  */
+  yield {
+    type: 'done',
+    message: { ...message, timings: { totalMs, retrievalMs: null, generationMs: null } },
+  };
 }
 
 // ---------------------------------------------------------------------------

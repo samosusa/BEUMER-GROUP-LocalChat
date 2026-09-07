@@ -69,7 +69,12 @@ export function ScopeSelector({
   return (
     <div className={styles.root}>
       <div className={styles.row}>
-        <SegmentedControl options={options} value={scope} onChange={selectProject} label="Retrieval scope" />
+        <SegmentedControl
+          options={options}
+          value={scope}
+          onChange={selectProject}
+          label="Retrieval scope"
+        />
 
         {showPicker && (
           <select
