@@ -329,7 +329,7 @@ describe('ChatPage', () => {
     );
 
     const { container } = renderChat('chat-throughput');
-    await screen.findByRole('button', { name: /Context|General|Project/ });
+    await screen.findByLabelText(/Ask a question/);
 
     const page = container.firstElementChild as HTMLElement;
     fireEvent.drop(page, {
