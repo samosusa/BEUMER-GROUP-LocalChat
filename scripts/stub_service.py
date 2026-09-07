@@ -136,6 +136,36 @@ def words(text: str) -> set:
     return {w for w in re.findall(r"[a-z]{3,}", text.lower()) if w not in STOPWORDS}
 
 
+TEXT_SUFFIXES = (".md", ".markdown", ".txt", ".text")
+
+
+def why_unreadable(filename: str, text: str) -> str | None:
+    """
+    Refuses a file this stub cannot turn into readable text, and says why.
+
+    The real service extracts text from PDF and DOCX. This one is stdlib-only, so a PDF
+    decodes to its own source - `%PDF-1.4`, `/Type /Catalog`, xref tables - and the
+    retriever, working correctly, quotes that back as the answer. A wrong answer that
+    cites a real document is worse than a refusal, so refuse here.
+
+    Checked twice: by extension, and by how much of the body survived decoding, which
+    catches a binary file wearing a .txt suffix.
+    """
+    suffix = ("." + filename.rsplit(".", 1)[-1].lower()) if "." in filename else ""
+    if suffix and suffix not in TEXT_SUFFIXES:
+        return (
+            f"The contract stub has no {suffix.lstrip('.').upper()} parser - it reads "
+            "Markdown and plain text only. Convert the file, or run the real service to "
+            "test this format."
+        )
+    if text and text.count("\ufffd") / len(text) > 0.02:
+        return (
+            "This file is not UTF-8 text. The contract stub reads Markdown and plain "
+            "text only; the real service handles binary formats."
+        )
+    return None
+
+
 def run_ingestion(
     job_id: int, title: str, filename: str, text: str = "", project_id: int | None = None
 ) -> None:
@@ -487,6 +517,9 @@ class Handler(BaseHTTPRequestHandler):
             fields = self._multipart()
             if not fields["filename"]:
                 return self._error(400, "ERR_MISSING_FILE", "An upload file is required")
+            unreadable = why_unreadable(fields["filename"], fields["text"])
+            if unreadable:
+                return self._error(415, "ERR_UNSUPPORTED_FORMAT", unreadable)
             project_id = int(fields["project_id"]) if fields["project_id"] else None
             if project_id is not None and self._project(project_id) is None:
                 return self._error(404, "ERR_NOT_FOUND", "Project not found")
