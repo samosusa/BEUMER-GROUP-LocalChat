@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import type { IngestDocumentsResponse } from '@localchat/contracts';
 import {
   useDeleteAllGeneralDocuments,
   useDeleteDocument,
@@ -5,7 +7,7 @@ import {
   useIngestDocuments,
 } from '@/shared/api/queries';
 import { Button } from '@/shared/ui/Button';
-import { Mono, SectionLabel } from '@/shared/ui/Indicators';
+import { Callout, Mono, SectionLabel } from '@/shared/ui/Indicators';
 import { DangerAction } from '@/shared/ui/DangerAction';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { DocumentTable } from '@/features/documents/DocumentTable';
@@ -21,17 +23,30 @@ export function GeneralDocumentsPage() {
   const ingest = useIngestDocuments();
   const deleteDocument = useDeleteDocument();
   const deleteAllGeneralDocuments = useDeleteAllGeneralDocuments();
+  // In-page copy of the last batch's failures, for as long as this page stays mounted. The
+  // notification stack (see notificationStore.ts) is what catches the case where the
+  // engineer has already navigated away by the time ingestion finishes; this is just the
+  // faster, more detailed view for whoever is still looking at the table.
+  const [rejected, setRejected] = useState<IngestDocumentsResponse['rejected']>([]);
 
   async function addFiles() {
     const chosen = await chooseDocuments();
     if (chosen.paths.length === 0 && chosen.files.length === 0) return;
-    await ingest.mutateAsync({ projectId: null, paths: chosen.paths, files: chosen.files });
+    setRejected([]);
+    const result = await ingest.mutateAsync({
+      projectId: null,
+      paths: chosen.paths,
+      files: chosen.files,
+    });
+    setRejected(result.rejected);
   }
 
   async function addFolder() {
     const { documents } = await chooseFolderDocuments();
     if (documents.paths.length === 0) return;
-    await ingest.mutateAsync({ projectId: null, paths: documents.paths, files: [] });
+    setRejected([]);
+    const result = await ingest.mutateAsync({ projectId: null, paths: documents.paths, files: [] });
+    setRejected(result.rejected);
   }
 
   return (
@@ -55,6 +70,24 @@ export function GeneralDocumentsPage() {
             </>
           }
         />
+
+        {rejected.length > 0 && (
+          <Callout
+            title={
+              rejected.length === 1
+                ? '1 file could not be indexed'
+                : `${rejected.length} files could not be indexed`
+            }
+          >
+            <ul className={styles.rejectedList}>
+              {rejected.map((item) => (
+                <li key={item.path}>
+                  <Mono>{item.path}</Mono> — {item.reason}
+                </li>
+              ))}
+            </ul>
+          </Callout>
+        )}
 
         <section className={styles.card}>
           <header className={styles.cardHeader}>

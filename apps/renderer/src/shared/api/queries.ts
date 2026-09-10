@@ -10,6 +10,7 @@ import type {
 } from '@localchat/contracts';
 import { api, type IngestInput } from './client';
 import { ApiError } from './http';
+import { useNotificationStore } from '@/shared/store/notificationStore';
 
 /**
  * Query keys are declared once, hierarchically, so an invalidation can target exactly the
@@ -305,9 +306,24 @@ export function useIngestDocuments() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (input: IngestInput) => api.ingestDocuments(input),
-    onSuccess: () => {
+    /**
+     * Runs even if the page that started the ingest has since unmounted — mutation
+     * callbacks live on the query client, not the component — so a rejection is still
+     * reported when the engineer has already moved on to another screen.
+     */
+    onSuccess: (data) => {
       void client.invalidateQueries({ queryKey: ['documents'] });
       void client.invalidateQueries({ queryKey: keys.projects.all });
+      if (data.rejected.length > 0) {
+        useNotificationStore.getState().push({
+          tone: 'warning',
+          title:
+            data.rejected.length === 1
+              ? '1 file could not be indexed'
+              : `${data.rejected.length} files could not be indexed`,
+          detail: data.rejected.map((item) => `${item.path} — ${item.reason}`),
+        });
+      }
     },
   });
 }

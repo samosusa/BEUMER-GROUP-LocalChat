@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import type { IngestDocumentsResponse } from '@localchat/contracts';
 import {
   useChats,
   useDeleteDocument,
@@ -9,7 +10,7 @@ import {
 } from '@/shared/api/queries';
 import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
-import { Mono } from '@/shared/ui/Indicators';
+import { Callout, Mono } from '@/shared/ui/Indicators';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { DocumentTable } from '@/features/documents/DocumentTable';
 import { formatCount, formatRelative } from '@/shared/lib/format';
@@ -26,6 +27,10 @@ export function ProjectDetailPage() {
   const ingest = useIngestDocuments();
   const deleteDocument = useDeleteDocument();
   const [tab, setTab] = useState<Tab>('documents');
+  // See GeneralDocumentsPage: the notification stack covers the case where the engineer has
+  // already left this page by the time ingestion finishes; this is the in-page detail view
+  // for whoever is still here.
+  const [rejected, setRejected] = useState<IngestDocumentsResponse['rejected']>([]);
 
   // While anything is mid-ingestion the table polls, so progress moves without a refresh.
   const documents = useProjectDocuments(projectId, { refetchInterval: 1_500 });
@@ -34,17 +39,25 @@ export function ProjectDetailPage() {
   async function addDocuments() {
     const chosen = await chooseDocuments();
     if (chosen.paths.length === 0 && chosen.files.length === 0) return;
-    await ingest.mutateAsync({
+    setRejected([]);
+    const result = await ingest.mutateAsync({
       projectId: projectId ?? null,
       paths: chosen.paths,
       files: chosen.files,
     });
+    setRejected(result.rejected);
   }
 
   async function addFolder() {
     const { documents: chosen } = await chooseFolderDocuments();
     if (chosen.paths.length === 0) return;
-    await ingest.mutateAsync({ projectId: projectId ?? null, paths: chosen.paths, files: [] });
+    setRejected([]);
+    const result = await ingest.mutateAsync({
+      projectId: projectId ?? null,
+      paths: chosen.paths,
+      files: [],
+    });
+    setRejected(result.rejected);
   }
 
   return (
@@ -104,6 +117,25 @@ export function ProjectDetailPage() {
 
       <div className={styles.body}>
         <div className={styles.main}>
+          {tab === 'documents' && rejected.length > 0 && (
+            <div className={styles.rejectedCallout}>
+              <Callout
+                title={
+                  rejected.length === 1
+                    ? '1 file could not be indexed'
+                    : `${rejected.length} files could not be indexed`
+                }
+              >
+                <ul className={styles.rejectedList}>
+                  {rejected.map((item) => (
+                    <li key={item.path}>
+                      <Mono>{item.path}</Mono> — {item.reason}
+                    </li>
+                  ))}
+                </ul>
+              </Callout>
+            </div>
+          )}
           {tab === 'documents' && (
             <DocumentTable
               documents={rows}

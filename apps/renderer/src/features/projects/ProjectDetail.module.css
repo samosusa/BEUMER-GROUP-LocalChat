@@ -82,6 +82,19 @@
   padding: var(--space-6) 0;
 }
 
+.rejectedCallout {
+  margin-bottom: var(--space-6);
+}
+
+.rejectedList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 /* ---------------------------------------------------------------------------
    Chats in this project
    --------------------------------------------------------------------------- */
