@@ -41,7 +41,9 @@ describe('GeneralDocumentsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Delete' }));
 
     expect(
-      await screen.findByText('No general documents yet. Add files or a folder to the company-wide corpus.'),
+      await screen.findByText(
+        'No general documents yet. Add files or a folder to the company-wide corpus.',
+      ),
     ).toBeInTheDocument();
   });
 });

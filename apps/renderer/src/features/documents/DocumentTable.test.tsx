@@ -46,9 +46,7 @@ describe('DocumentTable', () => {
 
     expect(screen.queryByText(/cannot be undone/i)).not.toBeInTheDocument();
     expect(onDelete).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole('button', { name: /remove .* from the index/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /remove .* from the index/i })).toBeInTheDocument();
   });
 
   it('deletes the document once removal is confirmed', async () => {

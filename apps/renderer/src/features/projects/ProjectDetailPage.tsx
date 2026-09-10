@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useChats, useDeleteDocument, useIngestDocuments, useProject, useProjectDocuments } from '@/shared/api/queries';
+import {
+  useChats,
+  useDeleteDocument,
+  useIngestDocuments,
+  useProject,
+  useProjectDocuments,
+} from '@/shared/api/queries';
 import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
 import { Mono } from '@/shared/ui/Indicators';
