@@ -22,6 +22,8 @@ function makeDocument(overrides: Partial<Document> = {}): Document {
     documentDate: null,
     indexedAt: '2026-03-11T00:00:00.000Z',
     stale: false,
+    complexityTier: 'moderate',
+    complexityScore: 11,
     ...overrides,
   };
 }

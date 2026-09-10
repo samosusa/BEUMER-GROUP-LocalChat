@@ -13,7 +13,6 @@ from src.llm_adapter import VALID_DEVICES, gpu_available, list_model_files
 from src.models.benchmark_job import BenchmarkJob
 from src.models.eval_result import EvalResult
 
-
 router = APIRouter()
 
 
@@ -45,6 +44,10 @@ class BenchmarkResultRow(BaseModel):
     total_s: float | None
     peak_mem_mb: float | None
     peak_vram_mb: float | None
+    question: str | None
+    prompt_label: str | None
+    complexity_tier: str | None
+    complexity_score: float | None
     run_at: datetime
 
 
@@ -179,6 +182,10 @@ def benchmark_results(benchmark_job_id: int, db: Session = Depends(get_db)) -> B
                 total_s=row.total_s,
                 peak_mem_mb=row.peak_mem_mb,
                 peak_vram_mb=row.peak_vram_mb,
+                question=row.question,
+                prompt_label=row.prompt_label,
+                complexity_tier=row.complexity_tier,
+                complexity_score=row.complexity_score,
                 run_at=row.run_at,
             )
             for row in rows

@@ -3,17 +3,20 @@ from fastapi.testclient import TestClient
 from src.app import app
 from src.db import SessionLocal
 
-
 client = TestClient(app)
 
 
 def fake_process_benchmark(job_id: int) -> None:
     from src.benchmark import BenchmarkRow, run_benchmark_job
 
-    def fake_run_one(model_path, device):
+    def fake_run_one(model_path, device, prompt_spec):
         return BenchmarkRow(
             model=model_path.name,
             device=device,
+            question=prompt_spec["question"],
+            prompt_label=prompt_spec["label"],
+            complexity_tier="simple",
+            complexity_score=0.0,
             device_name="Fake Device",
             status="ok",
             load_s=0.1,
@@ -60,6 +63,9 @@ def test_benchmark_job_runs_and_stores_results(monkeypatch):
     assert row["device"] == "cpu"
     assert row["status"] == "ok"
     assert row["tok_s"] == 42.0
+    assert row["prompt_label"] in ("simple", "moderate", "complex")
+    assert row["complexity_tier"] == "simple"
+    assert {r["prompt_label"] for r in body["results"]} == {"simple", "moderate", "complex"}
 
     runs_response = client.get("/benchmark/results")
     assert runs_response.status_code == 200

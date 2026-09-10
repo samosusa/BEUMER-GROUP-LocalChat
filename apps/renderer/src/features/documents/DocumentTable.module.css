@@ -45,6 +45,10 @@
   background: color-mix(in srgb, var(--warning-surface) 60%, transparent);
 }
 
+.colComplexity {
+  width: 120px;
+}
+
 .colStatus {
   width: 150px;
 }

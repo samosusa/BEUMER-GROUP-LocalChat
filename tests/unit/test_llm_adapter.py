@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from src.llm_adapter import LLMAdapter, ModelNotFoundError, UnsupportedDeviceError, list_model_files
+from src.llm_adapter import (
+    LLMAdapter,
+    ModelNotFoundError,
+    UnsupportedDeviceError,
+    list_model_files,
+)
 
 
 class FakeLlama:
@@ -16,6 +21,15 @@ class FakeLlama:
 
     def __call__(self, prompt, **kwargs):
         return {"choices": [{"text": f"echo:{prompt}"}]}
+
+    def tokenize(self, data: bytes, add_bos: bool = True) -> list[int]:
+        # One "token" per whitespace-split word, plus one for BOS - good enough to
+        # exercise count_tokens()'s plumbing without a real tokenizer.
+        count = len(data.decode("utf-8").split())
+        return list(range(count + (1 if add_bos else 0)))
+
+    def n_ctx(self) -> int:
+        return 4096
 
     def close(self):
         self.closed = True
@@ -129,3 +143,25 @@ def test_generate_uses_active_model(monkeypatch, models_dir: Path):
     adapter.set_active("model-a-Q5_K_M.gguf", "cpu")
 
     assert adapter.generate("hello") == "echo:hello"
+
+
+def test_count_tokens_uses_active_model_tokenizer(monkeypatch, models_dir: Path):
+    import llama_cpp
+
+    monkeypatch.setattr(llama_cpp, "Llama", FakeLlama, raising=False)
+
+    adapter = LLMAdapter(models_dir=models_dir)
+    adapter.set_active("model-a-Q5_K_M.gguf", "cpu")
+
+    assert adapter.count_tokens("four words right here") == 5  # +1 for BOS
+
+
+def test_context_size_reads_active_model_n_ctx(monkeypatch, models_dir: Path):
+    import llama_cpp
+
+    monkeypatch.setattr(llama_cpp, "Llama", FakeLlama, raising=False)
+
+    adapter = LLMAdapter(models_dir=models_dir)
+    adapter.set_active("model-a-Q5_K_M.gguf", "cpu")
+
+    assert adapter.context_size() == 4096

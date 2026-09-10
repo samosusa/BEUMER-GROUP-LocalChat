@@ -5,7 +5,6 @@ from src.db import SessionLocal
 from src.models.conversation import Conversation
 from src.models.message import Message
 
-
 client = TestClient(app)
 
 
@@ -103,6 +102,31 @@ def test_post_message_persists_qa_pair_and_auto_titles(monkeypatch):
         assert detail["messages"][0]["text"] == "What is the conveyor speed?"
         assert detail["messages"][0]["citations"] is None
         assert detail["updated_at"] > detail["created_at"]
+    finally:
+        client.delete(f"/conversations/{created['id']}")
+
+
+def test_post_message_surfaces_question_complexity(monkeypatch):
+    _fake_answer(
+        monkeypatch,
+        {
+            "answer": "The conveyor speed is 2 meters per second.",
+            "citations": [],
+            "not_found": False,
+            "complexity": {"tier": "moderate", "score": 0.3},
+        },
+    )
+
+    created = client.post("/conversations", json={}).json()
+
+    try:
+        response = client.post(
+            f"/conversations/{created['id']}/messages", json={"q": "What is the conveyor speed?"}
+        )
+        assert response.status_code == 201
+        assistant_message = response.json()
+        assert assistant_message["complexity_tier"] == "moderate"
+        assert assistant_message["complexity_score"] == 0.3
     finally:
         client.delete(f"/conversations/{created['id']}")
 
