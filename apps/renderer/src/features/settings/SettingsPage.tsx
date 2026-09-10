@@ -354,7 +354,10 @@ function BenchmarkCard() {
           CPU
         </label>
         <label
-          className={cn(styles.benchDeviceOption, !gpuAvailable && styles.benchDeviceOptionDisabled)}
+          className={cn(
+            styles.benchDeviceOption,
+            !gpuAvailable && styles.benchDeviceOptionDisabled,
+          )}
         >
           <input
             type="checkbox"
@@ -512,4 +515,3 @@ function formatPeakMemory(memoryBytes: number | null, vramBytes: number | null):
   if (memoryBytes !== null) return formatBytes(memoryBytes);
   return '—';
 }
-

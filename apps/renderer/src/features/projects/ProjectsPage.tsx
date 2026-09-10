@@ -45,7 +45,9 @@ export function ProjectsPage() {
             <SectionLabel
               action={
                 <span className={styles.sectionActions}>
-                  <Mono className={styles.cardHeaderMeta}>{projects.data?.length ?? 0} projects</Mono>
+                  <Mono className={styles.cardHeaderMeta}>
+                    {projects.data?.length ?? 0} projects
+                  </Mono>
                   <DangerAction
                     label="Delete all projects"
                     confirmText={`Delete all ${projects.data?.length ?? 0} projects, and every document and chat inside them? This can't be undone.`}

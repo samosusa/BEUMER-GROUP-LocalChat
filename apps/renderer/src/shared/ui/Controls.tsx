@@ -101,7 +101,8 @@ export function SegmentedControl<T extends string>({
               const delta = event.key === 'ArrowRight' ? 1 : -1;
               // Skip disabled options rather than landing focus/selection on one.
               for (let step = 1; step <= options.length; step += 1) {
-                const next = options[(index + delta * step + options.length * step) % options.length];
+                const next =
+                  options[(index + delta * step + options.length * step) % options.length];
                 if (next && !next.disabled) {
                   onChange(next.value);
                   break;

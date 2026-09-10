@@ -8,7 +8,11 @@ describe('DangerAction', () => {
     const onConfirm = vi.fn();
     const user = userEvent.setup();
     render(
-      <DangerAction label="Delete all chats" confirmText="Delete all 3 chats?" onConfirm={onConfirm} />,
+      <DangerAction
+        label="Delete all chats"
+        confirmText="Delete all 3 chats?"
+        onConfirm={onConfirm}
+      />,
     );
 
     await user.click(screen.getByRole('button', { name: 'Delete all chats' }));
@@ -24,7 +28,11 @@ describe('DangerAction', () => {
     const onConfirm = vi.fn();
     const user = userEvent.setup();
     render(
-      <DangerAction label="Delete all chats" confirmText="Delete all 3 chats?" onConfirm={onConfirm} />,
+      <DangerAction
+        label="Delete all chats"
+        confirmText="Delete all 3 chats?"
+        onConfirm={onConfirm}
+      />,
     );
 
     await user.click(screen.getByRole('button', { name: 'Delete all chats' }));
@@ -36,7 +44,12 @@ describe('DangerAction', () => {
 
   it('is disabled when there is nothing to delete', () => {
     render(
-      <DangerAction label="Delete all chats" confirmText="Delete all 0 chats?" disabled onConfirm={vi.fn()} />,
+      <DangerAction
+        label="Delete all chats"
+        confirmText="Delete all 0 chats?"
+        disabled
+        onConfirm={vi.fn()}
+      />,
     );
     expect(screen.getByRole('button', { name: 'Delete all chats' })).toBeDisabled();
   });

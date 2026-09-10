@@ -72,8 +72,8 @@ export function DocumentTable({ documents, emptyLabel, onDelete }: DocumentTable
             <tr key={document.id} className={styles.confirmRow}>
               <td colSpan={3}>
                 <span className={styles.confirmText}>
-                  Remove <strong>{document.filename}</strong> from the index? This cannot be
-                  undone — the file would have to be added again.
+                  Remove <strong>{document.filename}</strong> from the index? This cannot be undone
+                  — the file would have to be added again.
                 </span>
                 <span className={styles.confirmActions}>
                   <button
