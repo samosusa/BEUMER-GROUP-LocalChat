@@ -122,6 +122,8 @@ export function documentFromService(dto: ServiceDocument): Document {
     documentDate: null,
     indexedAt: toIsoOrNull(dto.indexed_at),
     stale: false,
+    complexityTier: dto.complexity_tier,
+    complexityScore: dto.complexity_score,
   };
 }
 
@@ -239,6 +241,8 @@ export function messageFromService(
     timings: null,
     scope: null,
     modelId: null,
+    complexityTier: dto.complexity_tier,
+    complexityScore: dto.complexity_score,
   };
 }
 
@@ -262,6 +266,8 @@ export function messageFromAnswer(
     timings: null,
     scope: null,
     modelId: null,
+    complexityTier: answer.complexity?.tier ?? null,
+    complexityScore: answer.complexity?.score ?? null,
   };
 }
 

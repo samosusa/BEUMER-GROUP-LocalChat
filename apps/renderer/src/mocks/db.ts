@@ -125,6 +125,8 @@ const CANNED: Canned[] = [
       timings: { retrievalMs: 640, generationMs: 2_100 },
       scope: chat.scope,
       modelId: store.settings.activeModelId,
+      complexityTier: 'simple',
+      complexityScore: 0.1,
     }),
   },
   {
@@ -170,6 +172,8 @@ const CANNED: Canned[] = [
       timings: { retrievalMs: 910, generationMs: 7_200 },
       scope: chat.scope,
       modelId: store.settings.activeModelId,
+      complexityTier: 'complex',
+      complexityScore: 0.55,
     }),
   },
   {
@@ -227,6 +231,8 @@ const CANNED: Canned[] = [
       timings: { retrievalMs: 820, generationMs: 6_400 },
       scope: chat.scope,
       modelId: store.settings.activeModelId,
+      complexityTier: 'moderate',
+      complexityScore: 0.3,
     }),
   },
 ];

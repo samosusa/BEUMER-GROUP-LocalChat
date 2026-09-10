@@ -38,6 +38,8 @@ def test_upload_chunks_and_stores_vectors(tmp_path: Path, monkeypatch):
         document = db.query(Document).filter_by(title="Sample guide").order_by(Document.id.desc()).first()
         assert document is not None
         assert document.indexed_at is not None
+        assert document.complexity_tier in ("simple", "moderate", "complex")
+        assert document.complexity_score is not None
         chunks = db.query(Chunk).filter_by(doc_id=document.id).all()
         assert len(chunks) == 1
         assert chunks[0].embedding_path

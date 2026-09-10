@@ -26,6 +26,18 @@ export const RetrievalScope = z.enum(['general', 'project', 'both']);
 export type RetrievalScope = z.infer<typeof RetrievalScope>;
 
 // ---------------------------------------------------------------------------
+// Complexity
+// ---------------------------------------------------------------------------
+
+/**
+ * Shared by documents (readability of the parsed text, computed once at ingest) and
+ * assistant messages (difficulty of the question that produced the turn). Both are cheap
+ * offline heuristics on the service side, not a model judgment - treat as a rough signal.
+ */
+export const ComplexityTier = z.enum(['simple', 'moderate', 'complex']);
+export type ComplexityTier = z.infer<typeof ComplexityTier>;
+
+// ---------------------------------------------------------------------------
 // Documents
 // ---------------------------------------------------------------------------
 
@@ -73,6 +85,10 @@ export const DocumentSchema = z.object({
   indexedAt: isoDateTime.nullable(),
   /** True when the file changed on disk after it was last indexed. */
   stale: z.boolean(),
+  /** Readability of the parsed text; null until ingestion has produced chunks. */
+  complexityTier: ComplexityTier.nullable(),
+  /** Approximate Flesch-Kincaid grade level backing `complexityTier`. */
+  complexityScore: z.number().nullable(),
 });
 export type Document = z.infer<typeof DocumentSchema>;
 
@@ -207,6 +223,9 @@ export const MessageSchema = z.object({
   /** Scope and model this turn actually ran under, so an old answer stays interpretable. */
   scope: RetrievalScope.nullable(),
   modelId: z.string().nullable(),
+  /** How hard the user's question was judged to be; set on assistant turns only. */
+  complexityTier: ComplexityTier.nullable(),
+  complexityScore: z.number().nullable(),
 });
 export type Message = z.infer<typeof MessageSchema>;
 

@@ -143,6 +143,18 @@ class LLMAdapter:
             self._load_locked(self.model_path, self._device)
             return self._model
 
+    def count_tokens(self, text: str) -> int:
+        """Exact token count via the active model's own tokenizer (loads the default model
+        first if nothing is loaded yet - the same lazy load generate() would trigger anyway,
+        so counting before generating adds no extra load)."""
+        model = self.load_model()
+        return len(model.tokenize(text.encode("utf-8"), add_bos=True))
+
+    def context_size(self) -> int:
+        """The active model's configured context window, in tokens."""
+        model = self.load_model()
+        return int(model.n_ctx())
+
     def generate(self, prompt: str, max_tokens: int = 512) -> str:
         # NOTE: create_chat_completion() (which applies the model's own chat template and
         # stops at its trained end-of-turn token) segfaults the whole process here - it runs
@@ -172,3 +184,11 @@ def load_model() -> Any:
 
 def generate(prompt: str, max_tokens: int = 512) -> str:
     return llm_adapter.generate(prompt, max_tokens=max_tokens)
+
+
+def count_tokens(text: str) -> int:
+    return llm_adapter.count_tokens(text)
+
+
+def context_size() -> int:
+    return llm_adapter.context_size()

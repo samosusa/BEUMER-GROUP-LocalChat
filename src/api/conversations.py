@@ -15,7 +15,6 @@ from src.models.message import Message
 from src.rag_service import answer
 from src.validation import ROOT, validate_against_schema
 
-
 router = APIRouter()
 
 TITLE_MAX_LENGTH = 60
@@ -56,6 +55,8 @@ class MessageResponse(BaseModel):
     text: str
     citations: list[dict] | None
     not_found: bool | None
+    complexity_tier: str | None
+    complexity_score: float | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -180,12 +181,15 @@ def post_message(conversation_id: int, payload: MessageCreate, db: Session = Dep
     include_general = payload.scope == "both" and conversation.project_id is not None
     result = answer(question, db, project_id=project_id, include_general=include_general)
 
+    complexity = result.get("complexity") or {}
     assistant_message = Message(
         conversation_id=conversation.id,
         role="assistant",
         text=result["answer"] or result.get("suggestion") or "",
         citations=result["citations"],
         not_found=result["not_found"],
+        complexity_tier=complexity.get("tier"),
+        complexity_score=complexity.get("score"),
         created_at=_now(),
     )
     db.add(assistant_message)

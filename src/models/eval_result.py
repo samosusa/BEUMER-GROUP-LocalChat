@@ -26,4 +26,7 @@ class EvalResult(Base):
     peak_mem_mb: Mapped[float | None] = mapped_column(Float)
     peak_vram_mb: Mapped[float | None] = mapped_column(Float)
     question: Mapped[str | None] = mapped_column(Text)
+    prompt_label: Mapped[str | None] = mapped_column(String)
+    complexity_tier: Mapped[str | None] = mapped_column(String)
+    complexity_score: Mapped[float | None] = mapped_column(Float)
     run_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

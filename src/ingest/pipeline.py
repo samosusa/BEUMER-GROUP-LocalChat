@@ -6,6 +6,7 @@ from typing import Callable
 
 from sqlalchemy.orm import Session
 
+from src.complexity import measure_document_complexity
 from src.ingest.chunker import TextChunk, chunk_file
 from src.ingest.embedder import embed
 from src.ingest.vector_store import FaissVectorStore
@@ -13,7 +14,6 @@ from src.models.chunk import Chunk
 from src.models.document import Document
 from src.models.ingestion_job import IngestionJob
 from src.utils import file_checksum
-
 
 CHECKPOINT_SIZE = 50
 
@@ -30,6 +30,8 @@ def _get_job(db: Session, job_id: int) -> IngestionJob:
 def _create_document(
     db: Session, job: IngestionJob, title: str, path: Path, project_id: int | None
 ) -> tuple[Document, list[TextChunk]]:
+    chunks = chunk_file(path)
+    complexity = measure_document_complexity(" ".join(chunk.text for chunk in chunks))
     document = Document(
         title=title,
         path=str(path),
@@ -37,10 +39,11 @@ def _create_document(
         version=1,
         project_id=project_id,
         uploaded_at=datetime.utcnow(),
+        complexity_tier=complexity.tier,
+        complexity_score=complexity.score,
     )
     db.add(document)
     db.flush()
-    chunks = chunk_file(path)
     job.total_chunks = len(chunks)
     db.commit()
     return document, chunks

@@ -27,6 +27,8 @@ const document = (over: Partial<ServiceDocument> = {}): ServiceDocument => ({
   project_id: null,
   uploaded_at: '2026-08-30T09:15:00',
   indexed_at: '2026-08-30T09:17:30',
+  complexity_tier: null,
+  complexity_score: null,
   ...over,
 });
 
@@ -37,6 +39,8 @@ const message = (over: Partial<ServiceMessage> = {}): ServiceMessage => ({
   text: 'The belt runs at 2.2 m/s.',
   citations: null,
   not_found: false,
+  complexity_tier: null,
+  complexity_score: null,
   created_at: '2026-08-30T09:20:00',
   ...over,
 });
