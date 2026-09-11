@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.db import Base
@@ -18,3 +18,8 @@ class Document(Base):
     project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     indexed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Set once ingestion has parsed the file's text (see src/ingest/pipeline.py); NULL
+    # until then, and for documents registered via POST /docs without going through the
+    # ingestion pipeline.
+    complexity_tier: Mapped[str | None] = mapped_column(String)
+    complexity_score: Mapped[float | None] = mapped_column(Float)

@@ -62,6 +62,8 @@ export function Transcript({ messages, ask, onSuggestion }: TranscriptProps) {
               noEvidence: null,
               suggestions: [],
               timings: null,
+              complexityTier: null,
+              complexityScore: null,
             }}
           />
         )}

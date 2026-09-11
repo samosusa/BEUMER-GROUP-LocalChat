@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Document, IngestionStatus } from '@localchat/contracts';
+import type { ComplexityTier, Document, IngestionStatus } from '@localchat/contracts';
 import { IconButton } from '@/shared/ui/Button';
 import { Icon, type IconName } from '@/shared/ui/Icon';
 import { Mono, ProgressBar, StatusDot, type Tone } from '@/shared/ui/Indicators';
@@ -25,6 +25,14 @@ const STATUS_LABEL: Record<IngestionStatus, string> = {
   no_text_layer: 'no text layer',
   unsupported: 'unsupported',
   failed: 'failed',
+};
+
+/** Readability of the parsed text (src/complexity.py) — a document property, distinct from
+ *  ingestion status, so it gets its own column rather than living inside the meta line. */
+const COMPLEXITY_TONE: Record<ComplexityTier, Tone> = {
+  simple: 'success',
+  moderate: 'accent',
+  complex: 'warning',
 };
 
 const FORMAT_ICON: Record<Document['format'], IconName> = {
@@ -58,6 +66,9 @@ export function DocumentTable({ documents, emptyLabel, onDelete }: DocumentTable
       <thead>
         <tr>
           <th scope="col">Document</th>
+          <th scope="col" className={styles.colComplexity}>
+            Complexity
+          </th>
           <th scope="col" className={styles.colStatus}>
             Status
           </th>
@@ -70,7 +81,7 @@ export function DocumentTable({ documents, emptyLabel, onDelete }: DocumentTable
         {documents.map((document) =>
           confirming === document.id ? (
             <tr key={document.id} className={styles.confirmRow}>
-              <td colSpan={3}>
+              <td colSpan={4}>
                 <span className={styles.confirmText}>
                   Remove <strong>{document.filename}</strong> from the index? This cannot be undone
                   — the file would have to be added again.
@@ -110,6 +121,16 @@ export function DocumentTable({ documents, emptyLabel, onDelete }: DocumentTable
                     <Mono className={styles.docMeta}>{describeDocument(document)}</Mono>
                   </span>
                 </span>
+              </td>
+              <td className={styles.colComplexity}>
+                {document.complexityTier ? (
+                  <StatusDot
+                    tone={COMPLEXITY_TONE[document.complexityTier]}
+                    label={document.complexityTier}
+                  />
+                ) : (
+                  <Mono className={styles.docMeta}>—</Mono>
+                )}
               </td>
               <td className={styles.colStatus}>
                 {document.status === 'indexing' && document.progress !== null ? (

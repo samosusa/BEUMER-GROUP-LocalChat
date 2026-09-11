@@ -14,7 +14,6 @@ from src.ingest.vector_store import FaissVectorStore
 from src.models.document import Document
 from src.utils import file_checksum
 
-
 router = APIRouter()
 
 
@@ -33,6 +32,8 @@ class DocumentResponse(BaseModel):
     project_id: int | None
     uploaded_at: datetime
     indexed_at: datetime | None
+    complexity_tier: str | None
+    complexity_score: float | None
 
     model_config = {"from_attributes": True}
 

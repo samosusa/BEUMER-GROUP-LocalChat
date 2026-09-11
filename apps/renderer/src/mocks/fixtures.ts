@@ -100,6 +100,8 @@ export const DOCUMENTS: Document[] = [
     documentDate: '2026-03-11T00:00:00.000Z',
     indexedAt: hoursAgo(9),
     stale: false,
+    complexityTier: 'complex',
+    complexityScore: 14.2,
   },
   {
     id: 'doc-sortation',
@@ -118,6 +120,8 @@ export const DOCUMENTS: Document[] = [
     documentDate: '2025-11-02T00:00:00.000Z',
     indexedAt: hoursAgo(9),
     stale: false,
+    complexityTier: 'complex',
+    complexityScore: 13.1,
   },
   {
     id: 'doc-chute-table',
@@ -136,6 +140,8 @@ export const DOCUMENTS: Document[] = [
     documentDate: '2026-08-14T00:00:00.000Z',
     indexedAt: hoursAgo(9),
     stale: false,
+    complexityTier: 'simple',
+    complexityScore: 6.4,
   },
   {
     id: 'doc-chute-layout',
@@ -154,6 +160,8 @@ export const DOCUMENTS: Document[] = [
     documentDate: null,
     indexedAt: null,
     stale: false,
+    complexityTier: null,
+    complexityScore: null,
   },
   {
     id: 'doc-sat-notes',
@@ -172,6 +180,8 @@ export const DOCUMENTS: Document[] = [
     documentDate: '2026-08-22T00:00:00.000Z',
     indexedAt: hoursAgo(9),
     stale: true,
+    complexityTier: 'moderate',
+    complexityScore: 10.8,
   },
   {
     id: 'doc-sat-protocol',
@@ -190,6 +200,8 @@ export const DOCUMENTS: Document[] = [
     documentDate: '2026-01-27T00:00:00.000Z',
     indexedAt: hoursAgo(9),
     stale: false,
+    complexityTier: 'moderate',
+    complexityScore: 11.5,
   },
   {
     id: 'doc-asbuilt',
@@ -208,6 +220,8 @@ export const DOCUMENTS: Document[] = [
     documentDate: null,
     indexedAt: null,
     stale: false,
+    complexityTier: null,
+    complexityScore: null,
   },
   {
     id: 'doc-mech-install',
@@ -226,6 +240,8 @@ export const DOCUMENTS: Document[] = [
     documentDate: '2025-09-30T00:00:00.000Z',
     indexedAt: hoursAgo(9),
     stale: false,
+    complexityTier: 'moderate',
+    complexityScore: 10.2,
   },
   {
     id: 'doc-conveyor-maint',
@@ -244,6 +260,8 @@ export const DOCUMENTS: Document[] = [
     documentDate: '2026-02-18T00:00:00.000Z',
     indexedAt: null,
     stale: false,
+    complexityTier: null,
+    complexityScore: null,
   },
   {
     id: 'doc-estop-standard',
@@ -262,6 +280,8 @@ export const DOCUMENTS: Document[] = [
     documentDate: '2025-06-04T00:00:00.000Z',
     indexedAt: daysAgo(40),
     stale: false,
+    complexityTier: 'complex',
+    complexityScore: 15.6,
   },
   {
     id: 'doc-lubrication',
@@ -280,6 +300,8 @@ export const DOCUMENTS: Document[] = [
     documentDate: '2025-12-15T00:00:00.000Z',
     indexedAt: daysAgo(40),
     stale: false,
+    complexityTier: 'simple',
+    complexityScore: 8.1,
   },
 ];
 
@@ -387,6 +409,8 @@ export const MESSAGES: Record<string, Message[]> = {
       timings: null,
       scope: null,
       modelId: null,
+      complexityTier: null,
+      complexityScore: null,
     },
     {
       id: 'msg-throughput-a',
@@ -459,6 +483,8 @@ export const MESSAGES: Record<string, Message[]> = {
       timings: { totalMs: 7_220, retrievalMs: 820, generationMs: 6_400 },
       scope: 'both',
       modelId: 'qwen2.5-7b-instruct-q4km',
+      complexityTier: 'complex',
+      complexityScore: 0.5,
     },
   ],
 
@@ -478,6 +504,8 @@ export const MESSAGES: Record<string, Message[]> = {
       timings: null,
       scope: null,
       modelId: null,
+      complexityTier: null,
+      complexityScore: null,
     },
     {
       id: 'msg-anchor-a',
@@ -506,6 +534,8 @@ export const MESSAGES: Record<string, Message[]> = {
       timings: { totalMs: 2_740, retrievalMs: null, generationMs: null },
       scope: 'project',
       modelId: 'qwen2.5-7b-instruct-q4km',
+      complexityTier: 'simple',
+      complexityScore: 0.1,
     },
   ],
 };

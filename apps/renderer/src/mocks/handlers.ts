@@ -242,6 +242,8 @@ export const handlers = [
         documentDate: null,
         indexedAt: null,
         stale: false,
+        complexityTier: null,
+        complexityScore: null,
       };
       store.documents.push(document);
       accepted.push(document);
@@ -386,6 +388,8 @@ export const handlers = [
       timings: null,
       scope: null,
       modelId: null,
+      complexityTier: null,
+      complexityScore: null,
     };
     messages.push(userMessage);
 
@@ -543,6 +547,10 @@ function scheduleIngestion(documentId: string): void {
       document.status = 'indexed';
       document.progress = null;
       document.indexedAt = new Date().toISOString();
+      // The real pipeline sets this from the parsed text (src/complexity.py); the mock has
+      // no text to score, so it picks a plausible tier rather than leaving it null forever.
+      document.complexityTier = 'moderate';
+      document.complexityScore = 11;
       clearInterval(timer);
     }
   }, 900);

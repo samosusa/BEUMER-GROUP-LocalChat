@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.db import Base
@@ -18,4 +18,8 @@ class Message(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     citations: Mapped[Any | None] = mapped_column(JSON)
     not_found: Mapped[bool | None] = mapped_column(Boolean)
+    # Set on the assistant's reply only, from rag_service.answer()'s `complexity` field -
+    # how hard the user's question (the preceding message) was judged to be.
+    complexity_tier: Mapped[str | None] = mapped_column(String)
+    complexity_score: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

@@ -33,6 +33,10 @@ export const ServiceHealth = z.object({ status: z.string() });
 // Documents — GET/POST/DELETE /docs
 // ---------------------------------------------------------------------------
 
+/** Matches src/complexity.py's tiers; shared verbatim between documents and messages. */
+export const ServiceComplexityTier = z.enum(['simple', 'moderate', 'complex']);
+export type ServiceComplexityTier = z.infer<typeof ServiceComplexityTier>;
+
 export const ServiceDocument = z.object({
   id: pk,
   title: z.string(),
@@ -42,6 +46,8 @@ export const ServiceDocument = z.object({
   project_id: pk.nullable(),
   uploaded_at: naiveDateTime,
   indexed_at: naiveDateTime.nullable(),
+  complexity_tier: ServiceComplexityTier.nullable(),
+  complexity_score: z.number().nullable(),
 });
 export type ServiceDocument = z.infer<typeof ServiceDocument>;
 
@@ -101,11 +107,18 @@ export const ServiceCitation = z.object({
 });
 export type ServiceCitation = z.infer<typeof ServiceCitation>;
 
+export const ServiceComplexity = z.object({
+  tier: ServiceComplexityTier,
+  score: z.number(),
+});
+export type ServiceComplexity = z.infer<typeof ServiceComplexity>;
+
 export const ServiceAnswer = z.object({
   answer: z.string().nullable(),
   citations: z.array(ServiceCitation),
   not_found: z.boolean(),
   suggestion: z.string().optional(),
+  complexity: ServiceComplexity.optional(),
 });
 export type ServiceAnswer = z.infer<typeof ServiceAnswer>;
 
@@ -131,6 +144,8 @@ export const ServiceMessage = z.object({
   text: z.string(),
   citations: z.array(ServiceCitation).nullable(),
   not_found: z.boolean().nullable(),
+  complexity_tier: ServiceComplexityTier.nullable(),
+  complexity_score: z.number().nullable(),
   created_at: naiveDateTime,
 });
 export type ServiceMessage = z.infer<typeof ServiceMessage>;

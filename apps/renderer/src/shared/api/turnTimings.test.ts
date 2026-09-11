@@ -18,6 +18,8 @@ function assistant(id: string, timings: Message['timings'] = null): Message {
     noEvidence: null,
     suggestions: [],
     timings,
+    complexityTier: null,
+    complexityScore: null,
     createdAt: '2026-09-07T18:00:00.000Z',
   };
 }

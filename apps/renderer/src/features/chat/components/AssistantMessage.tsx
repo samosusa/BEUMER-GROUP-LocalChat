@@ -1,8 +1,8 @@
 import { useCallback, useRef, type MouseEvent, type ReactNode, type Ref } from 'react';
-import type { Citation, Figure, Message, ToolCall } from '@localchat/contracts';
+import type { Citation, ComplexityTier, Figure, Message, ToolCall } from '@localchat/contracts';
 import { Icon } from '@/shared/ui/Icon';
 import { IconButton } from '@/shared/ui/Button';
-import { Callout, Mono } from '@/shared/ui/Indicators';
+import { Callout, Mono, StatusDot, type Tone } from '@/shared/ui/Indicators';
 import { formatCitationRef, formatDuration } from '@/shared/lib/format';
 import { parseAnswer, type AnswerBlock } from '../lib/answerMarkup';
 import styles from './Chat.module.css';
@@ -10,7 +10,15 @@ import styles from './Chat.module.css';
 interface AssistantMessageProps {
   message: Pick<
     Message,
-    'content' | 'citations' | 'figures' | 'toolCalls' | 'noEvidence' | 'suggestions' | 'timings'
+    | 'content'
+    | 'citations'
+    | 'figures'
+    | 'toolCalls'
+    | 'noEvidence'
+    | 'suggestions'
+    | 'timings'
+    | 'complexityTier'
+    | 'complexityScore'
   >;
   /** True while tokens are still arriving; suppresses the reaction row and the caret. */
   streaming?: boolean;
@@ -48,6 +56,10 @@ export function AssistantMessage({
       </span>
 
       <div className={styles.turnBody} data-selectable>
+        {!streaming && message.complexityTier && (
+          <ComplexityBadge tier={message.complexityTier} score={message.complexityScore} />
+        )}
+
         {message.noEvidence ? (
           <NoEvidencePanel suggestions={message.suggestions} onSuggestion={onSuggestion}>
             {message.content}
@@ -160,6 +172,31 @@ function TurnTimings({ timings }: { timings: NonNullable<Message['timings']> }) 
     </span>
   );
 }
+
+// ---------------------------------------------------------------------------
+
+/**
+ * How hard the question behind this turn was judged to be, per the service's offline
+ * heuristic (src/complexity.py) — not a model self-assessment. Shown regardless of whether
+ * the turn found evidence, since a refusal is exactly when "was this a fair question"
+ * matters most.
+ */
+const COMPLEXITY_TONE: Record<ComplexityTier, Tone> = {
+  simple: 'success',
+  moderate: 'accent',
+  complex: 'warning',
+};
+
+function ComplexityBadge({ tier, score }: { tier: ComplexityTier; score: number | null }) {
+  return (
+    <div className={styles.complexityRow}>
+      <StatusDot tone={COMPLEXITY_TONE[tier]} label={`Question: ${tier}`} />
+      {score !== null && <Mono className={styles.sourcesTimings}>{score.toFixed(2)}</Mono>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 
 interface SourcesPanelProps {
   citations: Citation[];

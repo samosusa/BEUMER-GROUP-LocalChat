@@ -21,16 +21,31 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from src.complexity import measure_complexity
 from src.llm_adapter import MODELS_DIR, gpu_available, llm_adapter
 from src.models.benchmark_job import BenchmarkJob
 from src.models.eval_result import EvalResult
 
-
-BENCHMARK_QUESTION = "How often should the emergency stop pull-cords be inspected, and what is the procedure?"
+# One prompt per complexity tier (see src/complexity.py) so a benchmark run reports
+# latency/throughput broken down by how hard the prompt is, not just a single fixed
+# question - a model that's fast on a one-fact lookup may not stay fast on a multi-part
+# reasoning prompt with more context to attend to. Tiers below are verified by
+# measure_complexity() itself in tests/unit/test_benchmark.py, not asserted by hand here.
 BENCHMARK_CONTEXT = (
     "Emergency stop pull-cords must be tested at the start of every shift. Pull the cord at the "
     "midpoint of each belt section and confirm the drive motor cuts power within 500ms. Log the "
     "test in the shift handover sheet before the line is released for operation."
+)
+BENCHMARK_PROMPTS = (
+    {"label": "simple", "question": "How often should pull-cords be inspected?"},
+    {"label": "moderate", "question": "How do I test an emergency stop pull-cord?"},
+    {
+        "label": "complex",
+        "question": (
+            "Why must pull-cords be tested every shift, and what happens if the drive "
+            "motor does not cut power in time?"
+        ),
+    },
 )
 MAX_TOKENS = 128
 N_CTX = 4096
@@ -38,11 +53,11 @@ TEMPERATURE = 0.1
 TOP_P = 0.9
 
 
-def _prompt() -> str:
+def _prompt(question: str) -> str:
     return (
         "You answer questions using only the provided documentation. "
         "If the documentation does not contain the answer, say that it is not available.\n\n"
-        f"Documentation:\n[1] {BENCHMARK_CONTEXT}\n\nQuestion: {BENCHMARK_QUESTION}\nAnswer:"
+        f"Documentation:\n[1] {BENCHMARK_CONTEXT}\n\nQuestion: {question}\nAnswer:"
     )
 
 
@@ -84,6 +99,10 @@ def _cpu_device_name() -> str:
 class BenchmarkRow:
     model: str
     device: str
+    question: str
+    prompt_label: str
+    complexity_tier: str
+    complexity_score: float
     device_name: str | None = None
     status: str = "pending"
     detail: str | None = None
@@ -104,16 +123,24 @@ def resolve_models(models_dir: Path, model_names: list[str] | None) -> list[Path
     return [path for path in all_models if path.name in wanted]
 
 
-def run_one(model_path: Path, device: str) -> BenchmarkRow:
-    row = BenchmarkRow(model=model_path.name, device=device)
+def run_one(model_path: Path, device: str, prompt_spec: dict) -> BenchmarkRow:
+    complexity = measure_complexity(prompt_spec["question"])
+    row = BenchmarkRow(
+        model=model_path.name,
+        device=device,
+        question=prompt_spec["question"],
+        prompt_label=prompt_spec["label"],
+        complexity_tier=complexity.tier,
+        complexity_score=complexity.score,
+    )
     if device == "gpu" and not gpu_available():
         row.status = "skipped"
         row.detail = "no CUDA/GPU offload support in the installed llama-cpp-python build"
         return row
 
+    import llama_cpp as llama_cpp_module
     import psutil
     from llama_cpp import Llama
-    import llama_cpp as llama_cpp_module
 
     proc = psutil.Process()
     n_gpu_layers = -1 if device == "gpu" else 0
@@ -125,7 +152,7 @@ def run_one(model_path: Path, device: str) -> BenchmarkRow:
         row.load_s = time.perf_counter() - t0
         row.device_name = _gpu_device_name() if device == "gpu" else _cpu_device_name()
 
-        prompt = _prompt()
+        prompt = _prompt(prompt_spec["question"])
         llm.reset()  # force a full prompt re-eval instead of reusing any cached KV state
         llm._ctx.reset_timings()
         t_start = time.perf_counter()
@@ -198,7 +225,10 @@ def _store_row(db: Session, job: BenchmarkJob, row: BenchmarkRow) -> None:
             total_s=row.total_s,
             peak_mem_mb=row.peak_mem_mb,
             peak_vram_mb=row.peak_vram_mb,
-            question=BENCHMARK_QUESTION,
+            question=row.question,
+            prompt_label=row.prompt_label,
+            complexity_tier=row.complexity_tier,
+            complexity_score=row.complexity_score,
             run_at=datetime.utcnow(),
         )
     )
@@ -219,18 +249,19 @@ def run_benchmark_job(db: Session, job_id: int, models_dir: Path | None = None) 
         if not model_paths:
             raise ValueError("No matching GGUF models found in data/models/")
 
-        job.total_runs = len(model_paths) * len(job.devices)
+        job.total_runs = len(model_paths) * len(job.devices) * len(BENCHMARK_PROMPTS)
         job.completed_runs = 0
         db.commit()
 
         for model_path in model_paths:
             for device in job.devices:
-                job.current_model = model_path.name
-                job.current_device = device
-                db.commit()
+                for prompt_spec in BENCHMARK_PROMPTS:
+                    job.current_model = model_path.name
+                    job.current_device = device
+                    db.commit()
 
-                row = run_one(model_path, device)
-                _store_row(db, job, row)
+                    row = run_one(model_path, device, prompt_spec)
+                    _store_row(db, job, row)
 
         job.status = "completed"
         job.current_model = None
