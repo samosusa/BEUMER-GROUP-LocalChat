@@ -10,6 +10,7 @@ import type {
 } from '@localchat/contracts';
 import { api, type IngestInput } from './client';
 import { ApiError } from './http';
+import { withMeasuredTimings } from './turnTimings';
 
 /**
  * Query keys are declared once, hierarchically, so an invalidation can target exactly the
@@ -35,6 +36,7 @@ export const keys = {
   activeModel: ['activeModel'] as const,
   models: ['models'] as const,
   benchmark: ['benchmark'] as const,
+  benchmarkHistory: ['benchmark', 'history'] as const,
 };
 
 /** Anything the retriever wrote is cheap to refetch and expensive to show stale. */
@@ -145,7 +147,7 @@ export function useMessages(id: string | undefined) {
   return useQuery({
     queryKey: keys.chats.messages(id ?? ''),
     queryFn: ({ signal }) => api.listMessages(id as string, signal),
-    select: (data) => data.messages,
+    select: (data) => withMeasuredTimings(data.messages),
     enabled: Boolean(id),
     ...LIVE,
   });
@@ -196,6 +198,27 @@ export function useBenchmark() {
     // Loading a multi-gigabyte model takes tens of seconds, so this is slow on purpose:
     // a tighter interval would add nothing and a fixed one would keep asking forever.
     refetchInterval: (query) => (query.state.data?.run?.status === 'running' ? 3_000 : false),
+  });
+}
+
+/**
+ * Past runs, for the trend charts.
+ *
+ * Not polled, but not stale either. History changes exactly once per run - when that run
+ * finishes - so the id of the newest completed run is part of the key. `useBenchmark` is
+ * already polling while a job is in flight; the moment it reports a new completed run the
+ * key changes and this refetches on its own. No interval, no invalidation to remember, and
+ * no chart left showing yesterday's runs after the engineer just watched one finish.
+ */
+export function useBenchmarkHistory() {
+  const latest = useBenchmark();
+  const newestCompleted = latest.data?.status === 'completed' ? latest.data.id : 'none';
+
+  return useQuery({
+    queryKey: [...keys.benchmarkHistory, newestCompleted],
+    queryFn: ({ signal }) => api.getBenchmarkHistory(signal),
+    select: (data) => data.runs,
+    ...STATIC,
   });
 }
 
