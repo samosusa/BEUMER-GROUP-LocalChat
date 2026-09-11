@@ -1,6 +1,7 @@
 import {
   AnswerEvent,
   type AskRequest,
+  BenchmarkHistoryResponse,
   BenchmarkResponse,
   ChatResponse,
   type ComputeMode,
@@ -352,6 +353,11 @@ export const api = {
     LIVE
       ? { run: await service.latestBenchmark(signal) }
       : request(routes.benchmark(), { schema: BenchmarkResponse, signal }),
+
+  getBenchmarkHistory: async (signal?: AbortSignal): Promise<BenchmarkHistoryResponse> =>
+    LIVE
+      ? { runs: await service.benchmarkHistory(signal) }
+      : request(routes.benchmarkHistory(), { schema: BenchmarkHistoryResponse, signal }),
 
   /**
    * Starts a run. Against the live service this returns as soon as the job is accepted —
