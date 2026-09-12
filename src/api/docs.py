@@ -21,6 +21,7 @@ class DocumentCreate(BaseModel):
     title: str
     path: str
     project_id: int | None = None
+    also_general: bool = False
 
 
 class DocumentResponse(BaseModel):
@@ -30,6 +31,7 @@ class DocumentResponse(BaseModel):
     checksum: str
     version: int
     project_id: int | None
+    also_general: bool
     uploaded_at: datetime
     indexed_at: datetime | None
     complexity_tier: str | None
@@ -77,6 +79,7 @@ def create_document(payload: DocumentCreate, db: Session = Depends(get_db)) -> D
         checksum=checksum,
         version=1,
         project_id=payload.project_id,
+        also_general=payload.also_general,
         uploaded_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     db.add(document)

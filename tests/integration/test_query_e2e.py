@@ -12,7 +12,9 @@ def test_query_retrieves_and_cites_ingested_document(monkeypatch):
     import src.rag_service as rag_service
     import src.retriever as retriever
 
-    def fake_process_upload(job_id: int, title: str, path: str, project_id: int | None = None) -> None:
+    def fake_process_upload(
+        job_id: int, title: str, path: str, project_id: int | None = None, also_general: bool = False
+    ) -> None:
         from src.ingest.pipeline import run_pipeline
 
         with SessionLocal() as db:
@@ -23,6 +25,7 @@ def test_query_retrieves_and_cites_ingested_document(monkeypatch):
                 path,
                 embedder=lambda texts: [[1.0, 0.0] for _ in texts],
                 project_id=project_id,
+                also_general=also_general,
             )
         Path(path).unlink(missing_ok=True)
 
@@ -68,7 +71,9 @@ def test_query_scoped_to_project_ignores_other_projects_documents(monkeypatch):
     import src.rag_service as rag_service
     import src.retriever as retriever
 
-    def fake_process_upload(job_id: int, title: str, path: str, project_id: int | None = None) -> None:
+    def fake_process_upload(
+        job_id: int, title: str, path: str, project_id: int | None = None, also_general: bool = False
+    ) -> None:
         from src.ingest.pipeline import run_pipeline
 
         with SessionLocal() as db:
@@ -79,6 +84,7 @@ def test_query_scoped_to_project_ignores_other_projects_documents(monkeypatch):
                 path,
                 embedder=lambda texts: [[1.0, 0.0] for _ in texts],
                 project_id=project_id,
+                also_general=also_general,
             )
         Path(path).unlink(missing_ok=True)
 

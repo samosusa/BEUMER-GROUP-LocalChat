@@ -9,6 +9,7 @@ import {
   useProjectDocuments,
 } from '@/shared/api/queries';
 import { Button } from '@/shared/ui/Button';
+import { Toggle } from '@/shared/ui/Controls';
 import { Icon } from '@/shared/ui/Icon';
 import { Callout, Mono } from '@/shared/ui/Indicators';
 import { PageHeader } from '@/shared/ui/PageHeader';
@@ -31,6 +32,9 @@ export function ProjectDetailPage() {
   // already left this page by the time ingestion finishes; this is the in-page detail view
   // for whoever is still here.
   const [rejected, setRejected] = useState<IngestDocumentsResponse['rejected']>([]);
+  // Off by default: an upload stays project-only unless the engineer explicitly asks for it
+  // to also be searchable company-wide.
+  const [alsoGeneral, setAlsoGeneral] = useState(false);
 
   // While anything is mid-ingestion the table polls, so progress moves without a refresh.
   const documents = useProjectDocuments(projectId, { refetchInterval: 1_500 });
@@ -44,6 +48,7 @@ export function ProjectDetailPage() {
       projectId: projectId ?? null,
       paths: chosen.paths,
       files: chosen.files,
+      alsoGeneral,
     });
     setRejected(result.rejected);
   }
@@ -56,6 +61,7 @@ export function ProjectDetailPage() {
       projectId: projectId ?? null,
       paths: chosen.paths,
       files: [],
+      alsoGeneral,
     });
     setRejected(result.rejected);
   }
@@ -117,6 +123,14 @@ export function ProjectDetailPage() {
 
       <div className={styles.body}>
         <div className={styles.main}>
+          {tab === 'documents' && (
+            <Toggle
+              checked={alsoGeneral}
+              onChange={setAlsoGeneral}
+              label="Also add new uploads to general documents"
+              description="Applies to documents you add from here, so they're searchable outside this project too."
+            />
+          )}
           {tab === 'documents' && rejected.length > 0 && (
             <div className={styles.rejectedCallout}>
               <Callout

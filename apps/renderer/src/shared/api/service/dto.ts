@@ -44,6 +44,7 @@ export const ServiceDocument = z.object({
   checksum: z.string(),
   version: z.number().int().positive(),
   project_id: pk.nullable(),
+  also_general: z.boolean(),
   uploaded_at: naiveDateTime,
   indexed_at: naiveDateTime.nullable(),
   complexity_tier: ServiceComplexityTier.nullable(),

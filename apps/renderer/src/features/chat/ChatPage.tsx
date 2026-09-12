@@ -52,13 +52,18 @@ export function ChatPage() {
   const addDocuments = useCallback(
     async (chosen: ChosenDocuments) => {
       if (chosen.paths.length === 0 && chosen.files.length === 0) return;
+      // Dropping a file into a "Both" chat means it should be findable outside this project
+      // too, the same way "Both" already widens retrieval - otherwise the corpus a file lands
+      // in silently depends on which project tab it was dragged into, not the scope shown.
+      const scope = chatId ? (chat.data?.scope ?? 'general') : pendingScope;
       await ingest.mutateAsync({
         projectId: chatId ? (chat.data?.projectId ?? null) : pendingProjectId,
         paths: chosen.paths,
         files: chosen.files,
+        alsoGeneral: scope === 'both',
       });
     },
-    [chat.data, chatId, ingest, pendingProjectId],
+    [chat.data, chatId, ingest, pendingProjectId, pendingScope],
   );
 
   const drop = useDocumentDrop(addDocuments);

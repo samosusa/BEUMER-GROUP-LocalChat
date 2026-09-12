@@ -36,14 +36,17 @@ def retrieve(
     query_vector = np.asarray(embed_query([query]), dtype="float32")
     vector_dir = vector_dir or Path(os.getenv("LOCALCHAT_VECTOR_DIR", VECTOR_DIR))
 
-    # project_id is None here means "the general corpus", i.e. documents that also have no
-    # project - not "every document regardless of project". SQLAlchemy turns
-    # `Document.project_id == None` into `IS NULL`, so this one filter covers both cases.
-    # `include_general` is "both" mode: a project-scoped query that should also draw on the
-    # project-less corpus, so the filter widens to project_id match OR project_id IS NULL
-    # instead of narrowing to one or the other.
-    if include_general and project_id is not None:
-        document_filter = or_(Document.project_id == project_id, Document.project_id.is_(None))
+    # A document is part of the general corpus if it has no project of its own, or if it was
+    # explicitly opted into general visibility (also_general) despite belonging to a project.
+    general_clause = or_(Document.project_id.is_(None), Document.also_general.is_(True))
+
+    # project_id is None here means "the general corpus" - not "every document regardless of
+    # project". `include_general` is "both" mode: a project-scoped query that should also draw
+    # on the general corpus, so the filter widens instead of narrowing to one or the other.
+    if project_id is None:
+        document_filter = general_clause
+    elif include_general:
+        document_filter = or_(Document.project_id == project_id, general_clause)
     else:
         document_filter = Document.project_id == project_id
     allowed_doc_ids = {

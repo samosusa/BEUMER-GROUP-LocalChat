@@ -45,3 +45,14 @@ def test_corrupt_pdf_returns_parse_error():
 
     assert response.status_code == 422
     assert response.json()["code"] == "ERR_PARSE_FAILED"
+
+
+def test_whitespace_only_file_returns_no_extractable_text_error():
+    response = client.post(
+        "/ingest",
+        data={"title": "Blank"},
+        files={"file": ("blank.txt", b"   \n\t\n   ", "text/plain")},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "ERR_NO_EXTRACTABLE_TEXT"

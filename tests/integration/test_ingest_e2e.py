@@ -12,12 +12,20 @@ from src.models.document import Document
 def test_upload_chunks_and_stores_vectors(tmp_path: Path, monkeypatch):
     import src.api.ingest as ingest_api
 
-    def fake_process_upload(job_id: int, title: str, path: str, project_id: int | None = None) -> None:
+    def fake_process_upload(
+        job_id: int, title: str, path: str, project_id: int | None = None, also_general: bool = False
+    ) -> None:
         from src.ingest.pipeline import run_pipeline
 
         with SessionLocal() as db:
             run_pipeline(
-                db, job_id, title, path, embedder=lambda texts: [[1.0, 0.0] for _ in texts], project_id=project_id
+                db,
+                job_id,
+                title,
+                path,
+                embedder=lambda texts: [[1.0, 0.0] for _ in texts],
+                project_id=project_id,
+                also_general=also_general,
             )
         Path(path).unlink(missing_ok=True)
 
@@ -51,12 +59,20 @@ def test_upload_chunks_and_stores_vectors(tmp_path: Path, monkeypatch):
 def test_ingest_stamps_document_with_given_project(monkeypatch):
     import src.api.ingest as ingest_api
 
-    def fake_process_upload(job_id: int, title: str, path: str, project_id: int | None = None) -> None:
+    def fake_process_upload(
+        job_id: int, title: str, path: str, project_id: int | None = None, also_general: bool = False
+    ) -> None:
         from src.ingest.pipeline import run_pipeline
 
         with SessionLocal() as db:
             run_pipeline(
-                db, job_id, title, path, embedder=lambda texts: [[1.0, 0.0] for _ in texts], project_id=project_id
+                db,
+                job_id,
+                title,
+                path,
+                embedder=lambda texts: [[1.0, 0.0] for _ in texts],
+                project_id=project_id,
+                also_general=also_general,
             )
         Path(path).unlink(missing_ok=True)
 
@@ -77,6 +93,46 @@ def test_ingest_stamps_document_with_given_project(monkeypatch):
         document = db.query(Document).filter_by(title="Scoped guide").order_by(Document.id.desc()).first()
         assert document is not None
         assert document.project_id == project["id"]
+
+
+def test_ingest_with_also_general_flags_document_for_the_general_corpus(monkeypatch):
+    import src.api.ingest as ingest_api
+
+    def fake_process_upload(
+        job_id: int, title: str, path: str, project_id: int | None = None, also_general: bool = False
+    ) -> None:
+        from src.ingest.pipeline import run_pipeline
+
+        with SessionLocal() as db:
+            run_pipeline(
+                db,
+                job_id,
+                title,
+                path,
+                embedder=lambda texts: [[1.0, 0.0] for _ in texts],
+                project_id=project_id,
+                also_general=also_general,
+            )
+        Path(path).unlink(missing_ok=True)
+
+    monkeypatch.setattr(ingest_api, "process_upload", fake_process_upload)
+    client = TestClient(app)
+
+    project = client.post("/projects", json={"name": "Shared with general"}).json()
+    response = client.post(
+        "/ingest",
+        data={"title": "Shared guide", "project_id": project["id"], "also_general": "true"},
+        files={"file": ("shared.txt", b"Content shared with the general corpus.", "text/plain")},
+    )
+    assert response.status_code == 202
+    job_id = response.json()["job_id"]
+    assert client.get(f"/status/{job_id}").json()["status"] == "completed"
+
+    with SessionLocal() as db:
+        document = db.query(Document).filter_by(title="Shared guide").order_by(Document.id.desc()).first()
+        assert document is not None
+        assert document.project_id == project["id"]
+        assert document.also_general is True
 
 
 def test_ingest_rejects_unknown_project():

@@ -66,6 +66,8 @@ export const DocumentSchema = z.object({
   id: z.string(),
   /** Null means the document belongs to the company-wide ("general") corpus. */
   projectId: z.string().nullable(),
+  /** True surfaces a project-scoped document in the general corpus too, without a second copy. */
+  alsoGeneral: z.boolean(),
   filename: z.string(),
   title: z.string(),
   format: DocumentFormat,

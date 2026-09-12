@@ -108,6 +108,7 @@ export function documentFromService(dto: ServiceDocument): Document {
   return {
     id: toId(dto.id),
     projectId: dto.project_id === null ? null : toId(dto.project_id),
+    alsoGeneral: dto.also_general,
     filename: basename(dto.path),
     title: dto.title,
     format: formatFromPath(dto.path),

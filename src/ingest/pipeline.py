@@ -28,7 +28,12 @@ def _get_job(db: Session, job_id: int) -> IngestionJob:
 
 
 def _create_document(
-    db: Session, job: IngestionJob, title: str, path: Path, project_id: int | None
+    db: Session,
+    job: IngestionJob,
+    title: str,
+    path: Path,
+    project_id: int | None,
+    also_general: bool = False,
 ) -> tuple[Document, list[TextChunk]]:
     chunks = chunk_file(path)
     complexity = measure_document_complexity(" ".join(chunk.text for chunk in chunks))
@@ -38,6 +43,8 @@ def _create_document(
         checksum=file_checksum(path),
         version=1,
         project_id=project_id,
+        # Meaningless for a document with no project of its own - it is already general.
+        also_general=also_general and project_id is not None,
         uploaded_at=datetime.utcnow(),
         complexity_tier=complexity.tier,
         complexity_score=complexity.score,
@@ -108,12 +115,13 @@ def run_pipeline(
     embedder: Embedder = embed,
     vector_store: FaissVectorStore | None = None,
     project_id: int | None = None,
+    also_general: bool = False,
 ) -> None:
     path = Path(source_path)
     job = _get_job(db, job_id)
 
     try:
-        document, chunks = _create_document(db, job, title, path, project_id)
+        document, chunks = _create_document(db, job, title, path, project_id, also_general)
         store = vector_store or FaissVectorStore()
         for start in range(0, len(chunks), CHECKPOINT_SIZE):
             batch = chunks[start:start + CHECKPOINT_SIZE]

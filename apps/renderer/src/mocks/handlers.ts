@@ -227,6 +227,7 @@ export const handlers = [
       const document = {
         id: nextId('doc'),
         projectId: parsed.data.projectId,
+        alsoGeneral: parsed.data.alsoGeneral,
         filename,
         title: filename.replace(/\.[^.]+$/, ''),
         format,

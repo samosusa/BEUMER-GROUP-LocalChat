@@ -7,7 +7,12 @@ psutil>=6,<8
 pypdf>=5,<7
 python-docx>=1,<2
 pytest>=8,<9
+# nomic-ai/nomic-embed-text-v1.5's trust_remote_code=True modeling code (src/ingest/embedder.py)
+# calls the ModuleUtilsMixin.get_extended_attention_mask() helper, which transformers 5.x
+# removed as part of its attention-masking rework. Pinned below 5 until nomic ships remote
+# code compatible with the new API.
 sentence-transformers>=3,<6
+transformers>=4.41,<5
 sqlalchemy>=2,<3
 python-multipart>=0.0.9,<1
 uvicorn[standard]>=0.29,<1
