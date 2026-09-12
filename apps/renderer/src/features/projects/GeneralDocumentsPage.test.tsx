@@ -19,10 +19,9 @@ function renderPage(extra?: React.ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
-  const router = createMemoryRouter(
-    [{ path: '/documents', element: <GeneralDocumentsPage /> }],
-    { initialEntries: ['/documents'] },
-  );
+  const router = createMemoryRouter([{ path: '/documents', element: <GeneralDocumentsPage /> }], {
+    initialEntries: ['/documents'],
+  });
 
   return {
     user: userEvent.setup(),
