@@ -224,3 +224,96 @@ export const ServiceBenchmarkRunList = z.array(
     finished_at: naiveDateTime.nullable(),
   }),
 );
+
+// ---------------------------------------------------------------------------
+// Embedding models — GET /embeddings/models, GET/POST /embeddings/active
+// ---------------------------------------------------------------------------
+
+export const ServiceEmbeddingModel = z.object({
+  name: z.string(),
+  dimension: z.number().int().positive(),
+  description: z.string(),
+});
+export type ServiceEmbeddingModel = z.infer<typeof ServiceEmbeddingModel>;
+
+export const ServiceEmbeddingModelList = z.array(ServiceEmbeddingModel);
+
+export const ServiceActiveEmbeddingModel = z.object({
+  model: z.string(),
+  dimension: z.number().int().positive(),
+});
+export type ServiceActiveEmbeddingModel = z.infer<typeof ServiceActiveEmbeddingModel>;
+
+/** A model switch always queues a re-embed job, hence the id alongside the new active model. */
+export const ServiceSetActiveEmbeddingModel = ServiceActiveEmbeddingModel.extend({
+  reindex_job_id: pk,
+});
+export type ServiceSetActiveEmbeddingModel = z.infer<typeof ServiceSetActiveEmbeddingModel>;
+
+// ---------------------------------------------------------------------------
+// Re-embedding — GET /embeddings/reindex/status/{id}, GET /embeddings/reindex
+// ---------------------------------------------------------------------------
+
+export const ServiceReindexStatus = z.object({
+  status: z.string(),
+  model: z.string(),
+  progress: z.string(),
+  current_document: z.string().nullable(),
+});
+export type ServiceReindexStatus = z.infer<typeof ServiceReindexStatus>;
+
+export const ServiceReindexRunList = z.array(
+  z.object({
+    reindex_job_id: pk,
+    status: z.string(),
+    model: z.string(),
+    created_at: naiveDateTime,
+    finished_at: naiveDateTime.nullable(),
+  }),
+);
+export type ServiceReindexRunList = z.infer<typeof ServiceReindexRunList>;
+
+// ---------------------------------------------------------------------------
+// Embedding benchmark — mirrors the model benchmark shapes above
+// ---------------------------------------------------------------------------
+
+export const ServiceEmbeddingBenchmarkAccepted = z.object({ embedding_benchmark_job_id: pk });
+
+export const ServiceEmbeddingBenchmarkStatus = z.object({
+  status: z.string(),
+  progress: z.string(),
+  current: z.string().nullable(),
+});
+export type ServiceEmbeddingBenchmarkStatus = z.infer<typeof ServiceEmbeddingBenchmarkStatus>;
+
+export const ServiceEmbeddingBenchmarkRow = z.object({
+  model: z.string(),
+  dimension: z.number().int().nullable(),
+  status: z.string(),
+  detail: z.string().nullable(),
+  load_s: z.number().nullable(),
+  text_label: z.string().nullable(),
+  text_count: z.number().int().nullable(),
+  embed_s: z.number().nullable(),
+  texts_per_s: z.number().nullable(),
+  peak_mem_mb: z.number().nullable(),
+  run_at: naiveDateTime,
+});
+export type ServiceEmbeddingBenchmarkRow = z.infer<typeof ServiceEmbeddingBenchmarkRow>;
+
+export const ServiceEmbeddingBenchmarkResults = z.object({
+  embedding_benchmark_job_id: pk,
+  status: z.string(),
+  results: z.array(ServiceEmbeddingBenchmarkRow),
+});
+export type ServiceEmbeddingBenchmarkResults = z.infer<typeof ServiceEmbeddingBenchmarkResults>;
+
+export const ServiceEmbeddingBenchmarkRunList = z.array(
+  z.object({
+    embedding_benchmark_job_id: pk,
+    status: z.string(),
+    models: z.array(z.string()).nullable(),
+    created_at: naiveDateTime,
+    finished_at: naiveDateTime.nullable(),
+  }),
+);

@@ -9,7 +9,7 @@ import numpy as np
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from src.ingest.embedder import embed_query
+from src.ingest.embedder import embed_query, embedding_adapter
 from src.ingest.vector_store import VECTOR_DIR
 from src.models.chunk import Chunk
 from src.models.document import Document
@@ -53,6 +53,8 @@ def retrieve(
         doc_id for (doc_id,) in db.query(Document.id).filter(document_filter).all()
     }
 
+    active_model = embedding_adapter.active["model"]
+
     results: list[RetrievedChunk] = []
     for index_path in vector_dir.glob("*.index"):
         try:
@@ -60,6 +62,17 @@ def retrieve(
         except ValueError:
             continue
         if doc_id not in allowed_doc_ids:
+            continue
+        document = db.get(Document, doc_id)
+        if document is None:
+            continue
+        # A document embedded under a different model than the one currently active isn't
+        # just a different dimension away from being comparable - even at the same
+        # dimension its vectors live in a different geometric space, so cosine/dot-product
+        # scores against it would be meaningless rather than merely stale. Skip it here
+        # (rather than in the query step below) so it's excluded before it can ever be
+        # searched, until a re-embed (see src/reindex.py) brings it back in step.
+        if document.embedding_model is not None and document.embedding_model != active_model:
             continue
         index = faiss.read_index(str(index_path))
         if index.ntotal == 0 or index.d != query_vector.shape[1]:
@@ -69,9 +82,6 @@ def retrieve(
             chunk.chunk_index: chunk
             for chunk in db.query(Chunk).filter(Chunk.doc_id == doc_id).all()
         }
-        document = db.get(Document, doc_id)
-        if document is None:
-            continue
         for score, chunk_index in zip(scores[0], indices[0]):
             chunk = chunks.get(int(chunk_index))
             if chunk is not None and chunk_index >= 0:

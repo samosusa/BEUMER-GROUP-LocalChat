@@ -6,11 +6,14 @@ import {
   ChatSchema,
   CitationSchema,
   DocumentSchema,
+  EmbeddingBenchmarkRunSchema,
+  EmbeddingModelSchema,
   FigureSchema,
   IndexStatsSchema,
   MessageSchema,
   ModelSchema,
   ProjectSchema,
+  ReindexJobSchema,
   RetrievalScope,
   SettingsSchema,
   ToolCallSchema,
@@ -189,6 +192,42 @@ export const RunBenchmarkRequest = z.object({
 export type RunBenchmarkRequest = z.infer<typeof RunBenchmarkRequest>;
 
 // ---------------------------------------------------------------------------
+// Embedding models, re-embedding, embedding benchmark
+// ---------------------------------------------------------------------------
+
+export const ListEmbeddingModelsResponse = z.object({
+  embeddingModels: z.array(EmbeddingModelSchema),
+});
+export type ListEmbeddingModelsResponse = z.infer<typeof ListEmbeddingModelsResponse>;
+
+export const ActiveEmbeddingModelResponse = z.object({
+  model: z.string(),
+  dimension: z.number().int().positive(),
+});
+export type ActiveEmbeddingModelResponse = z.infer<typeof ActiveEmbeddingModelResponse>;
+
+export const SetActiveEmbeddingModelRequest = z.object({ model: z.string() });
+export type SetActiveEmbeddingModelRequest = z.infer<typeof SetActiveEmbeddingModelRequest>;
+
+/** A model switch always queues a re-embed; the job id lets the caller poll its progress. */
+export const SetActiveEmbeddingModelResponse = ActiveEmbeddingModelResponse.extend({
+  reindexJobId: z.string(),
+});
+export type SetActiveEmbeddingModelResponse = z.infer<typeof SetActiveEmbeddingModelResponse>;
+
+export const ReindexJobResponse = z.object({ job: ReindexJobSchema.nullable() });
+export type ReindexJobResponse = z.infer<typeof ReindexJobResponse>;
+
+export const EmbeddingBenchmarkResponse = z.object({ run: EmbeddingBenchmarkRunSchema.nullable() });
+export type EmbeddingBenchmarkResponse = z.infer<typeof EmbeddingBenchmarkResponse>;
+
+export const RunEmbeddingBenchmarkRequest = z.object({
+  /** Omit to benchmark every embedding model the service offers. */
+  models: z.array(z.string()).nullable().default(null),
+});
+export type RunEmbeddingBenchmarkRequest = z.infer<typeof RunEmbeddingBenchmarkRequest>;
+
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 
@@ -219,4 +258,9 @@ export const routes = {
   settings: () => '/api/settings',
   models: () => '/api/models',
   benchmark: () => '/api/benchmark',
+  embeddingModels: () => '/api/embeddings/models',
+  activeEmbeddingModel: () => '/api/embeddings/active',
+  /** The current or most recent re-embed job — there is at most one meaningful at a time. */
+  reindexJob: () => '/api/embeddings/reindex',
+  embeddingBenchmark: () => '/api/embeddings/benchmark',
 } as const;

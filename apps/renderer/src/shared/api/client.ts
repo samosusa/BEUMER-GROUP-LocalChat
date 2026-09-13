@@ -1,4 +1,5 @@
 import {
+  ActiveEmbeddingModelResponse,
   AnswerEvent,
   type AskRequest,
   BenchmarkResponse,
@@ -6,6 +7,7 @@ import {
   type ComputeMode,
   type CreateChatRequest,
   type CreateProjectRequest,
+  EmbeddingBenchmarkResponse,
   HealthResponse,
   type IndexStats,
   type IngestDocumentsRequest,
@@ -13,13 +15,17 @@ import {
   ListApprovedToolsResponse,
   ListChatsResponse,
   ListDocumentsResponse,
+  ListEmbeddingModelsResponse,
   ListMessagesResponse,
   ListModelsResponse,
   ListProjectsResponse,
   type Message,
   ProjectResponse,
+  ReindexJobResponse,
   type ReindexRequest,
   type RunBenchmarkRequest,
+  type RunEmbeddingBenchmarkRequest,
+  SetActiveEmbeddingModelResponse,
   SettingsResponse,
   type UpdateChatContextRequest,
   type UpdateProjectRequest,
@@ -373,6 +379,66 @@ export const api = {
 
   ask: (chatId: string, body: AskRequest, signal?: AbortSignal) =>
     LIVE ? askLive(chatId, body, signal) : streamAnswer(chatId, body, signal),
+
+  // --- embedding models, re-embedding, embedding benchmark -----------------
+  // Unlike the answer model, switching this one is real work: it changes the vector space
+  // every existing document's chunks are stored in, so a switch always queues a re-embed of
+  // the corpus (see setActiveEmbeddingModel/getReindexJob) rather than being a pure toggle.
+
+  listEmbeddingModels: async (signal?: AbortSignal): Promise<ListEmbeddingModelsResponse> =>
+    LIVE
+      ? { embeddingModels: await service.listEmbeddingModels(signal) }
+      : request(routes.embeddingModels(), { schema: ListEmbeddingModelsResponse, signal }),
+
+  getActiveEmbeddingModel: (signal?: AbortSignal): Promise<ActiveEmbeddingModelResponse> =>
+    LIVE
+      ? service.activeEmbeddingModel(signal)
+      : request(routes.activeEmbeddingModel(), { schema: ActiveEmbeddingModelResponse, signal }),
+
+  /**
+   * Blocks only on the swap itself (comparable to loading any other sentence-transformers
+   * model); the corpus-wide re-embed that follows runs in the background, tracked by the
+   * returned `reindexJobId` and polled through `getReindexJob`.
+   */
+  setActiveEmbeddingModel: async (model: string): Promise<SetActiveEmbeddingModelResponse> => {
+    if (!LIVE) {
+      return request(routes.activeEmbeddingModel(), {
+        method: 'POST',
+        body: { model },
+        schema: SetActiveEmbeddingModelResponse,
+      });
+    }
+    const active = await service.setActiveEmbeddingModel(model);
+    return {
+      model: active.model,
+      dimension: active.dimension,
+      reindexJobId: String(active.reindex_job_id),
+    };
+  },
+
+  getReindexJob: async (signal?: AbortSignal): Promise<ReindexJobResponse> =>
+    LIVE
+      ? { job: await service.latestReindexJob(signal) }
+      : request(routes.reindexJob(), { schema: ReindexJobResponse, signal }),
+
+  getEmbeddingBenchmark: async (signal?: AbortSignal): Promise<EmbeddingBenchmarkResponse> =>
+    LIVE
+      ? { run: await service.latestEmbeddingBenchmark(signal) }
+      : request(routes.embeddingBenchmark(), { schema: EmbeddingBenchmarkResponse, signal }),
+
+  runEmbeddingBenchmark: async (
+    body: RunEmbeddingBenchmarkRequest,
+  ): Promise<EmbeddingBenchmarkResponse> => {
+    if (!LIVE) {
+      return request(routes.embeddingBenchmark(), {
+        method: 'POST',
+        body,
+        schema: EmbeddingBenchmarkResponse,
+      });
+    }
+    await service.startEmbeddingBenchmark(body.models);
+    return { run: await service.latestEmbeddingBenchmark() };
+  },
 };
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,28 @@
+[
+  {
+    "name": "nomic-ai/nomic-embed-text-v1.5",
+    "dimension": 768,
+    "description": "Balanced quality/speed general-purpose model; the long-standing default.",
+    "document_prefix": "search_document: ",
+    "query_prefix": "search_query: ",
+    "trust_remote_code": true
+  },
+  {
+    "name": "BAAI/bge-small-en-v1.5",
+    "dimension": 384,
+    "description": "Small and fast, with strong English retrieval quality for its size.",
+    "query_prefix": "Represent this sentence for searching relevant passages: "
+  },
+  {
+    "name": "intfloat/e5-base-v2",
+    "dimension": 768,
+    "description": "General-purpose model competitive with larger models on retrieval benchmarks.",
+    "document_prefix": "passage: ",
+    "query_prefix": "query: "
+  },
+  {
+    "name": "sentence-transformers/all-MiniLM-L6-v2",
+    "dimension": 384,
+    "description": "Very fast and lightweight; lower retrieval quality ceiling than the others."
+  }
+]

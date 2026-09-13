@@ -27,3 +27,10 @@ class Document(Base):
     # ingestion pipeline.
     complexity_tier: Mapped[str | None] = mapped_column(String)
     complexity_score: Mapped[float | None] = mapped_column(Float)
+    # Which embedding model produced this document's FAISS vectors, and their dimension.
+    # Set once ingestion or a re-embed (see src/reindex.py) finishes; NULL until then. The
+    # retriever (src/retriever.py) skips documents whose embedding_model doesn't match the
+    # currently active one, so a model switch never silently mixes incompatible vector
+    # spaces in one similarity search.
+    embedding_model: Mapped[str | None] = mapped_column(String)
+    embedding_dim: Mapped[int | None] = mapped_column(Integer)

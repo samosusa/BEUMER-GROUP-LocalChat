@@ -3,6 +3,8 @@ import type {
   ModelBenchmarkRun,
   Chat,
   Document,
+  EmbeddingBenchmarkRun,
+  EmbeddingModel,
   Message,
   Model,
   Project,
@@ -585,7 +587,7 @@ export const MODELS: Model[] = [
 
 export const SETTINGS: Settings = {
   activeModelId: 'qwen2.5-7b-instruct-q4km',
-  embeddingModel: 'bge-m3',
+  embeddingModel: 'nomic-ai/nomic-embed-text-v1.5',
   compute: 'gpu',
   hardware: {
     cpuThreads: 12,
@@ -684,6 +686,69 @@ export const BENCHMARK: ModelBenchmarkRun = {
       ranAt: daysAgo(2),
     },
   ],
+};
+
+/**
+ * The embedding models the service can switch to, matching what `src/ingest/embedder.py`
+ * actually registers — kept in sync by hand rather than by codegen, the same tradeoff as
+ * `MODELS` above for GGUF files.
+ */
+export const EMBEDDING_MODELS: EmbeddingModel[] = [
+  {
+    id: 'nomic-ai/nomic-embed-text-v1.5',
+    name: 'nomic-ai/nomic-embed-text-v1.5',
+    dimension: 768,
+    description: 'Balanced quality/speed general-purpose model; the long-standing default.',
+  },
+  {
+    id: 'BAAI/bge-small-en-v1.5',
+    name: 'BAAI/bge-small-en-v1.5',
+    dimension: 384,
+    description: 'Small and fast, with strong English retrieval quality for its size.',
+  },
+  {
+    id: 'intfloat/e5-base-v2',
+    name: 'intfloat/e5-base-v2',
+    dimension: 768,
+    description: 'General-purpose model competitive with larger models on retrieval benchmarks.',
+  },
+  {
+    id: 'sentence-transformers/all-MiniLM-L6-v2',
+    name: 'sentence-transformers/all-MiniLM-L6-v2',
+    dimension: 384,
+    description: 'Very fast and lightweight; lower retrieval quality ceiling than the others.',
+  },
+];
+
+/** A finished embedding benchmark: every registered model across the three text tiers. */
+export const EMBEDDING_BENCHMARK: EmbeddingBenchmarkRun = {
+  id: '1',
+  status: 'completed',
+  progress: '12 of 12',
+  current: null,
+  startedAt: daysAgo(2),
+  finishedAt: daysAgo(2),
+  rows: EMBEDDING_MODELS.flatMap((model) =>
+    (
+      [
+        { label: 'short', count: 5, embedMs: 40, throughput: 125 },
+        { label: 'medium', count: 5, embedMs: 210, throughput: 24 },
+        { label: 'long', count: 5, embedMs: 480, throughput: 10 },
+      ] as const
+    ).map((tier) => ({
+      model: model.name,
+      dimension: model.dimension,
+      status: 'ok' as const,
+      detail: null,
+      loadMs: 900 + model.dimension,
+      textLabel: tier.label,
+      textCount: tier.count,
+      embedMs: tier.embedMs,
+      textsPerSecond: tier.throughput,
+      peakMemoryBytes: 350_000_000 + model.dimension * 500_000,
+      ranAt: daysAgo(2),
+    })),
+  ),
 };
 
 export const APPROVED_TOOLS: ApprovedTool[] = [

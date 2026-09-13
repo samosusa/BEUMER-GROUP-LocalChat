@@ -31,6 +31,7 @@ const SERVICE_ROUTES = [
   '/conversations',
   '/models',
   '/benchmark',
+  '/embeddings',
   '/projects',
 ];
 

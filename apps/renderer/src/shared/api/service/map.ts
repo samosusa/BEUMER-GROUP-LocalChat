@@ -5,6 +5,9 @@ import type {
   Citation,
   Document,
   DocumentFormat,
+  EmbeddingBenchmarkRow,
+  EmbeddingBenchmarkRun,
+  EmbeddingModel,
   IngestionStatus,
   Message,
   Model,
@@ -12,6 +15,8 @@ import type {
   ModelBenchmarkRun,
   NoEvidenceReason,
   Project,
+  ReindexJob,
+  ReindexJobStatus,
 } from '@localchat/contracts';
 import type {
   ServiceAnswer,
@@ -22,10 +27,15 @@ import type {
   ServiceConversation,
   ServiceConversationDetail,
   ServiceDocument,
+  ServiceEmbeddingBenchmarkResults,
+  ServiceEmbeddingBenchmarkRow,
+  ServiceEmbeddingBenchmarkStatus,
+  ServiceEmbeddingModel,
   ServiceIngestStatus,
   ServiceMessage,
   ServiceModel,
   ServiceProject,
+  ServiceReindexStatus,
 } from './dto';
 
 /**
@@ -439,6 +449,82 @@ export function benchmarkRunFromService(
   const rows = results.results.map(benchmarkRowFromService);
   return {
     id: toId(results.benchmark_job_id),
+    status: JOB_STATUS[(meta.status?.status ?? results.status).toLowerCase()] ?? 'running',
+    progress: meta.status?.progress ?? null,
+    current: meta.status?.current ?? null,
+    rows,
+    startedAt: toIso(meta.startedAt),
+    finishedAt: toIsoOrNull(meta.finishedAt),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Embedding models
+// ---------------------------------------------------------------------------
+
+export function embeddingModelFromService(dto: ServiceEmbeddingModel): EmbeddingModel {
+  return {
+    id: dto.name,
+    name: dto.name,
+    dimension: dto.dimension,
+    description: dto.description,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Re-embedding
+// ---------------------------------------------------------------------------
+
+const REINDEX_JOB_STATUS: Record<string, ReindexJobStatus> = {
+  running: 'running',
+  completed: 'completed',
+  failed: 'failed',
+};
+
+export function reindexJobFromService(
+  status: ServiceReindexStatus,
+  meta: { id: string; startedAt: string; finishedAt: string | null },
+): ReindexJob {
+  return {
+    id: meta.id,
+    status: REINDEX_JOB_STATUS[status.status.toLowerCase()] ?? 'running',
+    model: status.model,
+    progress: status.progress,
+    currentDocument: status.current_document,
+    startedAt: toIso(meta.startedAt),
+    finishedAt: toIsoOrNull(meta.finishedAt),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Embedding benchmark
+// ---------------------------------------------------------------------------
+
+export function embeddingBenchmarkRowFromService(
+  dto: ServiceEmbeddingBenchmarkRow,
+): EmbeddingBenchmarkRow {
+  return {
+    model: dto.model,
+    dimension: dto.dimension,
+    status: ROW_STATUS[dto.status.toLowerCase()] ?? 'failed',
+    detail: dto.detail,
+    loadMs: toMs(dto.load_s),
+    textLabel: dto.text_label,
+    textCount: dto.text_count,
+    embedMs: toMs(dto.embed_s),
+    textsPerSecond: dto.texts_per_s,
+    peakMemoryBytes: toBytes(dto.peak_mem_mb),
+    ranAt: toIso(dto.run_at),
+  };
+}
+
+export function embeddingBenchmarkRunFromService(
+  results: ServiceEmbeddingBenchmarkResults,
+  meta: { startedAt: string; finishedAt: string | null; status?: ServiceEmbeddingBenchmarkStatus },
+): EmbeddingBenchmarkRun {
+  const rows = results.results.map(embeddingBenchmarkRowFromService);
+  return {
+    id: toId(results.embedding_benchmark_job_id),
     status: JOB_STATUS[(meta.status?.status ?? results.status).toLowerCase()] ?? 'running',
     progress: meta.status?.progress ?? null,
     current: meta.status?.current ?? null,
