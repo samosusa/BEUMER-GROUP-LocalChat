@@ -33,6 +33,7 @@ COPY src ./src
 COPY scripts ./scripts
 COPY migrations ./migrations
 COPY schemas ./schemas
+COPY config ./config
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

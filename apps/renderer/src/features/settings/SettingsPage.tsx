@@ -566,6 +566,7 @@ function EmbeddingModelCard() {
         again — it changes the vector space documents are stored in, not just which model
         answers.
       </p>
+      {models.isError && <p className={styles.benchWarning}>{describeError(models.error)}</p>}
       <div className={styles.modelList} role="radiogroup" aria-label="Embedding model">
         {models.data?.map((model) => (
           <EmbeddingModelRow
@@ -680,6 +681,9 @@ function EmbeddingBenchmarkCard() {
           across short, medium and long text. It does not measure retrieval quality.
         </p>
         {picker}
+        {benchmark.isError && (
+          <p className={styles.benchWarning}>{describeError(benchmark.error)}</p>
+        )}
         {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
         <Button variant="outline" size="sm" loading={running} onClick={start}>
           Run benchmark
