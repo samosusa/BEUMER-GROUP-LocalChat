@@ -19,6 +19,8 @@ export function NotificationStack() {
       {notifications.map((notification) => (
         <Callout
           key={notification.id}
+          className={styles.notification}
+          actionsClassName={styles.notificationActions}
           tone={notification.tone === 'warning' ? 'warning' : 'accent'}
           title={notification.title}
           actions={

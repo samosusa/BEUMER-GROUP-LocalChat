@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { NotificationStack } from './NotificationStack';
+import { ConfirmDialog } from './ConfirmDialog';
 import styles from './AppLayout.module.css';
 
 /**
@@ -8,8 +9,9 @@ import styles from './AppLayout.module.css';
  * own top bar, because the context widget that sits there is chat-specific and must not be
  * hoisted into a shell that other screens share.
  *
- * The notification stack lives here too, above the router, so it survives navigating away
- * from whatever screen triggered it — see notificationStore.ts.
+ * The notification stack and confirm dialog live here too, above the router, so they survive
+ * navigating away from whatever screen triggered them — see notificationStore.ts and
+ * confirmStore.ts.
  */
 export function AppLayout() {
   return (
@@ -19,6 +21,7 @@ export function AppLayout() {
         <Outlet />
       </main>
       <NotificationStack />
+      <ConfirmDialog />
     </div>
   );
 }

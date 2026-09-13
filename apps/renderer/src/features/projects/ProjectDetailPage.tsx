@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { IngestDocumentsResponse } from '@localchat/contracts';
 import {
@@ -13,9 +13,16 @@ import { Toggle } from '@/shared/ui/Controls';
 import { Icon } from '@/shared/ui/Icon';
 import { Callout, Mono } from '@/shared/ui/Indicators';
 import { PageHeader } from '@/shared/ui/PageHeader';
+import { DropOverlay } from '@/shared/ui/DropOverlay';
 import { DocumentTable } from '@/features/documents/DocumentTable';
 import { formatCount, formatRelative } from '@/shared/lib/format';
-import { chooseDocuments, chooseFolderDocuments, hasDesktopBridge } from '@/shared/lib/localFiles';
+import {
+  chooseDocuments,
+  chooseFolderDocuments,
+  type ChosenDocuments,
+} from '@/shared/lib/localFiles';
+import { withUnprocessableConfirm } from '@/shared/lib/confirmUnprocessable';
+import { useDocumentDrop } from '@/shared/hooks/useDocumentDrop';
 import { cn } from '@/shared/lib/cn';
 import styles from './ProjectDetail.module.css';
 
@@ -40,34 +47,47 @@ export function ProjectDetailPage() {
   const documents = useProjectDocuments(projectId, { refetchInterval: 1_500 });
   const rows = documents.data?.documents ?? [];
 
+  const ingestChosen = useCallback(
+    async (chosen: ChosenDocuments) => {
+      if (chosen.paths.length === 0 && chosen.files.length === 0 && chosen.skipped.length === 0) {
+        return;
+      }
+      const confirmed = await withUnprocessableConfirm(chosen);
+      if (!confirmed || (confirmed.paths.length === 0 && confirmed.files.length === 0)) return;
+      setRejected([]);
+      // A failed request already reports itself through the notification stack (see
+      // useIngestDocuments' onError); swallowed here so it doesn't also surface as an
+      // unhandled rejection from this click handler.
+      const result = await ingest.mutateAsync({
+        projectId: projectId ?? null,
+        paths: confirmed.paths,
+        files: confirmed.files,
+        alsoGeneral,
+      }).catch(() => null);
+      if (result) setRejected(result.rejected);
+    },
+    [ingest, projectId, alsoGeneral],
+  );
+
   async function addDocuments() {
-    const chosen = await chooseDocuments();
-    if (chosen.paths.length === 0 && chosen.files.length === 0) return;
-    setRejected([]);
-    const result = await ingest.mutateAsync({
-      projectId: projectId ?? null,
-      paths: chosen.paths,
-      files: chosen.files,
-      alsoGeneral,
-    });
-    setRejected(result.rejected);
+    await ingestChosen(await chooseDocuments());
   }
 
   async function addFolder() {
-    const { documents: chosen } = await chooseFolderDocuments();
-    if (chosen.paths.length === 0) return;
-    setRejected([]);
-    const result = await ingest.mutateAsync({
-      projectId: projectId ?? null,
-      paths: chosen.paths,
-      files: [],
-      alsoGeneral,
-    });
-    setRejected(result.rejected);
+    const { documents } = await chooseFolderDocuments();
+    await ingestChosen(documents);
   }
 
+  const drop = useDocumentDrop(ingestChosen);
+
   return (
-    <div className={styles.page}>
+    <div
+      className={styles.page}
+      onDragEnter={drop.onDragEnter}
+      onDragOver={drop.onDragOver}
+      onDragLeave={drop.onDragLeave}
+      onDrop={drop.onDrop}
+    >
       <PageHeader
         breadcrumb={
           <>
@@ -100,11 +120,9 @@ export function ProjectDetailPage() {
             >
               New chat
             </Button>
-            {hasDesktopBridge() && (
-              <Button variant="outline" icon="folder" onClick={addFolder}>
-                Add folder
-              </Button>
-            )}
+            <Button variant="outline" icon="folder" onClick={addFolder}>
+              Add folder
+            </Button>
             <Button variant="accent" icon="plus" loading={ingest.isPending} onClick={addDocuments}>
               Add documents
             </Button>
@@ -160,6 +178,13 @@ export function ProjectDetailPage() {
           {tab === 'chats' && <ChatList projectId={projectId} />}
         </div>
       </div>
+
+      {drop.active && (
+        <DropOverlay
+          title="Drop to add to this project"
+          hint="PDF, DOCX, Markdown, TXT, PNG, JPG — files or folders"
+        />
+      )}
     </div>
   );
 }

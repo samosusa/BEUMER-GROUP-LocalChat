@@ -9,7 +9,7 @@ import type {
   UpdateSettingsRequest,
 } from '@localchat/contracts';
 import { api, type IngestInput } from './client';
-import { ApiError } from './http';
+import { ApiError, describeError } from './http';
 import { useNotificationStore } from '@/shared/store/notificationStore';
 
 /**
@@ -311,7 +311,7 @@ export function useIngestDocuments() {
      * callbacks live on the query client, not the component — so a rejection is still
      * reported when the engineer has already moved on to another screen.
      */
-    onSuccess: (data) => {
+    onSuccess: (data, input) => {
       void client.invalidateQueries({ queryKey: ['documents'] });
       void client.invalidateQueries({ queryKey: keys.projects.all });
       if (data.rejected.length > 0) {
@@ -324,6 +324,45 @@ export function useIngestDocuments() {
           detail: data.rejected.map((item) => `${item.path} — ${item.reason}`),
         });
       }
+
+      const rejected = new Set(data.rejected.map((item) => item.path));
+      const names = [
+        ...(input.paths ?? [])
+          .filter((path) => !rejected.has(path))
+          .map((path) => path.split(/[\\/]/).pop() ?? path),
+        ...(input.files ?? [])
+          .filter((file) => !rejected.has(file.name))
+          .map((file) => file.name),
+      ];
+      if (names.length > 0) {
+        const scope =
+          input.projectId === null
+            ? 'General'
+            : input.alsoGeneral
+              ? 'Both'
+              : 'Project-specific';
+        useNotificationStore.getState().push({
+          tone: 'info',
+          title:
+            names.length === 1
+              ? 'Document indexed and ready to use'
+              : `${names.length} documents indexed and ready to use`,
+          detail: names.map((name) => `${name} — ${scope}`),
+        });
+      }
+    },
+    /**
+     * The request itself failing — the local service unreachable, or down — would otherwise
+     * vanish silently: every caller just `await`s `mutateAsync` and has nothing of its own to
+     * catch the rejection with, so "add folder"/"add files" would visibly do nothing at all
+     * rather than explain why.
+     */
+    onError: (error) => {
+      useNotificationStore.getState().push({
+        tone: 'warning',
+        title: 'Could not add documents',
+        detail: [describeError(error)],
+      });
     },
   });
 }
