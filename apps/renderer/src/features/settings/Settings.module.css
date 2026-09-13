@@ -654,3 +654,54 @@
   line-height: var(--leading-normal);
   color: var(--text-secondary);
 }
+
+/* --- RAG evaluation: compare two runs -------------------------------------- */
+
+.evalCompareColumns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-7);
+  align-items: start;
+  margin-top: var(--space-5);
+}
+
+@media (max-width: 900px) {
+  .evalCompareColumns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.evalCompareColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.evalCompareColumn + .evalCompareColumn {
+  border-left: 1px solid var(--border-subtle);
+  padding-left: var(--space-7);
+}
+
+@media (max-width: 900px) {
+  .evalCompareColumn + .evalCompareColumn {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: var(--space-5);
+  }
+}
+
+.evalCompareMeta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-meta);
+  color: var(--text-label);
+}
+
+.evalCompareMetaTitle {
+  font-size: var(--text-row);
+  font-weight: var(--weight-semibold);
+  color: var(--text-body);
+}

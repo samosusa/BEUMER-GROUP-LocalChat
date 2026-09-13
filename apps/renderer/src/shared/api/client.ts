@@ -25,6 +25,7 @@ import {
   ProjectResponse,
   RagEvalDatasetsResponse,
   RagEvalRunResponse,
+  RagEvalRunsResponse,
   ReindexJobResponse,
   type ReindexRequest,
   type RunBenchmarkRequest,
@@ -475,6 +476,18 @@ export const api = {
     LIVE
       ? { run: await service.latestRagEval(signal) }
       : request(routes.ragEval(), { schema: RagEvalRunResponse, signal }),
+
+  /** Every historical run, for the two pickers in the compare view. */
+  getRagEvalRuns: async (signal?: AbortSignal): Promise<RagEvalRunsResponse> =>
+    LIVE
+      ? { runs: await service.ragEvalRuns(signal) }
+      : request(routes.ragEvalRuns(), { schema: RagEvalRunsResponse, signal }),
+
+  /** One specific historical run by id - each side of the compare view has its own. */
+  getRagEvalRun: async (id: string, signal?: AbortSignal): Promise<RagEvalRunResponse> =>
+    LIVE
+      ? { run: await service.ragEvalRun(id, signal) }
+      : request(routes.ragEvalRun(id), { schema: RagEvalRunResponse, signal }),
 
   runRagEval: async (body: StartRagEvalRequest): Promise<RagEvalRunResponse> => {
     if (!LIVE) {

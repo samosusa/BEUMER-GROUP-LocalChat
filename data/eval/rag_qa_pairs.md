@@ -1,6 +1,6 @@
 # RAG Evaluation Question Set
 
-15 questions per document (5 easy / 5 medium / 5 hard) — 45 total.
+15 questions per document (5 easy / 5 medium / 5 hard) — 30 total.
 Difficulty definitions used:
 - **Easy**: single fact, directly stated, one location in the doc.
 - **Medium**: requires reading a short paragraph/table and light synthesis (a "why" or a list of items).
@@ -115,61 +115,6 @@ Difficulty definitions used:
 
 **Q15.** Synthesizing sections 3.2.2 and 3.3, explain why an Operator is restricted to established, wider access routes with walk-over bridges rather than using the step-in/walk-through units that cross directly through the CrisBag® line.
 **A15.** Operators' access permission is explicitly limited to restricted tasks within the restricted and traffic areas, using routes designed to be wide with safe walk-over bridges — this is the access tier they receive after only "Operator Training." Step-ins and walk-throughs cross directly into/through the CrisBag® line itself, which is part of the zone reserved for personnel trained in Controls, Hardware, and/or Maintenance modules (control room operators and service technicians). Since operators are not trained or authorized for direct line-crossing access, the system design keeps them on the separated, wider routes instead.
-
----
-
-## Document 3: Operating_instructions_CLV69x_Bar_code_scanners_en_IM0045360.pdf (SICK CLV69x, 134 pages)
-
-### Easy
-
-**Q1.** What is the CLV69x's stated intended use?
-**A1.** It is an intelligent opto-electronic ID sensor used for automatic, fixed identification and decoding of bar codes on moving or stationary objects, sending the decoded data to a higher-level PLC for further processing. (Section 2.1)
-
-**Q2.** What laser class does the CLV69x comply with?
-**A2.** Laser class 2, per EN/IEC 60825-1. (Sections 2.7.1 and 12.1)
-
-**Q3.** What is the device's enclosure (ingress protection) rating?
-**A3.** IP 65. (Section 12.4)
-
-**Q4.** What software is used to configure the device?
-**A4.** SOPAS ET configuration software. (Section 12.3 and Chapter 7)
-
-**Q5.** What is the housing color of the device?
-**A5.** Light blue (RAL 5012). (Section 12.4)
-
-### Medium
-
-**Q6.** According to the laser safety chapter, how long can the human eye be briefly exposed to the beam without being considered at risk?
-**A6.** Up to 0.25 seconds; longer exposure may damage the retina. (Section 2.7.1)
-
-**Q7.** What data can potentially be lost when the device is simply switched off?
-**A7.** Application-specific parameter sets that were only temporarily stored, the last reading result, and the daily operating hours counter. (Section 2.8)
-
-**Q8.** What is the scanning frequency range and the reading distance range for the CLV690 Standard Density variant?
-**A8.** Scanning frequency 400 Hz to 1200 Hz; reading distance 500 mm to 2100 mm. (Section 12.1)
-
-**Q9.** What key precaution does the manual give for cleaning the reading window, and why does it matter?
-**A9.** Clean the reading window only when wet, using a mild, powder-free cleaning agent, and avoid any motion that could scratch or abrade it — because scratches or streaks reduce reading performance. (Section 9.2.1)
-
-**Q10.** What is the supply voltage range for a device without heating versus one with heating?
-**A10.** Without heating: 18 V DC to 30 V DC; with heating: 21.6 V DC to 28.8 V DC. (Section 12.4)
-
-### Hard
-
-**Q11.** Compare the reading distance and code resolution ranges across the Standard, Low Density, and High Density variants, and explain the trade-off the numbers reveal.
-**A11.** Standard (CLV690): 500–2100 mm distance, 0.25–1.0 mm resolution. Low Density (CLV691): 500–2200 mm distance (the longest range), 0.35–1.2 mm resolution (the coarsest). High Density (CLV692): 400–1600 mm distance (the shortest range), 0.17–0.4 mm resolution (the finest). The pattern shows a direct trade-off: the variant tuned for the longest reading distance has the coarsest achievable resolution, while the variant capable of the finest resolution only works at shorter range. (Section 12.1)
-
-**Q12.** Explain the interaction between the "laser timeout" feature and PSDI reading modes — under which specific operating conditions is the timeout setting rendered ineffective even if activated?
-**A12.** Laser timeout is meant to switch off the laser diode automatically if the trigger pulse stops for too long (e.g., a stopped conveyor). However, the laser diode is permanently or repeatedly switched on regardless during "Percentage Evaluation" and "Auto Setup" modes, and during reading operation in the PSDI types "Auto pulse" (adjustable duty cycle) or "free." In all of these states, an activated timeout has no effect. (Section 2.7.1)
-
-**Q13.** Per the Interfaces technical data, which cloning plugs enable serial (RS-232/RS-422/-485) communication versus which enable Ethernet, and what protocols does the Ethernet interface support?
-**A13.** Serial communication requires cloning plugs 2062450, 2062452, 2062453, or 2062454. Ethernet requires cloning plugs 2062452, 2074708, or 2074710, and supports TCP/IP, EtherNet/IP, and PROFINET (the latter optionally via an external CDF 600-22xx fieldbus module, including a PROFINET DualPort option). (Section 12.3)
-
-**Q14.** Trace the full safety-conscious cleaning sequence for the reading window, including the laser precaution and the differing methods for glass versus plastic lenses.
-**A14.** First, switch off the device for the duration of cleaning, or if that isn't possible, wear laser protection goggles rated for the device's wavelength. For a glass lens: remove dust with a soft, clean brush, then if needed clean further with a clean, damp, lint-free cloth and a mild anti-static glass cleaner. For a plastic lens: skip dry brushing and clean only with a clean, damp, lint-free cloth plus the same mild anti-static glass cleaner. If the window is scratched, cracked, or broken, it must be replaced by SICK Service rather than cleaned. (Section 9.2.1)
-
-**Q15.** Synthesizing sections 2.2 (Improper use) and 2.4 (Limitation of liability), describe a scenario in which both of SICK's liability-exclusion clauses would apply to the same incident simultaneously.
-**A15.** If a customer both (a) uses the device outside its intended purpose or technical specification — e.g., installing it in an explosion-hazardous or corrosive environment, which section 2.2 explicitly calls out as improper use — and (b) has also made an unauthorized conversion or technical modification to the device, then both exclusion grounds in section 2.4 (incorrect use, and unauthorized conversions/technical modifications) would apply to the same incident, compounding SICK AG's disclaimer of liability.
 
 ---
 

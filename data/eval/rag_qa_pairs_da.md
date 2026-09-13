@@ -1,11 +1,11 @@
 # RAG Evaluation Question Set (Danish)
 
-Same 45 questions as `rag_qa_pairs.md`, translated to Danish, kept against the same three
+Same 30 questions as `rag_qa_pairs.md`, translated to Danish, kept against the same two
 (English-language) source PDFs. This dataset exercises cross-lingual RAG: a Danish-language
 query must still retrieve the right English document and produce an answer that a Danish
 reference answer can be judged against.
 
-15 questions per document (5 easy / 5 medium / 5 hard) — 45 total.
+15 questions per document (5 easy / 5 medium / 5 hard) — 30 total.
 Difficulty definitions used:
 - **Easy**: single fact, directly stated, one location in the doc.
 - **Medium**: requires reading a short paragraph/table and light synthesis (a "why" or a list of items).
@@ -120,61 +120,6 @@ Difficulty definitions used:
 
 **Q15.** Ved at sammenholde afsnit 3.2.2 og 3.3, forklar hvorfor en operatør er begrænset til de etablerede, bredere adgangsveje med overgangsbroer i stedet for at anvende step-in-/walk-through-enhederne, der krydser direkte gennem CrisBag®-linjen.
 **A15.** Operatørers adgangstilladelse er udtrykkeligt begrænset til afgrænsede opgaver inden for de begrænsede områder og trafikområder, ved hjælp af ruter designet til at være brede med sikre overgangsbroer — dette er det adgangsniveau, de får efter kun at have gennemført "operatøruddannelse". Step-ins og walk-throughs krydser direkte ind i/gennem selve CrisBag®-linjen, som er en del af den zone, der er forbeholdt personale uddannet i styrings-, hardware- og/eller vedligeholdelsesmoduler (kontrolrumsoperatører og serviceteknikere). Da operatører ikke er uddannet eller bemyndiget til direkte adgang på tværs af linjen, sikrer systemets design, at de i stedet holdes på de adskilte, bredere ruter.
-
----
-
-## Document 3: Operating_instructions_CLV69x_Bar_code_scanners_en_IM0045360.pdf (SICK CLV69x, 134 pages)
-
-### Easy
-
-**Q1.** Hvad er den angivne tilsigtede anvendelse for CLV69x?
-**A1.** Det er en intelligent optoelektronisk ID-sensor, der anvendes til automatisk, fast identifikation og afkodning af stregkoder på bevægelige eller stationære objekter, og som sender de afkodede data til en overordnet PLC til videre bearbejdning. (Afsnit 2.1)
-
-**Q2.** Hvilken laserklasse overholder CLV69x?
-**A2.** Laserklasse 2, i henhold til EN/IEC 60825-1. (Afsnit 2.7.1 og 12.1)
-
-**Q3.** Hvad er enhedens kapslingsklasse (IP-beskyttelsesgrad)?
-**A3.** IP 65. (Afsnit 12.4)
-
-**Q4.** Hvilket software anvendes til at konfigurere enheden?
-**A4.** Konfigurationssoftwaren SOPAS ET. (Afsnit 12.3 og kapitel 7)
-
-**Q5.** Hvilken farve har enhedens kabinet?
-**A5.** Lyseblå (RAL 5012). (Afsnit 12.4)
-
-### Medium
-
-**Q6.** Ifølge kapitlet om lasersikkerhed, hvor længe kan det menneskelige øje kortvarigt udsættes for strålen, uden at det anses for at være en risiko?
-**A6.** Op til 0,25 sekunder; længere eksponering kan skade nethinden. (Afsnit 2.7.1)
-
-**Q7.** Hvilke data kan potentielt gå tabt, når enheden blot slukkes?
-**A7.** Applikationsspecifikke parametersæt, som kun var midlertidigt gemt, det seneste læseresultat samt den daglige driftstimetæller. (Afsnit 2.8)
-
-**Q8.** Hvad er scanningsfrekvensområdet og læseafstandsområdet for CLV690 Standard Density-varianten?
-**A8.** Scanningsfrekvens 400 Hz til 1200 Hz; læseafstand 500 mm til 2100 mm. (Afsnit 12.1)
-
-**Q9.** Hvilken central forholdsregel angiver manualen for rengøring af læsevinduet, og hvorfor er det vigtigt?
-**A9.** Rengør kun læsevinduet, mens det er vådt, med et mildt, pulverfrit rengøringsmiddel, og undgå enhver bevægelse, der kan ridse eller slide på det — fordi ridser eller striber forringer læseevnen. (Afsnit 9.2.1)
-
-**Q10.** Hvad er forsyningsspændingsområdet for en enhed uden opvarmning sammenlignet med en med opvarmning?
-**A10.** Uden opvarmning: 18 V DC til 30 V DC; med opvarmning: 21,6 V DC til 28,8 V DC. (Afsnit 12.4)
-
-### Hard
-
-**Q11.** Sammenlign læseafstands- og kodeopløsningsområderne på tværs af varianterne Standard, Low Density og High Density, og forklar den afvejning, tallene afslører.
-**A11.** Standard (CLV690): 500-2100 mm afstand, 0,25-1,0 mm opløsning. Low Density (CLV691): 500-2200 mm afstand (den længste rækkevidde), 0,35-1,2 mm opløsning (den groveste). High Density (CLV692): 400-1600 mm afstand (den korteste rækkevidde), 0,17-0,4 mm opløsning (den fineste). Mønstret viser en direkte afvejning: den variant, der er tunet til den længste læseafstand, har den groveste opnåelige opløsning, mens den variant, der kan opnå den fineste opløsning, kun fungerer på kortere afstand. (Afsnit 12.1)
-
-**Q12.** Forklar samspillet mellem funktionen "laser timeout" og PSDI-læsetilstande — under hvilke specifikke driftsbetingelser bliver timeout-indstillingen virkningsløs, selv hvis den er aktiveret?
-**A12.** Laser timeout skal automatisk slukke laserdioden, hvis triggerimpulsen udebliver for længe (f.eks. ved en stoppet transportør). Laserdioden er imidlertid permanent eller gentagne gange tændt uanset dette under tilstandene "Percentage Evaluation" og "Auto Setup" samt under læsedrift i PSDI-typerne "Auto pulse" (justerbar driftscyklus) eller "free". I alle disse tilstande har en aktiveret timeout ingen effekt. (Afsnit 2.7.1)
-
-**Q13.** Ifølge de tekniske data for grænseflader, hvilke cloning-stik muliggør seriel kommunikation (RS-232/RS-422/-485), og hvilke muliggør Ethernet, og hvilke protokoller understøtter Ethernet-grænsefladen?
-**A13.** Seriel kommunikation kræver cloning-stik 2062450, 2062452, 2062453 eller 2062454. Ethernet kræver cloning-stik 2062452, 2074708 eller 2074710 og understøtter TCP/IP, EtherNet/IP og PROFINET (sidstnævnte eventuelt via et eksternt CDF 600-22xx feltbusmodul, herunder en PROFINET DualPort-mulighed). (Afsnit 12.3)
-
-**Q14.** Gennemgå den fulde, sikkerhedsbevidste rengøringssekvens for læsevinduet, herunder laserforholdsreglen og de forskellige metoder for glas- kontra plastiklinser.
-**A14.** Sluk først enheden i hele rengøringsperioden, eller bær, hvis dette ikke er muligt, laserbeskyttelsesbriller godkendt til enhedens bølgelængde. For en glaslinse: fjern støv med en blød, ren børste, og rengør derefter om nødvendigt yderligere med en ren, fugtig, fnugfri klud og et mildt antistatisk glasrengøringsmiddel. For en plastiklinse: spring den tørre børstning over, og rengør kun med en ren, fugtig, fnugfri klud plus det samme milde antistatiske glasrengøringsmiddel. Hvis vinduet er ridset, revnet eller ødelagt, skal det udskiftes af SICK Service i stedet for at blive rengjort. (Afsnit 9.2.1)
-
-**Q15.** Ved at sammenholde afsnit 2.2 (Ukorrekt brug) og 2.4 (Ansvarsbegrænsning), beskriv et scenarie, hvor begge af SICK's ansvarsfraskrivelsesklausuler ville gælde for samme hændelse samtidigt.
-**A15.** Hvis en kunde både (a) anvender enheden uden for dens tilsigtede formål eller tekniske specifikation — f.eks. ved at installere den i et eksplosionsfarligt eller korrosivt miljø, hvilket afsnit 2.2 udtrykkeligt betegner som ukorrekt brug — og (b) også har foretaget en uautoriseret ombygning eller teknisk ændring af enheden, vil begge ansvarsfraskrivelsesgrunde i afsnit 2.4 (ukorrekt brug samt uautoriserede ombygninger/tekniske ændringer) gælde for samme hændelse, hvilket forstærker SICK AG's ansvarsfraskrivelse.
 
 ---
 

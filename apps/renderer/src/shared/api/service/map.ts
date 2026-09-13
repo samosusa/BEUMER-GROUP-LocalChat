@@ -23,6 +23,7 @@ import type {
   RagEvalJudgeVerdict,
   RagEvalRow,
   RagEvalRun,
+  RagEvalRunSummary,
   RagEvalSummary,
   ReindexJob,
   ReindexJobStatus,
@@ -47,6 +48,7 @@ import type {
   ServiceRagEvalDatasetInfo,
   ServiceRagEvalResults,
   ServiceRagEvalRow,
+  ServiceRagEvalRunSummary,
   ServiceRagEvalStatus,
   ServiceRagEvalSummary,
   ServiceReindexStatus,
@@ -640,11 +642,26 @@ export function ragEvalRunFromService(
     status: RAG_EVAL_JOB_STATUS[(meta.status?.status ?? results.status).toLowerCase()] ?? 'running',
     datasetId: meta.status?.dataset_id ?? results.dataset_id,
     projectId: meta.projectId,
+    answerModel: results.answer_model,
+    embeddingModel: results.embedding_model,
     progress: meta.status?.progress ?? null,
     currentQuestion: meta.status?.current_question ?? null,
     summary: ragEvalSummaryFromService(results.summary),
     rows: results.results.map(ragEvalRowFromService),
     startedAt: toIso(meta.startedAt),
     finishedAt: toIsoOrNull(meta.finishedAt),
+  };
+}
+
+export function ragEvalRunSummaryFromService(dto: ServiceRagEvalRunSummary): RagEvalRunSummary {
+  return {
+    id: toId(dto.rag_eval_job_id),
+    status: RAG_EVAL_JOB_STATUS[dto.status.toLowerCase()] ?? 'running',
+    datasetId: dto.dataset_id,
+    projectId: dto.project_id === null ? null : toId(dto.project_id),
+    answerModel: dto.answer_model,
+    embeddingModel: dto.embedding_model,
+    startedAt: toIso(dto.created_at),
+    finishedAt: toIsoOrNull(dto.finished_at),
   };
 }

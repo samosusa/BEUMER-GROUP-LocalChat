@@ -389,19 +389,24 @@ export const ServiceRagEvalResults = z.object({
   rag_eval_job_id: pk,
   status: z.string(),
   dataset_id: z.string(),
+  answer_model: z.string().nullable(),
+  embedding_model: z.string().nullable(),
   summary: ServiceRagEvalSummary,
   results: z.array(ServiceRagEvalRow),
 });
 export type ServiceRagEvalResults = z.infer<typeof ServiceRagEvalResults>;
 
-export const ServiceRagEvalRunList = z.array(
-  z.object({
-    rag_eval_job_id: pk,
-    status: z.string(),
-    dataset_id: z.string(),
-    project_id: pk.nullable(),
-    created_at: naiveDateTime,
-    finished_at: naiveDateTime.nullable(),
-  }),
-);
+export const ServiceRagEvalRunSummary = z.object({
+  rag_eval_job_id: pk,
+  status: z.string(),
+  dataset_id: z.string(),
+  project_id: pk.nullable(),
+  answer_model: z.string().nullable(),
+  embedding_model: z.string().nullable(),
+  created_at: naiveDateTime,
+  finished_at: naiveDateTime.nullable(),
+});
+export type ServiceRagEvalRunSummary = z.infer<typeof ServiceRagEvalRunSummary>;
+
+export const ServiceRagEvalRunList = z.array(ServiceRagEvalRunSummary);
 export type ServiceRagEvalRunList = z.infer<typeof ServiceRagEvalRunList>;

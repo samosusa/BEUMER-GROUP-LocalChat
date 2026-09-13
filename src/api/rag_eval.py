@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 from src.api.projects import get_project_or_404
 from src.db import SessionLocal, get_db
 from src.errors import AppError
+from src.ingest.embedder import embedding_adapter
+from src.llm_adapter import llm_adapter
 from src.models.rag_eval_job import RagEvalJob
 from src.models.rag_eval_result import RagEvalResult
 from src.rag_eval import DEFAULT_DATASET_ID, describe_datasets, list_dataset_ids, run_rag_eval_job, summarize_results
@@ -50,6 +52,8 @@ class RagEvalRunSummary(BaseModel):
     status: str
     dataset_id: str
     project_id: int | None
+    answer_model: str | None
+    embedding_model: str | None
     created_at: datetime
     finished_at: datetime | None
 
@@ -85,6 +89,8 @@ class RagEvalResultsResponse(BaseModel):
     rag_eval_job_id: int
     status: str
     dataset_id: str
+    answer_model: str | None
+    embedding_model: str | None
     summary: RagEvalSummary
     results: list[RagEvalResultRow]
 
@@ -114,10 +120,13 @@ def start_rag_eval(
         get_project_or_404(db, payload.project_id)
     _validate_dataset_id(payload.dataset_id)
 
+    active_answer_model = llm_adapter.active
     job = RagEvalJob(
         status="running",
         dataset=payload.dataset_id,
         project_id=payload.project_id,
+        answer_model=active_answer_model["model"] if active_answer_model else None,
+        embedding_model=embedding_adapter.active["model"],
         total_questions=0,
         completed_questions=0,
         created_at=datetime.utcnow(),
@@ -152,6 +161,8 @@ def list_rag_eval_runs(db: Session = Depends(get_db)) -> list[RagEvalRunSummary]
             status=job.status,
             dataset_id=job.dataset,
             project_id=job.project_id,
+            answer_model=job.answer_model,
+            embedding_model=job.embedding_model,
             created_at=job.created_at,
             finished_at=job.finished_at,
         )
@@ -176,6 +187,8 @@ def rag_eval_results(rag_eval_job_id: int, db: Session = Depends(get_db)) -> Rag
         rag_eval_job_id=job.id,
         status=job.status,
         dataset_id=job.dataset,
+        answer_model=job.answer_model,
+        embedding_model=job.embedding_model,
         summary=RagEvalSummary(**summarize_results(rows)),
         results=[
             RagEvalResultRow(

@@ -30,6 +30,7 @@ import {
 import { describeError } from '@/shared/api/http';
 import { BenchmarkCharts } from './BenchmarkCharts';
 import { EmbeddingBenchmarkCharts } from './EmbeddingBenchmarkCharts';
+import { RagEvalCompare, RagEvalResultBody } from './RagEvalCompare';
 import { Button } from '@/shared/ui/Button';
 import { Toggle } from '@/shared/ui/Controls';
 import { Icon, type IconName } from '@/shared/ui/Icon';
@@ -829,12 +830,6 @@ function EmbeddingBenchmarkCard() {
   );
 }
 
-const RAG_EVAL_DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
-
-function formatHitRate(rate: number | null): string {
-  return rate === null ? '—' : `${Math.round(rate * 100)}%`;
-}
-
 /**
  * Unlike the two benchmarks above, this measures whether the system gets the *right answer*,
  * not how fast it runs. It replays a hand-labeled question set — any file dropped under
@@ -852,6 +847,7 @@ function RagEvalCard() {
 
   const [projectId, setProjectId] = useState('');
   const [datasetId, setDatasetId] = useState('');
+  const [mode, setMode] = useState<'single' | 'compare'>('single');
   const result = evalRun.data;
   const running = result?.status === 'running' || run.isPending;
 
@@ -910,10 +906,44 @@ function RagEvalCard() {
     </p>
   );
 
+  const modeToggle = (
+    <span className={styles.chartTabs} role="group" aria-label="View">
+      <button
+        type="button"
+        className={mode === 'single' ? styles.chartTabOn : styles.chartTab}
+        aria-pressed={mode === 'single'}
+        onClick={() => setMode('single')}
+      >
+        Single run
+      </button>
+      <button
+        type="button"
+        className={mode === 'compare' ? styles.chartTabOn : styles.chartTab}
+        aria-pressed={mode === 'compare'}
+        onClick={() => setMode('compare')}
+      >
+        Compare
+      </button>
+    </span>
+  );
+
+  if (mode === 'compare') {
+    return (
+      <section className={styles.card}>
+        <SectionLabel action={modeToggle}>RAG evaluation</SectionLabel>
+        <p className={styles.hint}>
+          Pick any two past runs to compare side by side — different question sets, projects, or
+          models, whichever was active when each one ran.
+        </p>
+        <RagEvalCompare />
+      </section>
+    );
+  }
+
   if (!result) {
     return (
       <section className={styles.card}>
-        <SectionLabel>RAG evaluation</SectionLabel>
+        <SectionLabel action={modeToggle}>RAG evaluation</SectionLabel>
         <p className={styles.hint}>
           Runs a labeled question set end to end — real retrieval and real generation — and scores
           whether the right document was retrieved and whether the generated answer matches a
@@ -937,18 +967,19 @@ function RagEvalCard() {
     );
   }
 
-  const summary = result.summary;
-
   return (
     <section className={styles.card}>
       <SectionLabel
         action={
-          <Mono className={styles.cardHeaderMeta}>
-            {result.datasetId} ·{' '}
-            {result.status === 'running'
-              ? (result.progress ?? 'running')
-              : formatRelative(result.finishedAt ?? result.startedAt)}
-          </Mono>
+          <>
+            <Mono className={styles.cardHeaderMeta}>
+              {result.datasetId} ·{' '}
+              {result.status === 'running'
+                ? (result.progress ?? 'running')
+                : formatRelative(result.finishedAt ?? result.startedAt)}
+            </Mono>
+            {modeToggle}
+          </>
         }
       >
         RAG evaluation
@@ -983,63 +1014,7 @@ function RagEvalCard() {
         Run evaluation again
       </Button>
 
-      {summary && (
-        <div className={styles.evalSummaryRow}>
-          <div className={styles.evalStat}>
-            <span className={styles.evalStatLabel}>Retrieval hit rate</span>
-            <span className={styles.evalStatValue}>{formatHitRate(summary.retrievalHitRate)}</span>
-          </div>
-          {RAG_EVAL_DIFFICULTIES.map((difficulty) => (
-            <div className={styles.evalStat} key={difficulty}>
-              <span className={styles.evalStatLabel}>{difficulty}</span>
-              <span className={styles.evalStatValue}>
-                {formatHitRate(summary.byDifficulty[difficulty]?.retrievalHitRate ?? null)}
-              </span>
-            </div>
-          ))}
-          <div className={styles.evalStat}>
-            <span className={styles.evalStatLabel}>Judge correct</span>
-            <span className={styles.evalStatValue}>{summary.judgeCounts.correct ?? 0}</span>
-          </div>
-          <div className={styles.evalStat}>
-            <span className={styles.evalStatLabel}>Judge partial</span>
-            <span className={styles.evalStatValue}>{summary.judgeCounts.partial ?? 0}</span>
-          </div>
-          <div className={styles.evalStat}>
-            <span className={styles.evalStatLabel}>Judge incorrect</span>
-            <span className={styles.evalStatValue}>{summary.judgeCounts.incorrect ?? 0}</span>
-          </div>
-        </div>
-      )}
-
-      <div className={styles.evalRows}>
-        {result.rows.map((row, index) => (
-          <div className={styles.evalRow} key={`${row.source}-${index}`}>
-            <div className={styles.evalRowHead}>
-              <span>{row.difficulty}</span>
-              <span>{row.source}</span>
-              <span className={row.retrievalHit ? styles.evalHit : styles.evalMiss}>
-                {row.retrievalHit ? 'Retrieval hit' : 'Retrieval miss'}
-              </span>
-              {row.judgeVerdict && <span>Judge: {row.judgeVerdict}</span>}
-              {row.latencyMs !== null && <span>{formatDuration(row.latencyMs)}</span>}
-            </div>
-            <div className={styles.evalQuestion}>{row.question}</div>
-            <div className={styles.evalAnswers}>
-              <div>
-                <div className={styles.evalAnswerLabel}>Expected</div>
-                <div className={styles.evalAnswerText}>{row.expectedAnswer}</div>
-              </div>
-              <div>
-                <div className={styles.evalAnswerLabel}>Got</div>
-                <div className={styles.evalAnswerText}>
-                  {row.notFound ? 'Not found in the indexed documentation.' : row.actualAnswer}
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      <RagEvalResultBody result={result} />
     </section>
   );
 }

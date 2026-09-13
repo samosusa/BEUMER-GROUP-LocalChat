@@ -1,5 +1,12 @@
 import { http, HttpResponse, delay } from 'msw';
-import type { EmbeddingBenchmarkRun, ModelBenchmarkRun } from '@localchat/contracts';
+import type {
+  EmbeddingBenchmarkRun,
+  ModelBenchmarkRun,
+  RagEvalRow,
+  RagEvalRun,
+  RagEvalRunSummary,
+  RagEvalSummary,
+} from '@localchat/contracts';
 import {
   AskRequest,
   CreateChatRequest,
@@ -567,6 +574,27 @@ export const handlers = [
     return HttpResponse.json({ run: catalogue.ragEval });
   }),
 
+  http.get(route(routes.ragEvalRuns()), async () => {
+    await delay(LATENCY.fast);
+    const runs: RagEvalRunSummary[] = ragEvalRunHistory().map((run) => ({
+      id: run.id,
+      status: run.status,
+      datasetId: run.datasetId,
+      projectId: run.projectId,
+      answerModel: run.answerModel,
+      embeddingModel: run.embeddingModel,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt,
+    }));
+    return HttpResponse.json({ runs });
+  }),
+
+  http.get(route('/api/rag-eval/runs/:id'), async ({ params }) => {
+    await delay(LATENCY.fast);
+    const run = ragEvalRunHistory().find((entry) => entry.id === params.id);
+    return run ? HttpResponse.json({ run }) : notFound('That RAG evaluation run no longer exists.');
+  }),
+
   http.post(route(routes.ragEval()), async ({ request }) => {
     const parsed = StartRagEvalRequest.safeParse(await request.json());
     if (!parsed.success) return badRequest('Malformed RAG evaluation request.');
@@ -575,7 +603,7 @@ export const handlers = [
     }
 
     // A real run answers every question end to end - retrieval plus generation plus an
-    // LLM-judge call - which is minutes of work across 45 questions. The mock simulates that
+    // LLM-judge call - which is minutes of work across 30 questions. The mock simulates that
     // as an already-finished run against the fixed sample rows rather than modelling
     // per-question progress nobody watching the mock could act on anyway.
     await delay(2_000);
@@ -667,6 +695,120 @@ function embeddingBenchmarkHistory(): EmbeddingBenchmarkRun[] {
       })),
     };
   });
+}
+
+/**
+ * Four selectable RAG-eval runs for the compare view: the current finished run (id
+ * `rag-eval-1`, unmodified - the same one `GET /api/rag-eval` returns) plus three older,
+ * synthetic variants across the other dataset, an ungrouped project, and a lighter answer
+ * model. Each variant turns one more retrieval hit into a miss than the last, and the
+ * summary is recomputed from the (possibly degraded) rows rather than scaled independently,
+ * so a picked pair always shows a real, internally consistent difference.
+ */
+function ragEvalRunHistory(): RagEvalRun[] {
+  const DAY = 86_400_000;
+  const finished = Date.parse(catalogue.ragEval.finishedAt ?? catalogue.ragEval.startedAt);
+
+  const variants: Array<{
+    id: string;
+    datasetId: string;
+    projectId: string | null;
+    answerModel: string;
+    embeddingModel: string;
+    age: number;
+    misses: number;
+  }> = [
+    {
+      id: 'rag-eval-1',
+      datasetId: catalogue.ragEval.datasetId,
+      projectId: catalogue.ragEval.projectId,
+      answerModel: 'qwen2.5-7b-instruct-q4km',
+      embeddingModel: 'nomic-ai/nomic-embed-text-v1.5',
+      age: 0,
+      misses: 0,
+    },
+    {
+      id: 'rag-eval-2',
+      datasetId: 'rag_qa_pairs',
+      projectId: catalogue.ragEval.projectId,
+      answerModel: 'llama-3.1-8b-instruct-q4km',
+      embeddingModel: 'nomic-ai/nomic-embed-text-v1.5',
+      age: 3,
+      misses: 1,
+    },
+    {
+      id: 'rag-eval-3',
+      datasetId: 'rag_qa_pairs_da',
+      projectId: catalogue.ragEval.projectId,
+      answerModel: 'qwen2.5-7b-instruct-q4km',
+      embeddingModel: 'nomic-ai/nomic-embed-text-v1.5',
+      age: 6,
+      misses: 1,
+    },
+    {
+      id: 'rag-eval-4',
+      datasetId: 'rag_qa_pairs',
+      projectId: null,
+      answerModel: 'qwen2.5-7b-instruct-q4km',
+      embeddingModel: 'BAAI/bge-small-en-v1.5',
+      age: 12,
+      misses: 2,
+    },
+  ];
+
+  return variants.map((variant) => {
+    if (variant.misses === 0) return catalogue.ragEval;
+
+    const at = new Date(finished - variant.age * DAY).toISOString();
+    const rows = catalogue.ragEval.rows.map((row, index) =>
+      index < variant.misses ? degradeRagEvalRow(row, at) : { ...row, ranAt: at },
+    );
+    return {
+      ...catalogue.ragEval,
+      id: variant.id,
+      datasetId: variant.datasetId,
+      projectId: variant.projectId,
+      answerModel: variant.answerModel,
+      embeddingModel: variant.embeddingModel,
+      startedAt: at,
+      finishedAt: at,
+      rows,
+      summary: summarizeRagEvalRows(rows),
+    };
+  });
+}
+
+/** Turns a hit into a miss (or a correct verdict into an incorrect one) for the older variants. */
+function degradeRagEvalRow(row: RagEvalRow, at: string): RagEvalRow {
+  const wasCorrect = row.retrievalHit && row.judgeVerdict === 'correct';
+  return {
+    ...row,
+    ranAt: at,
+    retrievalHit: wasCorrect ? false : row.retrievalHit,
+    judgeVerdict: wasCorrect ? 'incorrect' : row.judgeVerdict,
+    judgeDetail: wasCorrect ? 'INCORRECT' : row.judgeDetail,
+  };
+}
+
+/** Mirrors src/rag_eval.py summarize_results, so a mutated row set keeps a consistent summary. */
+function summarizeRagEvalRows(rows: RagEvalRow[]): RagEvalSummary {
+  const bucket = (subset: RagEvalRow[]) => {
+    const total = subset.length;
+    const hits = subset.filter((row) => row.retrievalHit).length;
+    const judgeCounts: Record<string, number> = { correct: 0, partial: 0, incorrect: 0, error: 0 };
+    for (const row of subset) {
+      if (row.judgeVerdict) judgeCounts[row.judgeVerdict] = (judgeCounts[row.judgeVerdict] ?? 0) + 1;
+    }
+    return { total, retrievalHitRate: total ? hits / total : null, judgeCounts };
+  };
+
+  const difficulties = [...new Set(rows.map((row) => row.difficulty))];
+  return {
+    ...bucket(rows),
+    byDifficulty: Object.fromEntries(
+      difficulties.map((difficulty) => [difficulty, bucket(rows.filter((row) => row.difficulty === difficulty))]),
+    ),
+  };
 }
 
 const FORMAT_BY_EXTENSION: Record<string, 'pdf' | 'docx' | 'markdown' | 'text' | 'image'> = {

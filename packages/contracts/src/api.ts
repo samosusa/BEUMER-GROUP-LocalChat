@@ -15,6 +15,7 @@ import {
   ProjectSchema,
   RagEvalDatasetInfoSchema,
   RagEvalRunSchema,
+  RagEvalRunSummarySchema,
   ReindexJobSchema,
   RetrievalScope,
   SettingsSchema,
@@ -262,6 +263,10 @@ export type StartRagEvalRequest = z.infer<typeof StartRagEvalRequest>;
 export const RagEvalRunResponse = z.object({ run: RagEvalRunSchema.nullable() });
 export type RagEvalRunResponse = z.infer<typeof RagEvalRunResponse>;
 
+/** Every run on record, newest first - for picking two to compare side by side. */
+export const RagEvalRunsResponse = z.object({ runs: z.array(RagEvalRunSummarySchema) });
+export type RagEvalRunsResponse = z.infer<typeof RagEvalRunsResponse>;
+
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
@@ -301,6 +306,9 @@ export const routes = {
   embeddingBenchmark: () => '/api/embeddings/benchmark',
   embeddingBenchmarkHistory: () => '/api/embeddings/benchmark/history',
   ragEvalDatasets: () => '/api/rag-eval/datasets',
-  /** The current or most recent evaluation run - there is at most one meaningful at a time. */
+  /** The current or most recent evaluation run - there is at most one meaningful "current" run. */
   ragEval: () => '/api/rag-eval',
+  /** Every historical run, and one of them by id - for comparing two runs side by side. */
+  ragEvalRuns: () => '/api/rag-eval/runs',
+  ragEvalRun: (id: string) => `/api/rag-eval/runs/${id}`,
 } as const;
