@@ -1,0 +1,148 @@
+.frame {
+  position: relative;
+  width: 100%;
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+/* Recessive by design: the data is the only thing allowed to be loud. */
+.grid {
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.axis {
+  stroke: var(--chart-axis);
+  stroke-width: 1;
+}
+
+.tick {
+  fill: var(--text-label);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.category {
+  fill: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 11px;
+}
+
+.line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/*
+ * The ring is the surface colour, not a border: it separates a marker from whatever it
+ * overlaps without adding ink that is not data.
+ */
+.marker {
+  stroke: var(--surface-raised);
+  stroke-width: 2;
+}
+
+.hit {
+  fill: transparent;
+  cursor: default;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  margin-top: var(--space-3);
+  padding: 0;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-meta);
+  color: var(--text-secondary);
+}
+
+.legendSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.legendButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-meta);
+  color: var(--text-secondary);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.legendButton:hover {
+  background: var(--surface-hover);
+  color: var(--text-body);
+}
+
+.legendButtonOff {
+  color: var(--text-placeholder);
+}
+
+.legendButtonOff .legendSwatch {
+  background: var(--text-placeholder) !important;
+}
+
+.tooltip {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  min-width: 140px;
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-panel);
+  transform: translate(-50%, calc(-100% - 10px));
+}
+
+.tooltipTitle {
+  font-size: var(--text-meta);
+  color: var(--text-body);
+  margin-bottom: var(--space-2);
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--text-meta);
+  color: var(--text-secondary);
+}
+
+.tooltipKey {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tooltipValue {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-body);
+}
+
+.empty {
+  padding: var(--space-6) 0;
+  font-size: var(--text-meta);
+  color: var(--text-secondary);
+  text-align: center;
+}

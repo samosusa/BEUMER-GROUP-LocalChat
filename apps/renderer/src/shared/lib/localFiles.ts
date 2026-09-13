@@ -58,7 +58,18 @@ function pickInBrowser(): Promise<File[]> {
     const input = document.createElement('input');
     input.type = 'file';
     input.multiple = true;
-    input.accept = ACCEPT;
+    /*
+     * Deliberately no `accept` here, unlike the folder picker below.
+     *
+     * macOS resolves each extension in `accept` to a Uniform Type Identifier, and `.md` /
+     * `.markdown` have none registered on a stock machine - so the native dialog lists
+     * markdown files and then refuses to let you select them, with no way to find out why.
+     * The folder picker is unaffected: there you choose a directory, not a file, and
+     * `isAcceptedFile` filters the walk afterwards.
+     *
+     * Nothing is lost by allowing the pick. Both backends reject what they cannot read
+     * with a reason worth reading, and useIngestDocuments now surfaces it.
+     */
 
     // `cancel` (Chrome 113+, Firefox 116+, Safari 17+ — all well below this app's minimum
     // supported versions) is what a cancelled picker fires, so both outcomes settle cleanly.

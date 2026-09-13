@@ -71,7 +71,7 @@ export function AssistantMessage({
         )}
 
         {message.citations.length > 0 && (
-          <SourcesPanel ref={sourcesRef} citations={message.citations} timings={message.timings} />
+          <SourcesPanel ref={sourcesRef} citations={message.citations} />
         )}
 
         {message.figures.map((figure) => (
@@ -84,6 +84,13 @@ export function AssistantMessage({
 
         {!streaming && (
           <div className={styles.reactions}>
+            {/*
+              The timing lives here rather than in the sources header, where it used to be.
+              That header only renders when an answer HAS sources, so a refusal — the case
+              where "why did that take eight seconds?" is most likely to be asked — showed
+              nothing at all. The reactions row is on every finished turn.
+            */}
+            {message.timings && <TurnTimings timings={message.timings} />}
             <IconButton icon="copy" label="Copy answer with citations" size={16} />
             <IconButton icon="thumbsUp" label="Answer was useful" size={16} />
             <IconButton icon="thumbsDown" label="Answer was not useful" size={16} />
@@ -148,6 +155,27 @@ function renderBlocks(blocks: AnswerBlock[], streaming = false): ReactNode[] {
 // ---------------------------------------------------------------------------
 
 /**
+ * How long the turn took.
+ *
+ * Shows the split when the source reports one and a single round-trip figure when it does
+ * not — rather than halving the total into two invented numbers.
+ */
+function TurnTimings({ timings }: { timings: NonNullable<Message['timings']> }) {
+  const split =
+    timings.retrievalMs !== null && timings.generationMs !== null
+      ? `retrieved in ${formatDuration(timings.retrievalMs)} · answered in ${formatDuration(timings.generationMs)}`
+      : `answered in ${formatDuration(timings.totalMs)}`;
+
+  return (
+    <span className={styles.turnTimings} title="Measured on this machine, end to end">
+      <Mono>{split}</Mono>
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/**
  * How hard the question behind this turn was judged to be, per the service's offline
  * heuristic (src/complexity.py) — not a model self-assessment. Shown regardless of whether
  * the turn found evidence, since a refusal is exactly when "was this a fair question"
@@ -172,7 +200,6 @@ function ComplexityBadge({ tier, score }: { tier: ComplexityTier; score: number 
 
 interface SourcesPanelProps {
   citations: Citation[];
-  timings: Message['timings'];
   ref?: Ref<HTMLDivElement>;
 }
 
@@ -180,7 +207,7 @@ interface SourcesPanelProps {
  * The sources block. Every answer that claims a fact has one; it is the product's whole
  * argument for being trusted with a commissioning decision.
  */
-function SourcesPanel({ citations, timings, ref }: SourcesPanelProps) {
+function SourcesPanel({ citations, ref }: SourcesPanelProps) {
   return (
     <section className={styles.sources} aria-label={`${citations.length} sources`}>
       <header className={styles.sourcesHeader}>
@@ -188,12 +215,6 @@ function SourcesPanel({ citations, timings, ref }: SourcesPanelProps) {
         <span className={styles.sourcesTitle}>
           {citations.length} {citations.length === 1 ? 'source' : 'sources'}
         </span>
-        {timings && (
-          <Mono className={styles.sourcesTimings}>
-            retrieved in {formatDuration(timings.retrievalMs)} · answered in{' '}
-            {formatDuration(timings.generationMs)}
-          </Mono>
-        )}
       </header>
 
       <div ref={ref}>

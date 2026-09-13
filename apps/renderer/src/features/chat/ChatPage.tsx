@@ -50,6 +50,15 @@ export function ChatPage() {
   const pendingProject = projects.data?.find((project) => project.id === pendingProjectId);
   const activeProject = chatId ? chatProject.data : pendingProject;
 
+  /**
+   * Why a document did not make it in.
+   *
+   * The contract has always returned `rejected: [{ path, reason }]` with a reason worth
+   * reading, and nothing rendered it — so a file the service would not take looked exactly
+   * like a file that worked. A thrown error was worse: `mutateAsync` rejected into an
+   * unhandled promise and the screen did not change at all.
+   */
+
   const addDocuments = useCallback(
     async (chosen: ChosenDocuments) => {
       if (chosen.paths.length === 0 && chosen.files.length === 0 && chosen.skipped.length === 0) {

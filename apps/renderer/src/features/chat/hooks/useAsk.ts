@@ -4,6 +4,7 @@ import type { Citation, Figure, Message, RetrievalScope, ToolCall } from '@local
 import { api } from '@/shared/api/client';
 import { describeError } from '@/shared/api/http';
 import { keys } from '@/shared/api/queries';
+import { rememberTimings } from '@/shared/api/turnTimings';
 
 /**
  * Phases of a turn, in the order they actually happen. The UI names the phase rather than
@@ -111,8 +112,11 @@ export function useAsk(chatId: string | undefined) {
         setState((current) => ({ ...current, phase: 'error', error: describeError(error) }));
       }
 
-      function commit(_message: Message) {
+      function commit(message: Message) {
         // The mock and the service both persist the turn; refetching keeps one source of truth.
+        // Timings are the exception - the service does not report them, so the refetch would
+        // drop the number the client just measured. Kept aside and merged back on read.
+        rememberTimings(message.id, message.timings);
         void queryClient.invalidateQueries({ queryKey: keys.chats.messages(chatId as string) });
         void queryClient.invalidateQueries({ queryKey: ['chats'] });
         setState(INITIAL);

@@ -1,4 +1,5 @@
 import { http, HttpResponse, delay } from 'msw';
+import type { ModelBenchmarkRun } from '@localchat/contracts';
 import {
   AskRequest,
   CreateChatRequest,
@@ -457,6 +458,11 @@ export const handlers = [
     return HttpResponse.json({ run: catalogue.benchmark });
   }),
 
+  http.get(route(routes.benchmarkHistory()), async () => {
+    await delay(LATENCY.fast);
+    return HttpResponse.json({ runs: benchmarkHistory() });
+  }),
+
   http.post(route(routes.benchmark()), async ({ request }) => {
     const parsed = RunBenchmarkRequest.safeParse(await request.json());
     if (!parsed.success) return badRequest('Choose at least one device to benchmark.');
@@ -580,6 +586,50 @@ export const handlers = [
     });
   }),
 ];
+
+/**
+ * Six past runs derived from the finished one, a week apart.
+ *
+ * The drift is deterministic rather than random: a mock that produces different numbers on
+ * every reload makes it impossible to tell a rendering bug from noise. The shape is the
+ * thing worth mocking - one model improving as it is quantised differently, another flat,
+ * and a device that only appears partway through the history because the machine did not
+ * have a working CUDA build until then.
+ */
+function benchmarkHistory(): ModelBenchmarkRun[] {
+  const RUNS = 6;
+  const DAY = 86_400_000;
+  const finished = Date.parse(catalogue.benchmark.finishedAt ?? catalogue.benchmark.startedAt);
+
+  return Array.from({ length: RUNS }, (_, index) => {
+    const age = RUNS - 1 - index;
+    const at = new Date(finished - age * 7 * DAY).toISOString();
+    // Older runs were slower: 4% per week back, so the newest run is the fastest.
+    const factor = 1 - age * 0.04;
+
+    return {
+      ...catalogue.benchmark,
+      id: `history-${index}`,
+      startedAt: at,
+      finishedAt: at,
+      rows: catalogue.benchmark.rows
+        // The GPU only became usable three runs ago; before that there was no CUDA build.
+        .filter((row) => row.compute === 'cpu' || age < 3)
+        .map((row) => ({
+          ...row,
+          ranAt: at,
+          tokensPerSecond: scale(row.tokensPerSecond, factor),
+          timeToFirstTokenMs: scale(row.timeToFirstTokenMs, 1 / factor),
+          loadMs: scale(row.loadMs, 1 / factor),
+          totalMs: scale(row.totalMs, 1 / factor),
+        })),
+    };
+  });
+}
+
+function scale(value: number | null, factor: number): number | null {
+  return value === null ? null : Math.round(value * factor * 100) / 100;
+}
 
 const FORMAT_BY_EXTENSION: Record<string, 'pdf' | 'docx' | 'markdown' | 'text' | 'image'> = {
   pdf: 'pdf',

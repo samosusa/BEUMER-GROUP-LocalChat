@@ -426,6 +426,41 @@ export async function latestBenchmark(signal?: AbortSignal): Promise<ModelBenchm
   });
 }
 
+/**
+ * Every completed run, oldest first, with its rows.
+ *
+ * `/benchmark/results` gives the summaries and `/benchmark/results/{id}` the rows, so a
+ * history is one request per run. Capped at the most recent 20: a chart of forty runs is
+ * unreadable, and the fan-out is the only reason this is not free.
+ *
+ * Running and failed jobs are dropped. A failed job has no usable rows, and a running one
+ * is still moving - plotting a half-finished run beside completed ones would show a model
+ * "getting slower" when the real story is that its GPU pass had not started yet.
+ */
+export async function benchmarkHistory(signal?: AbortSignal): Promise<ModelBenchmarkRun[]> {
+  const runs = await request('/benchmark/results', { schema: ServiceBenchmarkRunList, signal });
+
+  const completed = runs
+    .filter((run) => run.status.toLowerCase() === 'completed')
+    .sort((a, b) => a.benchmark_job_id - b.benchmark_job_id)
+    .slice(-20);
+
+  const detailed = await Promise.all(
+    completed.map(async (run) => {
+      const results = await request(`/benchmark/results/${run.benchmark_job_id}`, {
+        schema: ServiceBenchmarkResults,
+        signal,
+      });
+      return benchmarkRunFromService(results, {
+        startedAt: run.created_at,
+        finishedAt: run.finished_at,
+      });
+    }),
+  );
+
+  return detailed;
+}
+
 // ---------------------------------------------------------------------------
 // Embedding models
 // ---------------------------------------------------------------------------

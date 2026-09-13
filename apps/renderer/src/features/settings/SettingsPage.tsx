@@ -13,6 +13,7 @@ import {
   useEmbeddingBenchmark,
   useEmbeddingModels,
   useModels,
+  useBenchmarkHistory,
   useProjects,
   useRagEval,
   useRagEvalDatasets,
@@ -26,6 +27,7 @@ import {
   useUpdateSettings,
 } from '@/shared/api/queries';
 import { describeError } from '@/shared/api/http';
+import { BenchmarkCharts } from './BenchmarkCharts';
 import { Button } from '@/shared/ui/Button';
 import { Toggle } from '@/shared/ui/Controls';
 import { Icon, type IconName } from '@/shared/ui/Icon';
@@ -315,6 +317,7 @@ function BenchmarkCard() {
   const models = useModels();
   const activeModel = useActiveModel();
   const run = useRunBenchmark();
+  const history = useBenchmarkHistory();
   const result = benchmark.data;
   const running = result?.status === 'running' || run.isPending;
 
@@ -452,6 +455,10 @@ function BenchmarkCard() {
       )}
 
       {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
+
+      {measured.length > 0 && (
+        <BenchmarkCharts latest={result} history={history.data ?? [result]} />
+      )}
 
       <div className={styles.benchScroll}>
         <table className={styles.benchTable}>

@@ -492,6 +492,22 @@
   color: var(--text-label);
 }
 
+/* --- benchmark charts ---------------------------------------------------- */
+
+.charts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin-top: var(--space-7);
+}
+
+.chartControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
 /* ----- RAG evaluation ----------------------------------------------------- */
 /* Question/answer pairs are paragraph text, not figures - unlike .benchTable, these rows
    wrap rather than force a wide horizontally-scrolling table. */
@@ -500,6 +516,59 @@
   display: flex;
   gap: var(--space-5);
   flex-wrap: wrap;
+}
+
+.chartFigure {
+  margin: 0;
+}
+
+.chartTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--text-row);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-4);
+}
+
+.chartTabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.chartTab,
+.chartTabOn {
+  padding: 2px var(--space-4);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  color: var(--text-label);
+}
+
+.chartTab:hover {
+  color: var(--text-body);
+}
+
+.chartTabOn {
+  background: var(--surface-active);
+  color: var(--text-primary);
+}
+
+.chartHint {
+  font-size: var(--text-meta);
+  color: var(--text-label);
+}
+
+.chartEmpty {
+  padding: var(--space-8) 0;
+  font-size: var(--text-meta);
+  color: var(--text-label);
+  text-align: center;
 }
 
 .evalStat {

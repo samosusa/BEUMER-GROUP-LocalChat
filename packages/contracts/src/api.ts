@@ -185,6 +185,16 @@ export type ListModelsResponse = z.infer<typeof ListModelsResponse>;
 export const BenchmarkResponse = z.object({ run: ModelBenchmarkRunSchema.nullable() });
 export type BenchmarkResponse = z.infer<typeof BenchmarkResponse>;
 
+/**
+ * Past runs, oldest first, so speed can be read as a trend rather than a single figure.
+ *
+ * A separate endpoint from `BenchmarkResponse` on purpose: the newest run is polled every
+ * few seconds while a job is in flight, and the history is not - it only changes when a run
+ * finishes.
+ */
+export const BenchmarkHistoryResponse = z.object({ runs: z.array(ModelBenchmarkRunSchema) });
+export type BenchmarkHistoryResponse = z.infer<typeof BenchmarkHistoryResponse>;
+
 export const RunBenchmarkRequest = z.object({
   /** Devices to benchmark on. Asking for `gpu` without one is refused by the service. */
   devices: z.array(ComputeMode).min(1),
@@ -277,6 +287,7 @@ export const routes = {
   settings: () => '/api/settings',
   models: () => '/api/models',
   benchmark: () => '/api/benchmark',
+  benchmarkHistory: () => '/api/benchmark/history',
   embeddingModels: () => '/api/embeddings/models',
   activeEmbeddingModel: () => '/api/embeddings/active',
   /** The current or most recent re-embed job — there is at most one meaningful at a time. */
