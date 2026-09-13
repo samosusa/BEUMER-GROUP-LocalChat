@@ -970,6 +970,19 @@ function RagEvalCard() {
       )}
       {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
 
+      {datasetHint}
+      {picker}
+
+      <Button
+        variant="outline"
+        size="sm"
+        loading={running}
+        disabled={!selectedDatasetId}
+        onClick={start}
+      >
+        Run evaluation again
+      </Button>
+
       {summary && (
         <div className={styles.evalSummaryRow}>
           <div className={styles.evalStat}>
@@ -1027,19 +1040,6 @@ function RagEvalCard() {
           </div>
         ))}
       </div>
-
-      {datasetHint}
-      {picker}
-
-      <Button
-        variant="outline"
-        size="sm"
-        loading={running}
-        disabled={!selectedDatasetId}
-        onClick={start}
-      >
-        Run evaluation again
-      </Button>
     </section>
   );
 }

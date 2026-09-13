@@ -31,6 +31,26 @@ def test_list_dataset_ids_finds_the_bundled_dataset():
     assert "rag_qa_pairs" in list_dataset_ids()
 
 
+def test_load_qa_dataset_da_has_45_questions_across_the_same_3_documents():
+    """Danish translation of the bundled dataset, run against the same English source PDFs -
+    exercises cross-lingual retrieval and judging rather than a different set of documents."""
+    dataset = load_qa_dataset("rag_qa_pairs_da")
+
+    assert len(dataset) == 3
+    assert {doc["source"] for doc in dataset} == {doc["source"] for doc in load_qa_dataset()}
+    total = sum(len(doc["questions"]) for doc in dataset)
+    assert total == 45
+    for doc in dataset:
+        counts = {"easy": 0, "medium": 0, "hard": 0}
+        for item in doc["questions"]:
+            counts[item["difficulty"]] += 1
+        assert counts == {"easy": 5, "medium": 5, "hard": 5}
+
+
+def test_list_dataset_ids_finds_the_danish_dataset():
+    assert "rag_qa_pairs_da" in list_dataset_ids()
+
+
 def test_load_qa_dataset_rejects_an_unknown_id():
     with pytest.raises(DatasetNotFoundError):
         load_qa_dataset("not-a-real-dataset")

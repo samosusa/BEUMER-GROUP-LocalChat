@@ -953,6 +953,19 @@ export const RAG_EVAL_DATASETS: RagEvalDatasetInfo[] = [
     ],
     totalQuestions: 45,
   },
+  {
+    id: 'rag_qa_pairs_da',
+    documents: [
+      { source: 'OPNL_B01_EN.pdf', titleHint: 'OPNL_B01', questionCount: 15 },
+      { source: 'OPNL_B02_EN.pdf', titleHint: 'OPNL_B02', questionCount: 15 },
+      {
+        source: 'Operating_instructions_CLV69x_Bar_code_scanners_en_IM0045360.pdf',
+        titleHint: 'CLV69x',
+        questionCount: 15,
+      },
+    ],
+    totalQuestions: 45,
+  },
 ];
 
 export const APPROVED_TOOLS: ApprovedTool[] = [
