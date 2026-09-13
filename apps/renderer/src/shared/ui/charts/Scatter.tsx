@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { linearScale } from './scale';
+import { gutterFor, linearScale } from './scale';
 import { useElementWidth } from './useElementWidth';
 import styles from './Chart.module.css';
 
@@ -57,23 +57,49 @@ export function Scatter({
   const { ref, width } = useElementWidth<HTMLDivElement>();
   const [hover, setHover] = useState<string | null>(null);
 
-  const plotWidth = Math.max(0, width - PAD.left - PAD.right);
   const plotHeight = height - PAD.top - PAD.bottom;
 
-  // Bands must stay on-scale, or "fits in 8 GB" silently vanishes off the right edge.
-  const x = linearScale(
-    [...points.map((point) => point.x), ...bands.map((band) => band.at)],
-    plotWidth,
-    4,
-  );
+  /*
+   * Only bands the data comes near are drawn.
+   *
+   * Feeding every band into the scale let a 16 GB reference line stretch the axis to 19 GB
+   * for a set of models that topped out at 5.4 GB, squashing every point into the left
+   * quarter — the exact opposite of what a trade-off chart is for. A ceiling nothing is
+   * close to is not informative; it is just a wider axis.
+   */
+  const dataMax = Math.max(...points.map((point) => point.x), 0);
+  const shown = bands.filter((band) => band.at <= dataMax * 1.15);
+
   const y = linearScale(
     points.map((point) => point.y),
     plotHeight,
     4,
   );
 
-  const px = (value: number) => PAD.left + x(value);
+  const left = gutterFor(y.ticks.map(formatY), PAD.left);
+  const plotWidth = Math.max(0, width - left - PAD.right);
+  const xPixels = linearScale(
+    [...points.map((point) => point.x), ...shown.map((band) => band.at)],
+    plotWidth,
+    4,
+  );
+
+  const px = (value: number) => left + xPixels(value);
   const py = (value: number) => PAD.top + plotHeight - y(value);
+
+  /*
+   * Two points close together would otherwise print their names on top of each other. The
+   * second one flips to the left of its dot, which keeps the label attached to its own mark
+   * rather than nudging it away vertically — a detached label reads as noise.
+   */
+  const placed: Array<{ x: number; y: number }> = [];
+  const labelSide = (cx: number, cy: number) => {
+    const clash = placed.some(
+      (other) => Math.abs(other.x - cx) < 120 && Math.abs(other.y - cy) < 14,
+    );
+    placed.push({ x: cx, y: cy });
+    return clash ? 'end' : 'start';
+  };
 
   return (
     <div className={styles.frame} ref={ref}>
@@ -89,14 +115,14 @@ export function Scatter({
             <g key={`y${tick}`}>
               <line
                 className={styles.grid}
-                x1={PAD.left}
-                x2={PAD.left + plotWidth}
+                x1={left}
+                x2={left + plotWidth}
                 y1={py(tick)}
                 y2={py(tick)}
               />
               <text
                 className={styles.tick}
-                x={PAD.left - 8}
+                x={left - 8}
                 y={py(tick)}
                 textAnchor="end"
                 dominantBaseline="middle"
@@ -106,7 +132,7 @@ export function Scatter({
             </g>
           ))}
 
-          {x.ticks.map((tick) => (
+          {xPixels.ticks.map((tick) => (
             <text
               key={`x${tick}`}
               className={styles.tick}
@@ -118,7 +144,7 @@ export function Scatter({
             </text>
           ))}
 
-          {bands.map((band) => (
+          {shown.map((band) => (
             <g key={band.label}>
               <line
                 className={styles.band}
@@ -140,18 +166,13 @@ export function Scatter({
 
           <line
             className={styles.axis}
-            x1={PAD.left}
-            x2={PAD.left + plotWidth}
+            x1={left}
+            x2={left + plotWidth}
             y1={PAD.top + plotHeight}
             y2={PAD.top + plotHeight}
           />
 
-          <text
-            className={styles.axisTitle}
-            x={PAD.left + plotWidth}
-            y={height - 4}
-            textAnchor="end"
-          >
+          <text className={styles.axisTitle} x={left + plotWidth} y={height - 4} textAnchor="end">
             {xLabel} →
           </text>
 
@@ -164,14 +185,12 @@ export function Scatter({
                 r={hover === point.key ? 7 : 5}
                 fill={`var(${point.color})`}
               />
-              <text
-                className={styles.pointLabel}
-                x={px(point.x) + 10}
+              <PointLabel
+                anchor={labelSide(px(point.x), py(point.y))}
+                x={px(point.x)}
                 y={py(point.y)}
-                dominantBaseline="middle"
-              >
-                {point.label}
-              </text>
+                label={point.label}
+              />
               <circle
                 className={styles.hit}
                 cx={px(point.x)}
@@ -213,5 +232,29 @@ export function Scatter({
         </div>
       )}
     </div>
+  );
+}
+
+function PointLabel({
+  anchor,
+  x,
+  y,
+  label,
+}: {
+  anchor: 'start' | 'end';
+  x: number;
+  y: number;
+  label: string;
+}) {
+  return (
+    <text
+      className={styles.pointLabel}
+      x={anchor === 'start' ? x + 10 : x - 10}
+      y={y}
+      textAnchor={anchor}
+      dominantBaseline="middle"
+    >
+      {label}
+    </text>
   );
 }

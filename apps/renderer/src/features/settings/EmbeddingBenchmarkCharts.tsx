@@ -50,8 +50,19 @@ export function EmbeddingBenchmarkCharts({ latest, history }: EmbeddingBenchmark
   const [tier, setTier] = useState('');
   const activeTier = tiers.includes(tier) ? tier : (tiers.at(-1) ?? '');
 
+  /*
+   * Long-text bars are a few pixels tall beside short-text ones - 12 txt/s against 147 - so
+   * the comparison this chart exists for is invisible at true scale. Normalising each model
+   * against its own short-text figure turns "how fast" into "how much did it keep", which
+   * is the question, and makes the drop comparable across models of different speeds.
+   */
+  const [normalise, setNormalise] = useState(false);
+
   const advice = useMemo(() => recommendEmbedding(latest), [latest]);
-  const comparison = useMemo(() => buildTierComparison(latest, metric), [latest, metric]);
+  const comparison = useMemo(
+    () => buildTierComparison(latest, metric, normalise),
+    [latest, metric, normalise],
+  );
   const trend = useMemo(
     () => buildEmbeddingTrend(shown, metric, activeTier),
     [shown, metric, activeTier],
@@ -116,19 +127,38 @@ export function EmbeddingBenchmarkCharts({ latest, history }: EmbeddingBenchmark
 
       <figure className={styles.chartFigure}>
         <figcaption className={styles.chartTitle}>
-          {metric.label} by model and text length, this run
+          <span>{metric.label} by model and text length, this run</span>
+          <span className={styles.chartTabs} role="group" aria-label="Scale">
+            <button
+              type="button"
+              className={normalise ? styles.chartTab : styles.chartTabOn}
+              aria-pressed={!normalise}
+              onClick={() => setNormalise(false)}
+            >
+              measured
+            </button>
+            <button
+              type="button"
+              className={normalise ? styles.chartTabOn : styles.chartTab}
+              aria-pressed={normalise}
+              onClick={() => setNormalise(true)}
+            >
+              vs short text
+            </button>
+          </span>
         </figcaption>
         {comparison.categories.length > 0 ? (
           <>
             <GroupedColumns
               categories={comparison.categories}
               series={comparison.series}
-              format={metric.format}
+              format={normalise ? (value) => `${value.toFixed(0)}%` : metric.format}
               caption={metric.label}
             />
             <p className={styles.chartFootnote}>
-              A model that leads on short text and falls behind on long is the wrong choice for a
-              manual — the gap between its columns is the thing to read here, not their height.
+              {normalise
+                ? 'Each model against its own short-text speed, so the drop is comparable across models rather than hidden by how fast they start.'
+                : 'A model that leads on short text and falls behind on long is the wrong choice for a manual. Long-text bars can be a few pixels tall beside short-text ones — switch to “vs short text” to see the drop.'}
             </p>
           </>
         ) : (

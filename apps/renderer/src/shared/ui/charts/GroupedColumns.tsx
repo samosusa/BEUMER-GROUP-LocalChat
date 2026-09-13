@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { MAX_COLUMN_WIDTH, SURFACE_GAP, bandScale, columnPath, linearScale } from './scale';
+import {
+  MAX_COLUMN_WIDTH,
+  SURFACE_GAP,
+  bandScale,
+  columnPath,
+  gutterFor,
+  linearScale,
+} from './scale';
 import { useElementWidth } from './useElementWidth';
 import styles from './Chart.module.css';
 
@@ -22,6 +29,7 @@ interface GroupedColumnsProps {
   height?: number;
 }
 
+/** `left` is a floor; the real gutter is measured from the widest tick label. */
 const PAD = { top: 8, right: 8, bottom: 28, left: 46 };
 
 /**
@@ -40,13 +48,14 @@ export function GroupedColumns({
   const { ref, width } = useElementWidth<HTMLDivElement>();
   const [hover, setHover] = useState<{ index: number; x: number; y: number } | null>(null);
 
-  const plotWidth = Math.max(0, width - PAD.left - PAD.right);
   const plotHeight = height - PAD.top - PAD.bottom;
 
   const measured = series.flatMap((entry) =>
     entry.values.filter((value): value is number => value !== null),
   );
   const y = linearScale(measured, plotHeight);
+  const left = gutterFor(y.ticks.map(format), PAD.left);
+  const plotWidth = Math.max(0, width - left - PAD.right);
   const band = bandScale(categories.length, plotWidth);
 
   const perColumn = series.length > 0 ? band.inner / series.length : 0;
@@ -66,14 +75,14 @@ export function GroupedColumns({
             <g key={tick}>
               <line
                 className={styles.grid}
-                x1={PAD.left}
-                x2={PAD.left + plotWidth}
+                x1={left}
+                x2={left + plotWidth}
                 y1={PAD.top + plotHeight - y(tick)}
                 y2={PAD.top + plotHeight - y(tick)}
               />
               <text
                 className={styles.tick}
-                x={PAD.left - 8}
+                x={left - 8}
                 y={PAD.top + plotHeight - y(tick)}
                 textAnchor="end"
                 dominantBaseline="middle"
@@ -85,8 +94,8 @@ export function GroupedColumns({
 
           <line
             className={styles.axis}
-            x1={PAD.left}
-            x2={PAD.left + plotWidth}
+            x1={left}
+            x2={left + plotWidth}
             y1={PAD.top + plotHeight}
             y2={PAD.top + plotHeight}
           />
@@ -98,7 +107,7 @@ export function GroupedColumns({
                 if (value === null || value === undefined) return null;
                 const barHeight = y(value);
                 const x =
-                  PAD.left +
+                  left +
                   band.start(index) +
                   seriesIndex * perColumn +
                   (perColumn - columnWidth) / 2;
@@ -113,7 +122,7 @@ export function GroupedColumns({
 
               <text
                 className={styles.category}
-                x={PAD.left + band.centre(index)}
+                x={left + band.centre(index)}
                 y={height - 8}
                 textAnchor="middle"
               >
@@ -123,13 +132,11 @@ export function GroupedColumns({
               {/* Hit target spans the whole slot: columns are thin and hard to hover. */}
               <rect
                 className={styles.hit}
-                x={PAD.left + index * band.slot}
+                x={left + index * band.slot}
                 y={PAD.top}
                 width={band.slot}
                 height={plotHeight}
-                onMouseEnter={() =>
-                  setHover({ index, x: PAD.left + band.centre(index), y: PAD.top })
-                }
+                onMouseEnter={() => setHover({ index, x: left + band.centre(index), y: PAD.top })}
                 onMouseLeave={() => setHover(null)}
               />
             </g>

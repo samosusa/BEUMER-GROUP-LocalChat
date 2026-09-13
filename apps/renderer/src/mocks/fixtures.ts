@@ -724,20 +724,25 @@ export const EMBEDDING_MODELS: EmbeddingModel[] = [
 ];
 
 /**
- * How much slower model `index` is than the baseline on a given text tier.
+ * Per-model tier profiles, rather than one model scaled by a constant.
  *
- * Deterministic, not random: a mock whose numbers move on every reload makes it impossible
- * to tell a rendering bug from noise. Model 0 is a large, accurate model that suffers badly
- * on long text; model 2 is small and stays flat. That contrast is the finding the tier
- * chart exists to show.
+ * An earlier version multiplied a shared 125/24/10 baseline per model, which meant every
+ * model retained the same ~6% of its short-text speed on long text and the chart had no
+ * story in it. Real embedding models differ in exactly that: a small one with a short
+ * context degrades far less than a large one whose attention cost grows with length.
+ *
+ * So MiniLM is deliberately NOT the fastest on short text and IS the one that holds up -
+ * which is the finding this benchmark exists to surface, and the case where picking by the
+ * headline number gets you the wrong model for a 200-page manual.
  */
-function embeddingCost(index: number, tier: 'short' | 'medium' | 'long'): number {
-  const base = [1.9, 1.25, 0.85][index % 3] as number;
-  const longPenalty = [1.55, 1.1, 0.95][index % 3] as number;
-  if (tier === 'short') return base;
-  if (tier === 'medium') return base * ((1 + longPenalty) / 2);
-  return base * longPenalty;
-}
+const EMBEDDING_PROFILES: Record<string, { short: number; medium: number; long: number }> = {
+  'nomic-ai/nomic-embed-text-v1.5': { short: 66, medium: 10, long: 3.4 },
+  'BAAI/bge-small-en-v1.5': { short: 100, medium: 18.3, long: 7.3 },
+  'intfloat/e5-base-v2': { short: 147, medium: 29, long: 12.4 },
+  'sentence-transformers/all-MiniLM-L6-v2': { short: 90, medium: 62, long: 40 },
+};
+
+const TEXT_TIERS = ['short', 'medium', 'long'] as const;
 
 /** A finished embedding benchmark: every registered model across the three text tiers. */
 export const EMBEDDING_BENCHMARK: EmbeddingBenchmarkRun = {
@@ -747,32 +752,24 @@ export const EMBEDDING_BENCHMARK: EmbeddingBenchmarkRun = {
   current: null,
   startedAt: daysAgo(2),
   finishedAt: daysAgo(2),
-  /*
-   * Throughput is scaled per model rather than identical across them, and the penalty on
-   * long text differs by model on purpose: the whole point of measuring three tiers is that
-   * a model can be fastest on short text and worst on long, which is the wrong choice for a
-   * 200-page manual. Identical rows would draw three flat bars and hide exactly that.
-   */
-  rows: EMBEDDING_MODELS.flatMap((model, index) =>
-    (
-      [
-        { label: 'short', count: 5, embedMs: 40, throughput: 125 },
-        { label: 'medium', count: 5, embedMs: 210, throughput: 24 },
-        { label: 'long', count: 5, embedMs: 480, throughput: 10 },
-      ] as const
-    ).map((tier) => ({
-      model: model.name,
-      dimension: model.dimension,
-      status: 'ok' as const,
-      detail: null,
-      loadMs: 900 + model.dimension,
-      textLabel: tier.label,
-      textCount: tier.count,
-      embedMs: Math.round(tier.embedMs * embeddingCost(index, tier.label)),
-      textsPerSecond: Math.round((tier.throughput / embeddingCost(index, tier.label)) * 10) / 10,
-      peakMemoryBytes: 350_000_000 + model.dimension * 500_000,
-      ranAt: daysAgo(2),
-    })),
+  rows: EMBEDDING_MODELS.flatMap((model) =>
+    TEXT_TIERS.map((tier) => {
+      const profile = EMBEDDING_PROFILES[model.name] ?? { short: 80, medium: 20, long: 8 };
+      const throughput = profile[tier];
+      return {
+        model: model.name,
+        dimension: model.dimension,
+        status: 'ok' as const,
+        detail: null,
+        loadMs: 900 + model.dimension,
+        textLabel: tier,
+        textCount: 5,
+        embedMs: Math.round((5 / throughput) * 1000),
+        textsPerSecond: throughput,
+        peakMemoryBytes: 350_000_000 + model.dimension * 500_000,
+        ranAt: daysAgo(2),
+      };
+    }),
   ),
 };
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { linePath, linearScale } from './scale';
+import { gutterFor, linePath, linearScale } from './scale';
 import { useElementWidth } from './useElementWidth';
 import styles from './Chart.module.css';
 
@@ -25,6 +25,7 @@ interface TimeSeriesProps {
   height?: number;
 }
 
+/** `left` is a floor; the real gutter is measured from the widest tick label. */
 const PAD = { top: 10, right: 12, bottom: 28, left: 46 };
 
 /**
@@ -48,15 +49,16 @@ export function TimeSeries({ lines, format, formatTime, caption, height = 220 }:
     (a, b) => a - b,
   );
 
-  const plotWidth = Math.max(0, width - PAD.left - PAD.right);
   const plotHeight = height - PAD.top - PAD.bottom;
   const y = linearScale(
     visible.flatMap((line) => line.points.map((point) => point.value)),
     plotHeight,
   );
+  const left = gutterFor(y.ticks.map(format), PAD.left);
+  const plotWidth = Math.max(0, width - left - PAD.right);
   const step = stamps.length > 1 ? plotWidth / (stamps.length - 1) : 0;
   const xFor = (at: number) =>
-    PAD.left + (stamps.length > 1 ? stamps.indexOf(at) * step : plotWidth / 2);
+    left + (stamps.length > 1 ? stamps.indexOf(at) * step : plotWidth / 2);
   const yFor = (value: number) => PAD.top + plotHeight - y(value);
 
   const toggle = (key: string) =>
@@ -84,14 +86,14 @@ export function TimeSeries({ lines, format, formatTime, caption, height = 220 }:
             <g key={tick}>
               <line
                 className={styles.grid}
-                x1={PAD.left}
-                x2={PAD.left + plotWidth}
+                x1={left}
+                x2={left + plotWidth}
                 y1={yFor(tick)}
                 y2={yFor(tick)}
               />
               <text
                 className={styles.tick}
-                x={PAD.left - 8}
+                x={left - 8}
                 y={yFor(tick)}
                 textAnchor="end"
                 dominantBaseline="middle"
@@ -103,8 +105,8 @@ export function TimeSeries({ lines, format, formatTime, caption, height = 220 }:
 
           <line
             className={styles.axis}
-            x1={PAD.left}
-            x2={PAD.left + plotWidth}
+            x1={left}
+            x2={left + plotWidth}
             y1={PAD.top + plotHeight}
             y2={PAD.top + plotHeight}
           />

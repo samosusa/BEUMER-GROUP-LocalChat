@@ -155,3 +155,68 @@ describe('recommendEmbedding', () => {
     expect(recommendEmbedding(single).steadiest).toBeNull();
   });
 });
+
+describe('buildTierComparison, normalised', () => {
+  const run2 = run('2026-09-01T10:00:00.000Z', [
+    row({ model: 'fast', textLabel: 'short', textsPerSecond: 200 }),
+    row({ model: 'fast', textLabel: 'long', textsPerSecond: 20 }),
+    row({ model: 'steady', textLabel: 'short', textsPerSecond: 100 }),
+    row({ model: 'steady', textLabel: 'long', textsPerSecond: 70 }),
+  ]);
+
+  /**
+   * At true scale a 20 txt/s bar beside a 200 txt/s one is a few pixels, so the comparison
+   * the chart exists for is invisible. Against its own short-text figure, each model's drop
+   * becomes readable and comparable with the others.
+   */
+  it('expresses every tier as a percentage of the model own short-text figure', () => {
+    const built = buildTierComparison(run2, THROUGHPUT, true);
+    const short = built.series.find((entry) => entry.label === 'short')!;
+    const long = built.series.find((entry) => entry.label === 'long')!;
+
+    expect(short.values).toEqual([100, 100]);
+    expect(long.values[built.categories.indexOf('fast')]).toBeCloseTo(10);
+    expect(long.values[built.categories.indexOf('steady')]).toBeCloseTo(70);
+  });
+
+  it('leaves the measured values alone by default', () => {
+    const built = buildTierComparison(run2, THROUGHPUT);
+    expect(built.series.find((entry) => entry.label === 'short')!.values).toEqual([200, 100]);
+  });
+});
+
+describe('recommendEmbedding, wording guards', () => {
+  /**
+   * "Holds up best on long documents (keeps 8%)" is arithmetically true and reads as
+   * nonsense. When even the winner collapses, the screen has to say so instead.
+   */
+  it('flags that everything collapsed when even the best retention is poor', () => {
+    const collapsed = run('2026-09-01T10:00:00.000Z', [
+      row({ model: 'a', textLabel: 'short', textsPerSecond: 100 }),
+      row({ model: 'a', textLabel: 'long', textsPerSecond: 8 }),
+      row({ model: 'b', textLabel: 'short', textsPerSecond: 100 }),
+      row({ model: 'b', textLabel: 'long', textsPerSecond: 5 }),
+    ]);
+    const advice = recommendEmbedding(collapsed);
+    expect(advice.steadiest?.model).toBe('a');
+    expect(advice.allCollapse).toBe(true);
+  });
+
+  it('does not flag a collapse when a model genuinely holds up', () => {
+    const holds = run('2026-09-01T10:00:00.000Z', [
+      row({ model: 'a', textLabel: 'short', textsPerSecond: 100 }),
+      row({ model: 'a', textLabel: 'long', textsPerSecond: 45 }),
+    ]);
+    expect(recommendEmbedding(holds).allCollapse).toBe(false);
+  });
+
+  it('notices when one model is both the fastest and the steadiest', () => {
+    const one = run('2026-09-01T10:00:00.000Z', [
+      row({ model: 'a', textLabel: 'short', textsPerSecond: 100 }),
+      row({ model: 'a', textLabel: 'long', textsPerSecond: 60 }),
+      row({ model: 'b', textLabel: 'short', textsPerSecond: 50 }),
+      row({ model: 'b', textLabel: 'long', textsPerSecond: 10 }),
+    ]);
+    expect(recommendEmbedding(one).sameModel).toBe(true);
+  });
+});

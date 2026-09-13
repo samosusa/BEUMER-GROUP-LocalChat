@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bandScale, columnPath, linearScale, linePath } from './scale';
+import { bandScale, columnPath, gutterFor, linearScale, linePath } from './scale';
 
 describe('linearScale', () => {
   it('rounds the axis maximum to a number a person would have picked', () => {
@@ -94,5 +94,25 @@ describe('linePath', () => {
 
   it('is empty for no points', () => {
     expect(linePath([])).toBe('');
+  });
+});
+
+describe('gutterFor', () => {
+  /**
+   * The bug this exists for: a hardcoded 46px gutter fitted "20 tok/s" and clipped
+   * "150 txt/s" to "50 txt/s" - a label that has lost its leading digit is worse than no
+   * label, because it is quietly wrong rather than obviously missing.
+   */
+  it('widens for a longer label', () => {
+    expect(gutterFor(['150 txt/s'])).toBeGreaterThan(gutterFor(['20 tok/s']));
+  });
+
+  it('never goes below the floor', () => {
+    expect(gutterFor(['1'])).toBe(46);
+    expect(gutterFor([])).toBe(46);
+  });
+
+  it('sizes on the widest label, not the last one', () => {
+    expect(gutterFor(['1 txt/s', '150 txt/s', '5 txt/s'])).toBe(gutterFor(['150 txt/s']));
   });
 });

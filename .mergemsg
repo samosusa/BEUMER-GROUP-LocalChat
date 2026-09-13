@@ -1,0 +1,34 @@
+LCHAT-42 Merge main - embedding models, RAG eval and the benchmark charts
+
+Mostly additive on both sides: main's embedding models, re-embedding, embedding
+benchmark and RAG evaluation alongside this branch's benchmark charts and turn
+timing. Query keys, service functions, route table and stylesheets keep both.
+
+Three resolutions that were not just "keep both":
+
+localFiles.ts takes main's version - folder walking, a skipped[] list and the
+drop caps are all better than what was here - EXCEPT that main's pickInBrowser
+sets input.accept, which is the bug this branch removed. macOS resolves each
+extension in accept to a Uniform Type Identifier and .md has none registered, so
+the dialog lists markdown files and then refuses to let you select them. The
+folder picker keeps its accept: there you choose a directory, not a file, and
+isAcceptedFile filters the walk afterwards.
+
+ChatPage's ingestNote is deleted in favour of main's notification stack. Both
+reported the same rejections, so both would have fired; main's is better placed,
+raised by the mutation itself so it still reports when you have navigated away.
+main's addDocuments also handles skipped files and passes alsoGeneral from the
+chat's scope, neither of which this branch's version did.
+
+ChatPage's own rejection test moves onto the notification stack rather than
+being deleted: a drop onto the transcript is a different entry point from the
+Add files button GeneralDocumentsPage covers, and it is the one reached for
+mid-conversation.
+
+Settings.module.css needed two closing braces put back by hand. .chartControls
+and .evalSummaryRow happen to end with the same two declarations, as do
+.chartEmpty and .evalStat's neighbours, so git treated the shared trailer as one
+line and closed only whichever rule came last.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01M9VDJuzJgGsJ8YaaEBtjDJ

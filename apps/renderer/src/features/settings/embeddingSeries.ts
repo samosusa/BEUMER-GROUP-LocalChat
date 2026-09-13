@@ -85,10 +85,12 @@ export function tiersMeasured(runs: EmbeddingBenchmarkRun[]): string[] {
 export function buildTierComparison(
   run: EmbeddingBenchmarkRun,
   metric: EmbeddingMetric,
+  normalise = false,
 ): { categories: string[]; series: ComparisonSeries[] } {
   const ok = run.rows.filter((row) => row.status === 'ok' && metric.of(row) !== null);
   const categories = [...new Set(ok.map((row) => row.model))];
   const tiers = tiersMeasured([run]);
+  const shortest = tiers[0];
 
   const series = tiers.map((tier, index) => ({
     key: tier,
@@ -96,7 +98,15 @@ export function buildTierComparison(
     color: SERIES_COLORS[index % SERIES_COLORS.length] as string,
     values: categories.map((model) => {
       const row = ok.find((candidate) => candidate.model === model && candidate.textLabel === tier);
-      return row ? metric.of(row) : null;
+      const value = row ? metric.of(row) : null;
+      if (!normalise || value === null) return value;
+
+      const base = ok.find(
+        (candidate) => candidate.model === model && candidate.textLabel === shortest,
+      );
+      const baseValue = base ? metric.of(base) : null;
+      if (baseValue === null || baseValue === 0) return null;
+      return (value / baseValue) * 100;
     }),
   }));
 
@@ -148,7 +158,20 @@ export interface EmbeddingRecommendation {
   fastest: EmbeddingBenchmarkRow | null;
   /** The model whose throughput falls off least between the shortest and longest tier. */
   steadiest: { model: string; retained: number } | null;
+  /**
+   * True when even the best model keeps little of its speed on long text.
+   *
+   * Without this the screen says "holds up best on long documents" beside a figure of 8%,
+   * which is arithmetically true and reads as nonsense. When everything collapses, the
+   * honest sentence is that everything collapses.
+   */
+  allCollapse: boolean;
+  /** One model is both the fastest and the steadiest, so say it once. */
+  sameModel: boolean;
 }
+
+/** Below this, "holds up best" is the wrong words for the number beside it. */
+const RETENTION_FLOOR = 0.25;
 
 /**
  * What to pick, in words.
@@ -182,5 +205,10 @@ export function recommendEmbedding(run: EmbeddingBenchmarkRun): EmbeddingRecomme
     }
   }
 
-  return { fastest, steadiest };
+  return {
+    fastest,
+    steadiest,
+    allCollapse: steadiest !== null && steadiest.retained < RETENTION_FLOOR,
+    sameModel: fastest !== null && steadiest !== null && fastest.model === steadiest.model,
+  };
 }

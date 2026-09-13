@@ -105,3 +105,16 @@ export function columnPath(
 export function linePath(points: Array<{ x: number; y: number }>): string {
   return points.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x},${point.y}`).join(' ');
 }
+
+/**
+ * How wide the y-axis gutter has to be for its widest label.
+ *
+ * Was a hardcoded 46px, which fitted "20 tok/s" and clipped "150 txt/s" the moment a
+ * three-digit measure appeared - the label lost its leading digit and read as "50 txt/s",
+ * which is worse than no label at all. Ticks are set in 10px mono, so a character is
+ * ~6.1px; the constant is measured from that face rather than guessed.
+ */
+export function gutterFor(labels: string[], min = 46): number {
+  const widest = labels.reduce((most, label) => Math.max(most, label.length), 0);
+  return Math.max(min, Math.ceil(widest * 6.1) + 14);
+}
