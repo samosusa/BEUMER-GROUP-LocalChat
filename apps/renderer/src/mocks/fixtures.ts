@@ -86,6 +86,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-commissioning',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'LS-4000E Commissioning Manual.pdf',
     title: 'LS-4000E Commissioning Manual',
     format: 'pdf',
@@ -106,6 +107,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-sortation',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'Induction & Sortation Control Logic.pdf',
     title: 'Induction & Sortation Control Logic',
     format: 'pdf',
@@ -126,6 +128,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-chute-table',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'Chute Allocation Table.docx',
     title: 'Chute Allocation Table',
     format: 'docx',
@@ -146,6 +149,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-chute-layout',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'Chute layout rev C.png',
     title: 'Chute layout rev C',
     format: 'image',
@@ -166,6 +170,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-sat-notes',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'Site Acceptance Notes.md',
     title: 'Site Acceptance Notes',
     format: 'markdown',
@@ -186,6 +191,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-sat-protocol',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'Safety Acceptance Test Protocol.pdf',
     title: 'Safety Acceptance Test Protocol',
     format: 'pdf',
@@ -206,6 +212,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-asbuilt',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'As-built E-plan (scanned).pdf',
     title: 'As-built E-plan (scanned)',
     format: 'pdf',
@@ -226,6 +233,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-mech-install',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'Mechanical Installation Guide.pdf',
     title: 'Mechanical Installation Guide',
     format: 'pdf',
@@ -246,6 +254,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-conveyor-maint',
     projectId: 'prj-handover',
+    alsoGeneral: false,
     filename: 'Conveyor CB-200 Maintenance Manual.pdf',
     title: 'Conveyor CB-200 Maintenance Manual',
     format: 'pdf',
@@ -266,6 +275,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-estop-standard',
     projectId: null,
+    alsoGeneral: false,
     filename: 'Emergency Stop Circuits — Group Standard.pdf',
     title: 'Emergency Stop Circuits — Group Standard',
     format: 'pdf',
@@ -286,6 +296,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-lubrication',
     projectId: null,
+    alsoGeneral: false,
     filename: 'Lubrication Schedules — Palletising.pdf',
     title: 'Lubrication Schedules — Palletising',
     format: 'pdf',

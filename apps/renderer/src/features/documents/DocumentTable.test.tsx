@@ -8,6 +8,7 @@ function makeDocument(overrides: Partial<Document> = {}): Document {
   return {
     id: 'doc-1',
     projectId: null,
+    alsoGeneral: false,
     filename: 'commissioning-manual.pdf',
     title: 'Commissioning Manual',
     format: 'pdf',

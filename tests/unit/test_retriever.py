@@ -109,6 +109,40 @@ def test_retrieve_without_a_project_excludes_project_scoped_documents(tmp_path, 
     assert [result.chunk.text for result in results] == ["general text"]
 
 
+def test_retrieve_without_a_project_includes_also_general_documents(tmp_path, monkeypatch):
+    """A document tagged also_general must appear in a general-scoped query even though it
+    belongs to a project, while an ordinary project-scoped document still must not."""
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine)
+    with session_factory() as db:
+        also_general = Document(
+            title="Also general", path="also.txt", checksum="also", version=1,
+            project_id=1, also_general=True, uploaded_at=datetime.utcnow(),
+        )
+        scoped = Document(
+            title="Scoped", path="scoped.txt", checksum="scoped", version=1,
+            project_id=1, uploaded_at=datetime.utcnow(),
+        )
+        db.add_all([also_general, scoped])
+        db.flush()
+        db.add_all([
+            Chunk(doc_id=also_general.id, chunk_index=0, text="also-general text", created_at=datetime.utcnow()),
+            Chunk(doc_id=scoped.id, chunk_index=0, text="scoped text", created_at=datetime.utcnow()),
+        ])
+        db.commit()
+
+        for document in (also_general, scoped):
+            index = faiss.IndexFlatIP(2)
+            index.add(np.asarray([[1.0, 0.0]], dtype="float32"))
+            faiss.write_index(index, str(tmp_path / f"{document.id}.index"))
+        monkeypatch.setattr("src.retriever.embed_query", lambda texts: [[1.0, 0.0]])
+
+        results = retrieve("question", db, top_k=5, vector_dir=tmp_path)
+
+    assert [result.chunk.text for result in results] == ["also-general text"]
+
+
 def test_retrieve_with_include_general_unions_project_and_general_documents(tmp_path, monkeypatch):
     """'Both' mode: a project-scoped query with include_general=True must also surface
     project-less documents, without leaking in other projects' documents."""

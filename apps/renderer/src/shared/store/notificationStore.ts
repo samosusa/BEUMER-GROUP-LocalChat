@@ -24,12 +24,18 @@ interface NotificationState {
   dismiss(id: string): void;
 }
 
-export const useNotificationStore = create<NotificationState>()((set) => ({
+/** How long a notification stays up before it clears itself, absent a manual dismiss. */
+const AUTO_DISMISS_MS = 5_000;
+
+export const useNotificationStore = create<NotificationState>()((set, get) => ({
   notifications: [],
-  push: (notification) =>
-    set((state) => ({
-      notifications: [...state.notifications, { ...notification, id: crypto.randomUUID() }],
-    })),
+  push: (notification) => {
+    const id = crypto.randomUUID();
+    set((state) => ({ notifications: [...state.notifications, { ...notification, id }] }));
+    // Dismissing an id no longer in the list is a no-op, so this never conflicts with the
+    // engineer having already closed it by hand.
+    setTimeout(() => get().dismiss(id), AUTO_DISMISS_MS);
+  },
   dismiss: (id) =>
     set((state) => ({
       notifications: state.notifications.filter((notification) => notification.id !== id),

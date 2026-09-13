@@ -44,6 +44,9 @@ export function nextId(prefix: string): string {
 }
 
 export function documentsFor(projectId: string | null): Document[] {
+  if (projectId === null) {
+    return store.documents.filter((doc) => doc.projectId === null || doc.alsoGeneral);
+  }
   return store.documents.filter((doc) => doc.projectId === projectId);
 }
 

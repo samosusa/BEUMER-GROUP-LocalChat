@@ -1,6 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
+import { routes } from '@localchat/contracts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { server } from '@/mocks/server';
@@ -89,6 +91,37 @@ describe('GeneralDocumentsPage', () => {
     // Both surfaces read the same mutation result, so the toast/dismiss action from the
     // notification stack is present alongside the page's own inline callout.
     expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument();
+
+    clickSpy.mockRestore();
+  });
+
+  it('reports a network failure through the notification stack instead of doing nothing', async () => {
+    // The local service being unreachable (not running yet, or the request simply failing)
+    // used to leave "Add files" looking like it had done nothing at all: `mutateAsync`
+    // rejected and nothing downstream was listening for that rejection.
+    server.use(http.post(`*${routes.ingest()}`, () => HttpResponse.error()));
+    const clickSpy = stubFilePicker(new File(['plain text'], 'manual.txt', { type: 'text/plain' }));
+    const { user } = renderPage(<NotificationStack />);
+
+    await user.click(screen.getByRole('button', { name: 'Add files' }));
+
+    expect(
+      await screen.findByText('Could not add documents', undefined, { timeout: 3000 }),
+    ).toBeInTheDocument();
+
+    clickSpy.mockRestore();
+  });
+
+  it('reports an indexed file as ready to use with its general scope', async () => {
+    const clickSpy = stubFilePicker(new File(['plain text'], 'manual.txt', { type: 'text/plain' }));
+    const { user } = renderPage(<NotificationStack />);
+
+    await user.click(screen.getByRole('button', { name: 'Add files' }));
+
+    expect(
+      await screen.findByText('Document indexed and ready to use', undefined, { timeout: 3000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('manual.txt — General')).toBeInTheDocument();
 
     clickSpy.mockRestore();
   });

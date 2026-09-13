@@ -208,11 +208,13 @@ export async function startIngestion(
   file: File,
   title: string,
   projectId: string | null,
+  alsoGeneral = false,
 ): Promise<string> {
   const form = new FormData();
   form.set('file', file, file.name);
   form.set('title', title);
   if (projectId !== null) form.set('project_id', String(toServiceId(projectId, 'project')));
+  if (alsoGeneral) form.set('also_general', 'true');
   const dto = await request('/ingest', {
     method: 'POST',
     body: form,

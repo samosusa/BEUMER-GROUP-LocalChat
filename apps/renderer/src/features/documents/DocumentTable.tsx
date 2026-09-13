@@ -180,5 +180,7 @@ function describeDocument(document: Document): string {
   if (document.revision) parts.push(document.revision);
   if (document.sizeBytes > 0) parts.push(formatBytes(document.sizeBytes));
   if (parts.length === 0) parts.push(document.indexedAt ? 'indexed' : 'not indexed yet');
+  // Meaningless (and always false) once the document is already general on its own.
+  if (document.projectId !== null && document.alsoGeneral) parts.push('also in general');
   return parts.join(' · ');
 }

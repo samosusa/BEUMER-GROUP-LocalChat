@@ -79,6 +79,8 @@ export const IngestDocumentsRequest = z.object({
   projectId: z.string().nullable(),
   /** Absolute paths on the engineer's machine, resolved by the desktop shell. */
   paths: z.array(z.string().min(1)).min(1),
+  /** Also surface these documents in the general corpus. Meaningless when projectId is null. */
+  alsoGeneral: z.boolean().default(false),
 });
 export type IngestDocumentsRequest = z.infer<typeof IngestDocumentsRequest>;
 

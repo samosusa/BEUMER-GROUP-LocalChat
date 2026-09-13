@@ -25,6 +25,7 @@ const document = (over: Partial<ServiceDocument> = {}): ServiceDocument => ({
   checksum: 'abc123',
   version: 1,
   project_id: null,
+  also_general: false,
   uploaded_at: '2026-08-30T09:15:00',
   indexed_at: '2026-08-30T09:17:30',
   complexity_tier: null,

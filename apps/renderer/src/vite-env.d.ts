@@ -30,9 +30,17 @@ interface LocalChatBridge {
   pickFolder(): Promise<string | null>;
   /**
    * Documents found inside a folder `pickFolder` previously returned, ready to read via
-   * `readDocument`. Refused by the main process for any other path.
+   * `readDocument`. Refused by the main process for any other path. `skipped` names whatever
+   * the folder contained that isn't a format the pipeline reads.
    */
-  listFolderDocuments(folderPath: string): Promise<string[]>;
+  listFolderDocuments(folderPath: string): Promise<{ paths: string[]; skipped: string[] }>;
+  /**
+   * Resolves paths from a native drag-and-drop onto the window: expands any that are
+   * folders and validates every one, ready to read via `readDocument` like any other pick.
+   * `skipped` names anything dropped, or found inside a dropped folder, that isn't a format
+   * the pipeline reads.
+   */
+  resolveDroppedPaths(paths: string[]): Promise<{ paths: string[]; skipped: string[] }>;
   /** Reveals a source document in Explorer/Finder. */
   revealInFolder(path: string): Promise<void>;
   window: {

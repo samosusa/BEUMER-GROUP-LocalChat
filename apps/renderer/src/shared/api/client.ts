@@ -149,7 +149,12 @@ export const api = {
       });
     }
     const all = await service.listDocuments(signal);
-    const documents = projectId === null ? all : all.filter((doc) => doc.projectId === projectId);
+    // General (projectId === null) also draws in project-scoped documents explicitly opted
+    // into general visibility; a project's own listing stays exact-match regardless of that
+    // flag, since the document still belongs to it.
+    const documents = all.filter(
+      (doc) => doc.projectId === projectId || (projectId === null && doc.alsoGeneral),
+    );
     return { documents, stats: statsFromDocuments(documents.length) };
   },
 
@@ -165,6 +170,7 @@ export const api = {
     const body: IngestDocumentsRequest = {
       projectId: input.projectId,
       paths: input.paths?.length ? input.paths : (input.files ?? []).map((file) => file.name),
+      alsoGeneral: input.alsoGeneral ?? false,
     };
     if (body.paths.length === 0) return { accepted: [], rejected: [] };
     return request(routes.ingest(), { method: 'POST', body, schema: IngestDocumentsResponse });
@@ -381,6 +387,8 @@ export interface IngestInput {
   projectId: string | null;
   paths?: string[];
   files?: File[];
+  /** Also surface these documents in the general corpus. Meaningless when projectId is null. */
+  alsoGeneral?: boolean;
 }
 
 const INGEST_POLL_MS = 750;
@@ -402,7 +410,10 @@ async function ingestLive(input: IngestInput): Promise<IngestDocumentsResponse> 
 
   const start = async (label: string, file: File) => {
     const title = file.name.replace(/\.[^.]+$/, '');
-    jobs.push({ path: label, jobId: await service.startIngestion(file, title, input.projectId) });
+    jobs.push({
+      path: label,
+      jobId: await service.startIngestion(file, title, input.projectId, input.alsoGeneral ?? false),
+    });
   };
 
   // Files the host already handed over need no bridge at all.

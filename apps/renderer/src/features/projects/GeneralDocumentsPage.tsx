@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { IngestDocumentsResponse } from '@localchat/contracts';
 import {
   useDeleteAllGeneralDocuments,
@@ -10,8 +10,15 @@ import { Button } from '@/shared/ui/Button';
 import { Callout, Mono, SectionLabel } from '@/shared/ui/Indicators';
 import { DangerAction } from '@/shared/ui/DangerAction';
 import { PageHeader } from '@/shared/ui/PageHeader';
+import { DropOverlay } from '@/shared/ui/DropOverlay';
 import { DocumentTable } from '@/features/documents/DocumentTable';
-import { chooseDocuments, chooseFolderDocuments, hasDesktopBridge } from '@/shared/lib/localFiles';
+import {
+  chooseDocuments,
+  chooseFolderDocuments,
+  type ChosenDocuments,
+} from '@/shared/lib/localFiles';
+import { withUnprocessableConfirm } from '@/shared/lib/confirmUnprocessable';
+import { useDocumentDrop } from '@/shared/hooks/useDocumentDrop';
 import { LibraryNav } from './LibraryNav';
 import styles from './Projects.module.css';
 
@@ -29,41 +36,55 @@ export function GeneralDocumentsPage() {
   // faster, more detailed view for whoever is still looking at the table.
   const [rejected, setRejected] = useState<IngestDocumentsResponse['rejected']>([]);
 
+  const ingestChosen = useCallback(
+    async (chosen: ChosenDocuments) => {
+      if (chosen.paths.length === 0 && chosen.files.length === 0 && chosen.skipped.length === 0) {
+        return;
+      }
+      const confirmed = await withUnprocessableConfirm(chosen);
+      if (!confirmed || (confirmed.paths.length === 0 && confirmed.files.length === 0)) return;
+      setRejected([]);
+      // A failed request already reports itself through the notification stack (see
+      // useIngestDocuments' onError); swallowed here so it doesn't also surface as an
+      // unhandled rejection from this click handler.
+      const result = await ingest
+        .mutateAsync({ projectId: null, paths: confirmed.paths, files: confirmed.files })
+        .catch(() => null);
+      if (result) setRejected(result.rejected);
+    },
+    [ingest],
+  );
+
   async function addFiles() {
-    const chosen = await chooseDocuments();
-    if (chosen.paths.length === 0 && chosen.files.length === 0) return;
-    setRejected([]);
-    const result = await ingest.mutateAsync({
-      projectId: null,
-      paths: chosen.paths,
-      files: chosen.files,
-    });
-    setRejected(result.rejected);
+    await ingestChosen(await chooseDocuments());
   }
 
   async function addFolder() {
     const { documents } = await chooseFolderDocuments();
-    if (documents.paths.length === 0) return;
-    setRejected([]);
-    const result = await ingest.mutateAsync({ projectId: null, paths: documents.paths, files: [] });
-    setRejected(result.rejected);
+    await ingestChosen(documents);
   }
+
+  const drop = useDocumentDrop(ingestChosen);
 
   return (
     <div className={styles.page}>
       <LibraryNav />
 
-      <div className={styles.content}>
+      <div
+        className={styles.content}
+        onDragEnter={drop.onDragEnter}
+        onDragOver={drop.onDragOver}
+        onDragLeave={drop.onDragLeave}
+        onDrop={drop.onDrop}
+      >
         <PageHeader
           title="General documents"
           description="Company-wide documentation, searched by every chat not scoped to a single project."
           actions={
             <>
-              {hasDesktopBridge() && (
-                <Button variant="outline" icon="folder" onClick={addFolder}>
-                  Add folder
-                </Button>
-              )}
+              <Button variant="outline" icon="folder" onClick={addFolder}>
+                Add folder
+              </Button>
               <Button variant="accent" icon="plus" loading={ingest.isPending} onClick={addFiles}>
                 Add files
               </Button>
@@ -117,6 +138,13 @@ export function GeneralDocumentsPage() {
             onDelete={(document) => deleteDocument.mutate(document.id)}
           />
         </section>
+
+        {drop.active && (
+          <DropOverlay
+            title="Drop to add to general documents"
+            hint="PDF, DOCX, Markdown, TXT, PNG, JPG — files or folders"
+          />
+        )}
       </div>
     </div>
   );
