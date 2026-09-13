@@ -13,9 +13,13 @@ import {
   useEmbeddingBenchmark,
   useEmbeddingModels,
   useModels,
+  useProjects,
+  useRagEval,
+  useRagEvalDatasets,
   useReindexJob,
   useRunBenchmark,
   useRunEmbeddingBenchmark,
+  useRunRagEval,
   useSetActiveEmbeddingModel,
   useSetActiveModel,
   useSettings,
@@ -174,6 +178,7 @@ export function SettingsPage() {
             */}
             <BenchmarkCard />
             <EmbeddingBenchmarkCard />
+            <RagEvalCard />
           </div>
 
           <div className={styles.rail}>
@@ -781,6 +786,221 @@ function EmbeddingBenchmarkCard() {
 
       <Button variant="outline" size="sm" loading={running} onClick={start}>
         Run benchmark again
+      </Button>
+    </section>
+  );
+}
+
+const RAG_EVAL_DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
+
+function formatHitRate(rate: number | null): string {
+  return rate === null ? '—' : `${Math.round(rate * 100)}%`;
+}
+
+/**
+ * Unlike the two benchmarks above, this measures whether the system gets the *right answer*,
+ * not how fast it runs. It replays a hand-labeled question set — any file dropped under
+ * data/eval/ on the service, so testing a different corpus never means overwriting the one
+ * you already have — against whichever project's documents are currently ingested.
+ * Retrieval-hit is an objective check (did the right source show up in the citations), while
+ * the judge verdict comes from the same model that may have generated the answer being
+ * judged, so both the expected and actual answer are always shown for a human to read too.
+ */
+function RagEvalCard() {
+  const datasets = useRagEvalDatasets();
+  const projects = useProjects();
+  const evalRun = useRagEval();
+  const run = useRunRagEval();
+
+  const [projectId, setProjectId] = useState('');
+  const [datasetId, setDatasetId] = useState('');
+  const result = evalRun.data;
+  const running = result?.status === 'running' || run.isPending;
+
+  // Derived, not synced: defaults to the first dataset the service reports once that list
+  // has loaded, without needing an effect to keep it in step as that list arrives.
+  const selectedDatasetId = datasetId || (datasets.data ?? [])[0]?.id || '';
+  const selectedDataset = datasets.data?.find((dataset) => dataset.id === selectedDatasetId);
+
+  const start = () => {
+    if (!selectedDatasetId) return;
+    run.mutate({ projectId: projectId || null, datasetId: selectedDatasetId });
+  };
+
+  const picker = (
+    <div className={styles.benchPickerRow}>
+      <label className={styles.benchPicker}>
+        <span className={styles.benchPickerLabel}>Question set</span>
+        <select
+          className={styles.benchSelect}
+          value={selectedDatasetId}
+          disabled={running}
+          onChange={(event) => setDatasetId(event.target.value)}
+        >
+          {(datasets.data ?? []).map((dataset) => (
+            <option key={dataset.id} value={dataset.id}>
+              {dataset.id} ({dataset.totalQuestions} questions)
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className={styles.benchPicker}>
+        <span className={styles.benchPickerLabel}>Project</span>
+        <select
+          className={styles.benchSelect}
+          value={projectId}
+          disabled={running}
+          onChange={(event) => setProjectId(event.target.value)}
+        >
+          <option value="">General (no project)</option>
+          {(projects.data ?? []).map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+
+  const datasetHint = selectedDataset && (
+    <p className={styles.hint}>
+      {selectedDataset.totalQuestions} questions across {selectedDataset.documents.length} documents
+      ({selectedDataset.documents.map((doc) => doc.titleHint).join(', ')}). Ingest documents whose
+      titles contain those names into the chosen project before running, or the questions about them
+      will correctly come back as retrieval misses.
+    </p>
+  );
+
+  if (!result) {
+    return (
+      <section className={styles.card}>
+        <SectionLabel>RAG evaluation</SectionLabel>
+        <p className={styles.hint}>
+          Runs a labeled question set end to end — real retrieval and real generation — and scores
+          whether the right document was retrieved and whether the generated answer matches a
+          written reference answer.
+        </p>
+        {datasetHint}
+        {picker}
+        {datasets.isError && <p className={styles.benchWarning}>{describeError(datasets.error)}</p>}
+        {evalRun.isError && <p className={styles.benchWarning}>{describeError(evalRun.error)}</p>}
+        {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
+        <Button
+          variant="outline"
+          size="sm"
+          loading={running}
+          disabled={!selectedDatasetId}
+          onClick={start}
+        >
+          Run evaluation
+        </Button>
+      </section>
+    );
+  }
+
+  const summary = result.summary;
+
+  return (
+    <section className={styles.card}>
+      <SectionLabel
+        action={
+          <Mono className={styles.cardHeaderMeta}>
+            {result.datasetId} ·{' '}
+            {result.status === 'running'
+              ? (result.progress ?? 'running')
+              : formatRelative(result.finishedAt ?? result.startedAt)}
+          </Mono>
+        }
+      >
+        RAG evaluation
+      </SectionLabel>
+
+      <p className={styles.hint}>
+        Retrieval-hit rate is objective: did the right document show up in the citations. The judge
+        verdict is the active model grading its own family&apos;s answers, so treat it as a second
+        signal, not ground truth — read the question and both answers yourself below.
+      </p>
+
+      {result.status === 'running' && (
+        <p className={styles.benchWarning}>
+          Running{result.currentQuestion ? ` — ${result.currentQuestion}` : ''}.
+        </p>
+      )}
+      {result.status === 'failed' && (
+        <p className={styles.benchWarning}>The run did not finish. Start it again below.</p>
+      )}
+      {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
+
+      {summary && (
+        <div className={styles.evalSummaryRow}>
+          <div className={styles.evalStat}>
+            <span className={styles.evalStatLabel}>Retrieval hit rate</span>
+            <span className={styles.evalStatValue}>{formatHitRate(summary.retrievalHitRate)}</span>
+          </div>
+          {RAG_EVAL_DIFFICULTIES.map((difficulty) => (
+            <div className={styles.evalStat} key={difficulty}>
+              <span className={styles.evalStatLabel}>{difficulty}</span>
+              <span className={styles.evalStatValue}>
+                {formatHitRate(summary.byDifficulty[difficulty]?.retrievalHitRate ?? null)}
+              </span>
+            </div>
+          ))}
+          <div className={styles.evalStat}>
+            <span className={styles.evalStatLabel}>Judge correct</span>
+            <span className={styles.evalStatValue}>{summary.judgeCounts.correct ?? 0}</span>
+          </div>
+          <div className={styles.evalStat}>
+            <span className={styles.evalStatLabel}>Judge partial</span>
+            <span className={styles.evalStatValue}>{summary.judgeCounts.partial ?? 0}</span>
+          </div>
+          <div className={styles.evalStat}>
+            <span className={styles.evalStatLabel}>Judge incorrect</span>
+            <span className={styles.evalStatValue}>{summary.judgeCounts.incorrect ?? 0}</span>
+          </div>
+        </div>
+      )}
+
+      <div className={styles.evalRows}>
+        {result.rows.map((row, index) => (
+          <div className={styles.evalRow} key={`${row.source}-${index}`}>
+            <div className={styles.evalRowHead}>
+              <span>{row.difficulty}</span>
+              <span>{row.source}</span>
+              <span className={row.retrievalHit ? styles.evalHit : styles.evalMiss}>
+                {row.retrievalHit ? 'Retrieval hit' : 'Retrieval miss'}
+              </span>
+              {row.judgeVerdict && <span>Judge: {row.judgeVerdict}</span>}
+              {row.latencyMs !== null && <span>{formatDuration(row.latencyMs)}</span>}
+            </div>
+            <div className={styles.evalQuestion}>{row.question}</div>
+            <div className={styles.evalAnswers}>
+              <div>
+                <div className={styles.evalAnswerLabel}>Expected</div>
+                <div className={styles.evalAnswerText}>{row.expectedAnswer}</div>
+              </div>
+              <div>
+                <div className={styles.evalAnswerLabel}>Got</div>
+                <div className={styles.evalAnswerText}>
+                  {row.notFound ? 'Not found in the indexed documentation.' : row.actualAnswer}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {datasetHint}
+      {picker}
+
+      <Button
+        variant="outline"
+        size="sm"
+        loading={running}
+        disabled={!selectedDatasetId}
+        onClick={start}
+      >
+        Run evaluation again
       </Button>
     </section>
   );

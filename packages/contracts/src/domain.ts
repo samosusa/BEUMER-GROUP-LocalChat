@@ -451,6 +451,104 @@ export const EmbeddingBenchmarkRunSchema = z.object({
 export type EmbeddingBenchmarkRun = z.infer<typeof EmbeddingBenchmarkRunSchema>;
 
 // ---------------------------------------------------------------------------
+// RAG evaluation - a labeled question set run end to end against real, ingested documents
+// ---------------------------------------------------------------------------
+
+/**
+ * The difficulty a question was hand-labeled with when the question set was written -
+ * distinct from `ComplexityTier`, which the service measures automatically from the
+ * question text at answer time. The two often agree but are not the same signal.
+ */
+export const RagEvalDifficulty = z.enum(['easy', 'medium', 'hard']);
+export type RagEvalDifficulty = z.infer<typeof RagEvalDifficulty>;
+
+/**
+ * `correct`/`partial`/`incorrect` come from an LLM-as-judge comparing the generated answer
+ * against the reference answer - the same model that may have generated the answer being
+ * judged, which is a real bias to keep in mind, not independent confirmation. `error` means
+ * the judge's own output could not be parsed into a verdict. Null (not part of this enum)
+ * means the question was never judged at all, because no answer was generated to grade.
+ */
+export const RagEvalJudgeVerdict = z.enum(['correct', 'partial', 'incorrect', 'error']);
+export type RagEvalJudgeVerdict = z.infer<typeof RagEvalJudgeVerdict>;
+
+export const RagEvalJobStatus = z.enum(['running', 'completed', 'failed']);
+export type RagEvalJobStatus = z.infer<typeof RagEvalJobStatus>;
+
+export const RagEvalCitationSchema = z.object({
+  title: z.string(),
+  section: z.string().nullable(),
+  page: z.number().int().nullable(),
+  score: z.number(),
+});
+export type RagEvalCitation = z.infer<typeof RagEvalCitationSchema>;
+
+export const RagEvalRowSchema = z.object({
+  source: z.string(),
+  difficulty: RagEvalDifficulty,
+  question: z.string(),
+  expectedAnswer: z.string(),
+  actualAnswer: z.string().nullable(),
+  notFound: z.boolean(),
+  /** Objective and mechanical: did the source document show up in the citations at all? */
+  retrievalHit: z.boolean(),
+  judgeVerdict: RagEvalJudgeVerdict.nullable(),
+  judgeDetail: z.string().nullable(),
+  complexityTier: ComplexityTier.nullable(),
+  complexityScore: z.number().nullable(),
+  latencyMs: z.number().nonnegative().nullable(),
+  citations: z.array(RagEvalCitationSchema).nullable(),
+  ranAt: isoDateTime,
+});
+export type RagEvalRow = z.infer<typeof RagEvalRowSchema>;
+
+export const RagEvalBucketSchema = z.object({
+  total: z.number().int().nonnegative(),
+  retrievalHitRate: z.number().min(0).max(1).nullable(),
+  judgeCounts: z.record(z.string(), z.number().int().nonnegative()),
+});
+export type RagEvalBucket = z.infer<typeof RagEvalBucketSchema>;
+
+export const RagEvalSummarySchema = RagEvalBucketSchema.extend({
+  byDifficulty: z.record(z.string(), RagEvalBucketSchema),
+});
+export type RagEvalSummary = z.infer<typeof RagEvalSummarySchema>;
+
+export const RagEvalRunSchema = z.object({
+  id: z.string(),
+  status: RagEvalJobStatus,
+  /** Which file under data/eval/ this run answered questions from. */
+  datasetId: z.string(),
+  projectId: z.string().nullable(),
+  progress: z.string().nullable(),
+  currentQuestion: z.string().nullable(),
+  summary: RagEvalSummarySchema.nullable(),
+  rows: z.array(RagEvalRowSchema),
+  startedAt: isoDateTime,
+  finishedAt: isoDateTime.nullable(),
+});
+export type RagEvalRun = z.infer<typeof RagEvalRunSchema>;
+
+export const RagEvalDatasetDocumentSchema = z.object({
+  source: z.string(),
+  titleHint: z.string(),
+  questionCount: z.number().int().nonnegative(),
+});
+export type RagEvalDatasetDocument = z.infer<typeof RagEvalDatasetDocumentSchema>;
+
+/**
+ * One selectable question set - any file dropped under data/eval/ on the service side, kept
+ * as its own file rather than a single hardcoded set so testing a different corpus never
+ * means overwriting the one you already have.
+ */
+export const RagEvalDatasetInfoSchema = z.object({
+  id: z.string(),
+  documents: z.array(RagEvalDatasetDocumentSchema),
+  totalQuestions: z.number().int().nonnegative(),
+});
+export type RagEvalDatasetInfo = z.infer<typeof RagEvalDatasetInfoSchema>;
+
+// ---------------------------------------------------------------------------
 // Approved tools
 // ---------------------------------------------------------------------------
 

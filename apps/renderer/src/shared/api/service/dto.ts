@@ -317,3 +317,91 @@ export const ServiceEmbeddingBenchmarkRunList = z.array(
     finished_at: naiveDateTime.nullable(),
   }),
 );
+
+// ---------------------------------------------------------------------------
+// RAG evaluation — GET /rag-eval/datasets, POST /rag-eval, GET /rag-eval/status/{id},
+// GET /rag-eval/results, GET /rag-eval/results/{id}
+// ---------------------------------------------------------------------------
+
+export const ServiceRagEvalDatasetInfo = z.object({
+  id: z.string(),
+  documents: z.array(
+    z.object({
+      source: z.string(),
+      title_hint: z.string(),
+      question_count: z.number().int().nonnegative(),
+    }),
+  ),
+  total_questions: z.number().int().nonnegative(),
+});
+export type ServiceRagEvalDatasetInfo = z.infer<typeof ServiceRagEvalDatasetInfo>;
+
+export const ServiceRagEvalDatasetList = z.array(ServiceRagEvalDatasetInfo);
+export type ServiceRagEvalDatasetList = z.infer<typeof ServiceRagEvalDatasetList>;
+
+export const ServiceRagEvalAccepted = z.object({ rag_eval_job_id: pk });
+
+export const ServiceRagEvalStatus = z.object({
+  status: z.string(),
+  dataset_id: z.string(),
+  progress: z.string(),
+  current_question: z.string().nullable(),
+});
+export type ServiceRagEvalStatus = z.infer<typeof ServiceRagEvalStatus>;
+
+export const ServiceRagEvalCitation = z.object({
+  title: z.string(),
+  section: z.string().nullable(),
+  page: z.number().int().nullable(),
+  score: z.number(),
+});
+
+export const ServiceRagEvalRow = z.object({
+  source: z.string(),
+  difficulty: z.string(),
+  question: z.string(),
+  expected_answer: z.string(),
+  actual_answer: z.string().nullable(),
+  not_found: z.boolean(),
+  retrieval_hit: z.boolean(),
+  judge_verdict: z.string().nullable(),
+  judge_detail: z.string().nullable(),
+  complexity_tier: z.string().nullable(),
+  complexity_score: z.number().nullable(),
+  latency_s: z.number().nullable(),
+  citations: z.array(ServiceRagEvalCitation).nullable(),
+  run_at: naiveDateTime,
+});
+export type ServiceRagEvalRow = z.infer<typeof ServiceRagEvalRow>;
+
+export const ServiceRagEvalBucket = z.object({
+  total: z.number().int().nonnegative(),
+  retrieval_hit_rate: z.number().nullable(),
+  judge_counts: z.record(z.string(), z.number().int().nonnegative()),
+});
+
+export const ServiceRagEvalSummary = ServiceRagEvalBucket.extend({
+  by_difficulty: z.record(z.string(), ServiceRagEvalBucket),
+});
+export type ServiceRagEvalSummary = z.infer<typeof ServiceRagEvalSummary>;
+
+export const ServiceRagEvalResults = z.object({
+  rag_eval_job_id: pk,
+  status: z.string(),
+  dataset_id: z.string(),
+  summary: ServiceRagEvalSummary,
+  results: z.array(ServiceRagEvalRow),
+});
+export type ServiceRagEvalResults = z.infer<typeof ServiceRagEvalResults>;
+
+export const ServiceRagEvalRunList = z.array(
+  z.object({
+    rag_eval_job_id: pk,
+    status: z.string(),
+    dataset_id: z.string(),
+    project_id: pk.nullable(),
+    created_at: naiveDateTime,
+    finished_at: naiveDateTime.nullable(),
+  }),
+);
+export type ServiceRagEvalRunList = z.infer<typeof ServiceRagEvalRunList>;

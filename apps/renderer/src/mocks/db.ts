@@ -17,6 +17,8 @@ import {
   MESSAGES,
   MODELS,
   PROJECTS,
+  RAG_EVAL,
+  RAG_EVAL_DATASETS,
   SETTINGS,
 } from './fixtures';
 
@@ -54,6 +56,8 @@ export const catalogue = {
   tools: APPROVED_TOOLS,
   embeddingModels: EMBEDDING_MODELS,
   embeddingBenchmark: EMBEDDING_BENCHMARK,
+  ragEval: RAG_EVAL,
+  ragEvalDatasets: RAG_EVAL_DATASETS,
 };
 
 let sequence = 0;

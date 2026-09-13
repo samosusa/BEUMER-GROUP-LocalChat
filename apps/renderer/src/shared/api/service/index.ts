@@ -10,6 +10,8 @@ import type {
   Model,
   ModelBenchmarkRun,
   Project,
+  RagEvalDatasetInfo,
+  RagEvalRun,
   ReindexJob,
   RetrievalScope,
 } from '@localchat/contracts';
@@ -36,6 +38,11 @@ import {
   ServiceModelList,
   ServiceProject,
   ServiceProjectList,
+  ServiceRagEvalAccepted,
+  ServiceRagEvalDatasetList,
+  ServiceRagEvalResults,
+  ServiceRagEvalRunList,
+  ServiceRagEvalStatus,
   ServiceReindexRunList,
   ServiceReindexStatus,
   ServiceSetActiveEmbeddingModel,
@@ -53,6 +60,8 @@ import {
   messageFromService,
   modelFromService,
   projectFromService,
+  ragEvalDatasetInfoFromService,
+  ragEvalRunFromService,
   reindexJobFromService,
   toId,
   toServiceId,
@@ -516,6 +525,57 @@ export async function latestEmbeddingBenchmark(
   }
 
   return embeddingBenchmarkRunFromService(results, {
+    startedAt: newest.created_at,
+    finishedAt: newest.finished_at,
+    status,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// RAG evaluation
+// ---------------------------------------------------------------------------
+
+export async function ragEvalDatasets(signal?: AbortSignal): Promise<RagEvalDatasetInfo[]> {
+  const dto = await request('/rag-eval/datasets', { schema: ServiceRagEvalDatasetList, signal });
+  return dto.map(ragEvalDatasetInfoFromService);
+}
+
+/** Starts a run against a project's currently-ingested documents and returns its job id. */
+export async function startRagEval(projectId: string | null, datasetId: string): Promise<string> {
+  const dto = await request('/rag-eval', {
+    method: 'POST',
+    body: {
+      project_id: projectId === null ? null : toServiceId(projectId, 'project'),
+      dataset_id: datasetId,
+    },
+    schema: ServiceRagEvalAccepted,
+  });
+  return toId(dto.rag_eval_job_id);
+}
+
+/** The most recent run, assembled the same three-endpoint way as `latestBenchmark`. */
+export async function latestRagEval(signal?: AbortSignal): Promise<RagEvalRun | null> {
+  const runs = await request('/rag-eval/results', { schema: ServiceRagEvalRunList, signal });
+  if (runs.length === 0) return null;
+
+  const newest = [...runs].sort((a, b) => b.rag_eval_job_id - a.rag_eval_job_id)[0];
+  if (!newest) return null;
+
+  const results = await request(`/rag-eval/results/${newest.rag_eval_job_id}`, {
+    schema: ServiceRagEvalResults,
+    signal,
+  });
+
+  let status;
+  if (newest.status.toLowerCase() === 'running') {
+    status = await request(`/rag-eval/status/${newest.rag_eval_job_id}`, {
+      schema: ServiceRagEvalStatus,
+      signal,
+    });
+  }
+
+  return ragEvalRunFromService(results, {
+    projectId: newest.project_id === null ? null : toId(newest.project_id),
     startedAt: newest.created_at,
     finishedAt: newest.finished_at,
     status,

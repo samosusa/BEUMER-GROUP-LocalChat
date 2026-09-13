@@ -41,6 +41,8 @@ export const keys = {
   activeEmbeddingModel: ['activeEmbeddingModel'] as const,
   reindexJob: ['reindexJob'] as const,
   embeddingBenchmark: ['embeddingBenchmark'] as const,
+  ragEvalDatasets: ['ragEvalDatasets'] as const,
+  ragEval: ['ragEval'] as const,
 };
 
 /** Anything the retriever wrote is cheap to refetch and expensive to show stale. */
@@ -243,6 +245,29 @@ export function useEmbeddingBenchmark() {
   return useQuery({
     queryKey: keys.embeddingBenchmark,
     queryFn: ({ signal }) => api.getEmbeddingBenchmark(signal),
+    select: (data) => data.run,
+    ...STATIC,
+    refetchInterval: (query) => (query.state.data?.run?.status === 'running' ? 3_000 : false),
+  });
+}
+
+/** Every question set under data/eval/ on the service - drop a new file in to add a choice. */
+export function useRagEvalDatasets() {
+  return useQuery({
+    queryKey: keys.ragEvalDatasets,
+    queryFn: ({ signal }) => api.getRagEvalDatasets(signal),
+    ...STATIC,
+  });
+}
+
+/**
+ * The current or most recent evaluation run. Polls while running: each question is a full
+ * retrieval + generation + judge round trip, so a 45-question run can take minutes.
+ */
+export function useRagEval() {
+  return useQuery({
+    queryKey: keys.ragEval,
+    queryFn: ({ signal }) => api.getRagEval(signal),
     select: (data) => data.run,
     ...STATIC,
     refetchInterval: (query) => (query.state.data?.run?.status === 'running' ? 3_000 : false),
@@ -503,6 +528,15 @@ export function useRunEmbeddingBenchmark() {
   return useMutation({
     mutationFn: (body: RunEmbeddingBenchmarkRequest) => api.runEmbeddingBenchmark(body),
     onSuccess: (data) => client.setQueryData(keys.embeddingBenchmark, data),
+  });
+}
+
+/** projectId: null runs against the general (project-less) corpus. */
+export function useRunRagEval() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { projectId: string | null; datasetId: string }) => api.runRagEval(args),
+    onSuccess: (data) => client.setQueryData(keys.ragEval, data),
   });
 }
 

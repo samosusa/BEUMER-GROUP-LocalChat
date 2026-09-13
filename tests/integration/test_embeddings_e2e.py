@@ -77,9 +77,11 @@ def test_set_active_model_switches_and_reindexes_existing_documents(monkeypatch)
     import src.api.ingest as ingest_api
     from src.ingest.pipeline import run_pipeline
 
-    def fake_process_upload(job_id: int, title: str, path: str, project_id: int | None = None) -> None:
+    def fake_process_upload(
+        job_id: int, title: str, path: str, project_id: int | None = None, also_general: bool = False
+    ) -> None:
         with SessionLocal() as db:
-            run_pipeline(db, job_id, title, path, project_id=project_id)
+            run_pipeline(db, job_id, title, path, project_id=project_id, also_general=also_general)
 
     monkeypatch.setattr(ingest_api, "process_upload", fake_process_upload)
 

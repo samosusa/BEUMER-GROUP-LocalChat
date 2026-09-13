@@ -21,12 +21,15 @@ import {
   ListProjectsResponse,
   type Message,
   ProjectResponse,
+  RagEvalDatasetsResponse,
+  RagEvalRunResponse,
   ReindexJobResponse,
   type ReindexRequest,
   type RunBenchmarkRequest,
   type RunEmbeddingBenchmarkRequest,
   SetActiveEmbeddingModelResponse,
   SettingsResponse,
+  type StartRagEvalRequest,
   type UpdateChatContextRequest,
   type UpdateProjectRequest,
   type UpdateSettingsRequest,
@@ -438,6 +441,30 @@ export const api = {
     }
     await service.startEmbeddingBenchmark(body.models);
     return { run: await service.latestEmbeddingBenchmark() };
+  },
+
+  // --- RAG evaluation --------------------------------------------------------
+  // Runs a labeled question set end to end (real retrieval + real generation) against
+  // whichever project's documents are currently ingested - see docs/backend-wiring.md and
+  // data/eval/rag_qa_pairs.json. Distinct from the two benchmarks above: those measure speed,
+  // this measures whether the system actually answers correctly.
+
+  getRagEvalDatasets: async (signal?: AbortSignal): Promise<RagEvalDatasetsResponse> =>
+    LIVE
+      ? service.ragEvalDatasets(signal)
+      : request(routes.ragEvalDatasets(), { schema: RagEvalDatasetsResponse, signal }),
+
+  getRagEval: async (signal?: AbortSignal): Promise<RagEvalRunResponse> =>
+    LIVE
+      ? { run: await service.latestRagEval(signal) }
+      : request(routes.ragEval(), { schema: RagEvalRunResponse, signal }),
+
+  runRagEval: async (body: StartRagEvalRequest): Promise<RagEvalRunResponse> => {
+    if (!LIVE) {
+      return request(routes.ragEval(), { method: 'POST', body, schema: RagEvalRunResponse });
+    }
+    await service.startRagEval(body.projectId, body.datasetId);
+    return { run: await service.latestRagEval() };
   },
 };
 

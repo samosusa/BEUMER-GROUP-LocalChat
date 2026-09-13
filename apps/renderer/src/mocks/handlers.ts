@@ -8,6 +8,7 @@ import {
   RunEmbeddingBenchmarkRequest,
   ReindexRequest,
   SetActiveEmbeddingModelRequest,
+  StartRagEvalRequest,
   UpdateChatContextRequest,
   UpdateSettingsRequest,
   routes,
@@ -541,6 +542,41 @@ export const handlers = [
       : catalogue.embeddingBenchmark.rows;
     return HttpResponse.json({
       run: { ...catalogue.embeddingBenchmark, rows, startedAt: finishedAt, finishedAt },
+    });
+  }),
+
+  // --- RAG evaluation --------------------------------------------------------
+  http.get(route(routes.ragEvalDatasets()), async () => {
+    await delay(LATENCY.fast);
+    return HttpResponse.json(catalogue.ragEvalDatasets);
+  }),
+
+  http.get(route(routes.ragEval()), async () => {
+    await delay(LATENCY.fast);
+    return HttpResponse.json({ run: catalogue.ragEval });
+  }),
+
+  http.post(route(routes.ragEval()), async ({ request }) => {
+    const parsed = StartRagEvalRequest.safeParse(await request.json());
+    if (!parsed.success) return badRequest('Malformed RAG evaluation request.');
+    if (!catalogue.ragEvalDatasets.some((dataset) => dataset.id === parsed.data.datasetId)) {
+      return badRequest('Unknown RAG eval dataset.', { datasetId: parsed.data.datasetId });
+    }
+
+    // A real run answers every question end to end - retrieval plus generation plus an
+    // LLM-judge call - which is minutes of work across 45 questions. The mock simulates that
+    // as an already-finished run against the fixed sample rows rather than modelling
+    // per-question progress nobody watching the mock could act on anyway.
+    await delay(2_000);
+    const finishedAt = new Date().toISOString();
+    return HttpResponse.json({
+      run: {
+        ...catalogue.ragEval,
+        datasetId: parsed.data.datasetId,
+        projectId: parsed.data.projectId,
+        startedAt: finishedAt,
+        finishedAt,
+      },
     });
   }),
 ];

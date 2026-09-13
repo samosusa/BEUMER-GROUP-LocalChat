@@ -8,6 +8,8 @@ import type {
   Message,
   Model,
   Project,
+  RagEvalDatasetInfo,
+  RagEvalRun,
   Settings,
 } from '@localchat/contracts';
 
@@ -750,6 +752,207 @@ export const EMBEDDING_BENCHMARK: EmbeddingBenchmarkRun = {
     })),
   ),
 };
+
+/**
+ * A finished RAG evaluation run against the CPH T3 project's own documents - a small,
+ * hand-picked set of rows rather than the full 45-question set the real service ships with
+ * (data/eval/rag_qa_pairs.json), including one retrieval miss and one partial judge verdict
+ * so the results table is exercised against failure states too, not just a clean sweep.
+ */
+export const RAG_EVAL: RagEvalRun = {
+  id: 'rag-eval-1',
+  status: 'completed',
+  datasetId: 'rag_qa_pairs',
+  projectId: 'prj-cph-t3',
+  progress: '6 of 6',
+  currentQuestion: null,
+  startedAt: daysAgo(1),
+  finishedAt: daysAgo(1),
+  summary: {
+    // Row 6 is not_found, so it was never handed to the judge at all - the 5 verdicts below
+    // (4 correct + 1 partial) account for every judged row, not all 6.
+    total: 6,
+    retrievalHitRate: 5 / 6,
+    judgeCounts: { correct: 4, partial: 1, incorrect: 0, error: 0 },
+    byDifficulty: {
+      easy: {
+        total: 2,
+        retrievalHitRate: 1,
+        judgeCounts: { correct: 2, partial: 0, incorrect: 0, error: 0 },
+      },
+      medium: {
+        total: 2,
+        retrievalHitRate: 1,
+        judgeCounts: { correct: 1, partial: 1, incorrect: 0, error: 0 },
+      },
+      hard: {
+        total: 2,
+        retrievalHitRate: 0.5,
+        judgeCounts: { correct: 1, partial: 0, incorrect: 0, error: 0 },
+      },
+    },
+  },
+  rows: [
+    {
+      source: 'LS-4000E Commissioning Manual',
+      difficulty: 'easy',
+      question: 'What is the nominal carrier speed at rated throughput?',
+      expectedAnswer: '2.2 m/s.',
+      actualAnswer: 'The nominal carrier speed at rated throughput is 2.2 m/s.',
+      notFound: false,
+      retrievalHit: true,
+      judgeVerdict: 'correct',
+      judgeDetail: 'CORRECT',
+      complexityTier: 'simple',
+      complexityScore: 0.12,
+      latencyMs: 1_840,
+      citations: [
+        {
+          title: 'LS-4000E Commissioning Manual',
+          section: '§ 3.2 Performance data',
+          page: 41,
+          score: 0.9,
+        },
+      ],
+      ranAt: daysAgo(1),
+    },
+    {
+      source: 'LS-4000E Commissioning Manual',
+      difficulty: 'easy',
+      question: 'What is the rated throughput at a 600 mm tray pitch?',
+      expectedAnswer: '13,200 items per hour.',
+      actualAnswer: 'Rated throughput is 13,200 items/hour at a 600 mm tray pitch.',
+      notFound: false,
+      retrievalHit: true,
+      judgeVerdict: 'correct',
+      judgeDetail: 'CORRECT',
+      complexityTier: 'simple',
+      complexityScore: 0.1,
+      latencyMs: 1_620,
+      citations: [
+        {
+          title: 'LS-4000E Commissioning Manual',
+          section: '§ 3.2 Performance data',
+          page: 41,
+          score: 0.91,
+        },
+      ],
+      ranAt: daysAgo(1),
+    },
+    {
+      source: 'Induction & Sortation Control Logic',
+      difficulty: 'medium',
+      question: 'What happens to an oversized item longer than 800 mm?',
+      expectedAnswer:
+        'It is allocated two consecutive trays, and the induction controller blanks the following tray.',
+      actualAnswer:
+        'Items longer than 800 mm take up two trays, so the following tray gets skipped.',
+      notFound: false,
+      retrievalHit: true,
+      judgeVerdict: 'partial',
+      judgeDetail: 'PARTIAL',
+      complexityTier: 'moderate',
+      complexityScore: 0.31,
+      latencyMs: 3_210,
+      citations: [
+        {
+          title: 'Induction & Sortation Control Logic',
+          section: '§ 7.4 Recirculation',
+          page: 112,
+          score: 0.86,
+        },
+      ],
+      ranAt: daysAgo(1),
+    },
+    {
+      source: 'Induction & Sortation Control Logic',
+      difficulty: 'medium',
+      question: 'What does the sorter do when a destination reports CHUTE_FULL?',
+      expectedAnswer: 'The item is recirculated for one further pass.',
+      actualAnswer: 'The allocator recirculates the item for another pass around the sorter.',
+      notFound: false,
+      retrievalHit: true,
+      judgeVerdict: 'correct',
+      judgeDetail: 'CORRECT',
+      complexityTier: 'moderate',
+      complexityScore: 0.28,
+      latencyMs: 2_980,
+      citations: [
+        {
+          title: 'Induction & Sortation Control Logic',
+          section: '§ 7.4 Recirculation',
+          page: 112,
+          score: 0.84,
+        },
+      ],
+      ranAt: daysAgo(1),
+    },
+    {
+      source: 'Emergency Stop Circuits — Group Standard',
+      difficulty: 'hard',
+      question:
+        'Trace the full restart sequence after an e-stop, including the relay settling time.',
+      expectedAnswer:
+        'Every actuated device must be physically reset, SAFETY_OK must hold true for 2 s continuously, and no active drive fault can be present on the carrier line.',
+      actualAnswer:
+        'Reset every actuated device, wait for the safety relay to settle, then confirm no drive fault before restarting.',
+      notFound: false,
+      retrievalHit: true,
+      judgeVerdict: 'correct',
+      judgeDetail: 'CORRECT',
+      complexityTier: 'complex',
+      complexityScore: 0.58,
+      latencyMs: 5_940,
+      citations: [
+        {
+          title: 'Emergency Stop Circuits — Group Standard',
+          section: '§ 4.2 Dual-channel monitoring',
+          page: 22,
+          score: 0.89,
+        },
+      ],
+      ranAt: daysAgo(1),
+    },
+    {
+      source: 'Chute Allocation Table',
+      difficulty: 'hard',
+      question:
+        'Compare the chute allocation table across rev E and rev F — what specifically changed?',
+      expectedAnswer:
+        'Rev F revised the allocation priority for oversized items and added two new chute groups introduced with the SBD retrofit.',
+      actualAnswer: null,
+      notFound: true,
+      retrievalHit: false,
+      judgeVerdict: null,
+      judgeDetail: null,
+      complexityTier: 'complex',
+      complexityScore: 0.52,
+      latencyMs: 640,
+      citations: [],
+      ranAt: daysAgo(1),
+    },
+  ],
+};
+
+/**
+ * Every question set the mock offers. Matches the real service's data/eval/*.json files -
+ * each entry there is a separate selectable dataset, not a single fixed set.
+ */
+export const RAG_EVAL_DATASETS: RagEvalDatasetInfo[] = [
+  {
+    id: 'rag_qa_pairs',
+    documents: [
+      { source: 'OPNL_B01_EN.pdf', titleHint: 'OPNL_B01', questionCount: 15 },
+      { source: 'OPNL_B02_EN.pdf', titleHint: 'OPNL_B02', questionCount: 15 },
+      {
+        source: 'Operating_instructions_CLV69x_Bar_code_scanners_en_IM0045360.pdf',
+        titleHint: 'CLV69x',
+        questionCount: 15,
+      },
+    ],
+    totalQuestions: 45,
+  },
+];
 
 export const APPROVED_TOOLS: ApprovedTool[] = [
   {

@@ -32,6 +32,7 @@ const SERVICE_ROUTES = [
   '/models',
   '/benchmark',
   '/embeddings',
+  '/rag-eval',
   '/projects',
 ];
 

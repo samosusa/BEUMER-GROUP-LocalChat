@@ -13,6 +13,8 @@ import {
   MessageSchema,
   ModelSchema,
   ProjectSchema,
+  RagEvalDatasetInfoSchema,
+  RagEvalRunSchema,
   ReindexJobSchema,
   RetrievalScope,
   SettingsSchema,
@@ -228,6 +230,23 @@ export const RunEmbeddingBenchmarkRequest = z.object({
 export type RunEmbeddingBenchmarkRequest = z.infer<typeof RunEmbeddingBenchmarkRequest>;
 
 // ---------------------------------------------------------------------------
+// RAG evaluation
+// ---------------------------------------------------------------------------
+
+export const RagEvalDatasetsResponse = z.array(RagEvalDatasetInfoSchema);
+export type RagEvalDatasetsResponse = z.infer<typeof RagEvalDatasetsResponse>;
+
+export const StartRagEvalRequest = z.object({
+  projectId: z.string().nullable(),
+  /** Matches the service's own default (src/rag_eval.py DEFAULT_DATASET_ID). */
+  datasetId: z.string().default('rag_qa_pairs'),
+});
+export type StartRagEvalRequest = z.infer<typeof StartRagEvalRequest>;
+
+export const RagEvalRunResponse = z.object({ run: RagEvalRunSchema.nullable() });
+export type RagEvalRunResponse = z.infer<typeof RagEvalRunResponse>;
+
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 
@@ -263,4 +282,7 @@ export const routes = {
   /** The current or most recent re-embed job — there is at most one meaningful at a time. */
   reindexJob: () => '/api/embeddings/reindex',
   embeddingBenchmark: () => '/api/embeddings/benchmark',
+  ragEvalDatasets: () => '/api/rag-eval/datasets',
+  /** The current or most recent evaluation run - there is at most one meaningful at a time. */
+  ragEval: () => '/api/rag-eval',
 } as const;
