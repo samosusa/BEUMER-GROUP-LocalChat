@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { ModelBenchmarkRow, ModelBenchmarkRun } from '@localchat/contracts';
 import {
   METRICS,
+  NO_FILTER,
+  applyFilter,
+  buildSpeedup,
+  buildTradeoff,
+  modelsMeasured,
+  recommend,
   MAX_LINES,
   buildComparison,
   buildTrend,
@@ -210,5 +216,150 @@ describe('recentRuns', () => {
 
   it('does not blow up when asked for more runs than exist', () => {
     expect(recentRuns(history, 99)).toHaveLength(3);
+  });
+});
+
+describe('recommend', () => {
+  const run3 = run('2026-09-01T10:00:00.000Z', [
+    row({ modelName: 'big', tokensPerSecond: 12, peakMemoryBytes: 8_000 }),
+    row({ modelName: 'small', tokensPerSecond: 5, peakMemoryBytes: 1_000 }),
+  ]);
+
+  it('names the fastest and the smallest separately when they differ', () => {
+    const advice = recommend(run3);
+    expect(advice.fastest?.modelName).toBe('big');
+    expect(advice.leanest?.modelName).toBe('small');
+    expect(advice.sameModel).toBe(false);
+  });
+
+  /** When one model wins both, the screen should say it once rather than twice. */
+  it('flags the case where one model is both', () => {
+    const advice = recommend(
+      run('2026-09-01T10:00:00.000Z', [
+        row({ modelName: 'best', tokensPerSecond: 20, peakMemoryBytes: 900 }),
+        row({ modelName: 'other', tokensPerSecond: 4, peakMemoryBytes: 5_000 }),
+      ]),
+    );
+    expect(advice.sameModel).toBe(true);
+  });
+
+  it('measures a GPU row by its VRAM, not its host memory', () => {
+    const advice = recommend(
+      run('2026-09-01T10:00:00.000Z', [
+        row({ modelName: 'cpu-one', compute: 'cpu', peakMemoryBytes: 2_000, peakVramBytes: null }),
+        row({ modelName: 'gpu-one', compute: 'gpu', peakMemoryBytes: 500, peakVramBytes: 9_000 }),
+      ]),
+    );
+    expect(advice.leanest?.modelName).toBe('cpu-one');
+  });
+
+  it('says nothing rather than guessing when no row completed', () => {
+    const advice = recommend(
+      run('2026-09-01T10:00:00.000Z', [row({ status: 'failed', tokensPerSecond: null })]),
+    );
+    expect(advice.fastest).toBeNull();
+    expect(advice.leanest).toBeNull();
+  });
+});
+
+describe('buildSpeedup', () => {
+  const both = run('2026-09-01T10:00:00.000Z', [
+    row({ modelName: 'qwen', compute: 'cpu', tokensPerSecond: 5, timeToFirstTokenMs: 2_000 }),
+    row({ modelName: 'qwen', compute: 'gpu', tokensPerSecond: 10, timeToFirstTokenMs: 1_000 }),
+  ]);
+
+  it('reports the GPU as a ratio of the CPU', () => {
+    const [entry] = buildSpeedup(both, SPEED);
+    expect(entry?.ratio).toBeCloseTo(2);
+  });
+
+  /**
+   * The whole point of the chart is that "above 1x" always means the GPU helped. For a
+   * lower-is-better measure the ratio has to invert, or the same bar would mean the
+   * opposite thing depending on the dropdown.
+   */
+  it('inverts the ratio for a measure where lower is better', () => {
+    const ttft = METRICS.find((metric) => metric.key === 'timeToFirstToken')!;
+    const [entry] = buildSpeedup(both, ttft);
+    expect(entry?.ratio).toBeCloseTo(2);
+  });
+
+  it('leaves out a model that only ran on one device', () => {
+    const onlyCpu = run('2026-09-01T10:00:00.000Z', [row({ modelName: 'qwen', compute: 'cpu' })]);
+    expect(buildSpeedup(onlyCpu, SPEED)).toEqual([]);
+  });
+
+  it('does not divide by zero', () => {
+    const zeroed = run('2026-09-01T10:00:00.000Z', [
+      row({ modelName: 'qwen', compute: 'cpu', tokensPerSecond: 0 }),
+      row({ modelName: 'qwen', compute: 'gpu', tokensPerSecond: 4 }),
+    ]);
+    expect(buildSpeedup(zeroed, SPEED)).toEqual([]);
+  });
+});
+
+describe('buildTradeoff', () => {
+  it('gives one point per model and device, labelled with both', () => {
+    const points = buildTradeoff(
+      run('2026-09-01T10:00:00.000Z', [
+        row({ modelName: 'qwen', compute: 'cpu' }),
+        row({ modelName: 'qwen', compute: 'gpu', peakVramBytes: 6_000 }),
+      ]),
+    );
+    expect(points).toHaveLength(2);
+    expect(points.map((point) => point.label)).toContain('qwen · GPU');
+  });
+
+  it('keeps one model on one hue across its devices', () => {
+    const points = buildTradeoff(
+      run('2026-09-01T10:00:00.000Z', [
+        row({ modelName: 'qwen', compute: 'cpu' }),
+        row({ modelName: 'qwen', compute: 'gpu', peakVramBytes: 6_000 }),
+      ]),
+    );
+    expect(points[0]?.color).toBe(points[1]?.color);
+  });
+});
+
+describe('applyFilter', () => {
+  const mixed = run('2026-09-01T10:00:00.000Z', [
+    row({ modelName: 'qwen', compute: 'cpu' }),
+    row({ modelName: 'llama', compute: 'gpu' }),
+    row({ modelName: 'broken', status: 'failed', tokensPerSecond: null }),
+  ]);
+
+  /** Clearing the last checkbox should not blank the screen. */
+  it('treats an empty selection as everything', () => {
+    expect(applyFilter(mixed, NO_FILTER).rows).toHaveLength(2);
+  });
+
+  it('narrows by device', () => {
+    const only = applyFilter(mixed, { ...NO_FILTER, devices: ['cpu'] });
+    expect(only.rows.map((r) => r.modelName)).toEqual(['qwen']);
+  });
+
+  it('narrows by model', () => {
+    const only = applyFilter(mixed, { ...NO_FILTER, models: ['llama'] });
+    expect(only.rows.map((r) => r.modelName)).toEqual(['llama']);
+  });
+
+  it('hides rows that did not complete unless asked', () => {
+    expect(applyFilter(mixed, NO_FILTER).rows.some((r) => r.status === 'failed')).toBe(false);
+    expect(
+      applyFilter(mixed, { ...NO_FILTER, includeUnmeasured: true }).rows.some(
+        (r) => r.status === 'failed',
+      ),
+    ).toBe(true);
+  });
+});
+
+describe('modelsMeasured', () => {
+  it('lists every model across the history, including ones that failed', () => {
+    expect(
+      modelsMeasured([
+        run('2026-08-01T10:00:00.000Z', [row({ modelName: 'b' })]),
+        run('2026-08-08T10:00:00.000Z', [row({ modelName: 'a', status: 'failed' })]),
+      ]),
+    ).toEqual(['a', 'b']);
   });
 });

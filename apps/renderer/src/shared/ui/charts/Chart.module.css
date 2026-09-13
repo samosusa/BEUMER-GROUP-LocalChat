@@ -146,3 +146,42 @@
   color: var(--text-secondary);
   text-align: center;
 }
+
+/* A value riding its own mark. Text tokens, never the series colour. */
+.valueLabel {
+  fill: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pointLabel {
+  fill: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 11px;
+}
+
+.axisTitle {
+  fill: var(--text-label);
+  font-family: var(--font-sans);
+  font-size: 10px;
+}
+
+/* A reference line is not data: dashed, and one step quieter than the gridlines. */
+.band {
+  stroke: var(--chart-axis);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.bandLabel {
+  fill: var(--text-label);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.chartFootnote {
+  margin-top: var(--space-2);
+  font-size: var(--text-micro);
+  color: var(--text-label);
+}

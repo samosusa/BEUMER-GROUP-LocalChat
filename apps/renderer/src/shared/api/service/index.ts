@@ -566,6 +566,41 @@ export async function latestEmbeddingBenchmark(
   });
 }
 
+/**
+ * Every completed embedding run, oldest first, with its rows.
+ *
+ * Mirrors `benchmarkHistory`: the summaries carry the timestamps, the per-run endpoint
+ * carries the rows, so a history costs one request per run. Capped at 20 for the same
+ * reason, and running/failed jobs are dropped because a half-finished run plotted beside
+ * completed ones invents a trend that never happened.
+ */
+export async function embeddingBenchmarkHistory(
+  signal?: AbortSignal,
+): Promise<EmbeddingBenchmarkRun[]> {
+  const runs = await request('/embeddings/benchmark/results', {
+    schema: ServiceEmbeddingBenchmarkRunList,
+    signal,
+  });
+
+  const completed = runs
+    .filter((run) => run.status.toLowerCase() === 'completed')
+    .sort((a, b) => a.embedding_benchmark_job_id - b.embedding_benchmark_job_id)
+    .slice(-20);
+
+  return Promise.all(
+    completed.map(async (run) => {
+      const results = await request(
+        `/embeddings/benchmark/results/${run.embedding_benchmark_job_id}`,
+        { schema: ServiceEmbeddingBenchmarkResults, signal },
+      );
+      return embeddingBenchmarkRunFromService(results, {
+        startedAt: run.created_at,
+        finishedAt: run.finished_at,
+      });
+    }),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // RAG evaluation
 // ---------------------------------------------------------------------------

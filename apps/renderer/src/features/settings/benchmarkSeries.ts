@@ -197,3 +197,194 @@ export function devicesMeasured(history: ModelBenchmarkRun[]): ComputeMode[] {
   }
   return [...seen].sort();
 }
+
+// ---------------------------------------------------------------------------
+// Reading a recommendation out of the numbers
+// ---------------------------------------------------------------------------
+
+export interface Recommendation {
+  /** Highest generation speed of any completed row. */
+  fastest: ModelBenchmarkRow | null;
+  /** Lowest peak memory of any completed row - what runs on the weakest machine. */
+  leanest: ModelBenchmarkRow | null;
+  /** True when one model is both, so the screen says it once rather than twice. */
+  sameModel: boolean;
+}
+
+/**
+ * The answer the benchmark screen exists to give, stated rather than left to be read off
+ * a chart.
+ *
+ * Two models are named, not one, because "best" is not a single axis here: the fastest
+ * model may not fit on the hardware BEUMER actually issues, and the leanest may be too slow
+ * to use. Naming both makes the trade-off visible in words; the scatter shows its shape.
+ */
+export function recommend(run: ModelBenchmarkRun): Recommendation {
+  const ok = run.rows.filter((row) => row.status === 'ok');
+
+  const fastest = ok.reduce<ModelBenchmarkRow | null>(
+    (best, row) =>
+      row.tokensPerSecond !== null && row.tokensPerSecond > (best?.tokensPerSecond ?? -1)
+        ? row
+        : best,
+    null,
+  );
+
+  const leanest = ok.reduce<ModelBenchmarkRow | null>((best, row) => {
+    const cost = memoryOf(row);
+    if (cost === null) return best;
+    const bestCost = best === null ? null : memoryOf(best);
+    return bestCost === null || cost < bestCost ? row : best;
+  }, null);
+
+  return {
+    fastest,
+    leanest,
+    sameModel: fastest !== null && leanest !== null && fastest.modelName === leanest.modelName,
+  };
+}
+
+/** A GPU row's real cost is its VRAM; a CPU row's is host memory. */
+function memoryOf(row: ModelBenchmarkRow): number | null {
+  return row.peakVramBytes ?? row.peakMemoryBytes;
+}
+
+// ---------------------------------------------------------------------------
+// GPU against CPU
+// ---------------------------------------------------------------------------
+
+export interface Speedup {
+  key: string;
+  label: string;
+  ratio: number;
+  baselineText: string;
+  comparedText: string;
+}
+
+/**
+ * How much the GPU changes each model, as a ratio against the same model on CPU.
+ *
+ * Only models measured on BOTH devices appear: a ratio needs two numbers, and showing a
+ * model that only ran on one of them would invite the reader to compare it with the others
+ * anyway.
+ *
+ * For a metric where lower is better - load time, time to first token - the ratio is
+ * inverted so that "greater than 1" always means "the GPU helped". Without that, the same
+ * chart would mean opposite things depending on which measure was selected, which is the
+ * kind of quiet inconsistency nobody notices until they have drawn the wrong conclusion.
+ */
+export function buildSpeedup(run: ModelBenchmarkRun, metric: Metric): Speedup[] {
+  const ok = run.rows.filter((row) => row.status === 'ok');
+  const models = [...new Set(ok.map((row) => row.modelName))];
+
+  return models.flatMap((modelName) => {
+    const cpu = ok.find((row) => row.modelName === modelName && row.compute === 'cpu');
+    const gpu = ok.find((row) => row.modelName === modelName && row.compute === 'gpu');
+    if (!cpu || !gpu) return [];
+
+    const cpuValue = metric.of(cpu);
+    const gpuValue = metric.of(gpu);
+    if (cpuValue === null || gpuValue === null || cpuValue === 0 || gpuValue === 0) return [];
+
+    const ratio = metric.higherIsBetter ? gpuValue / cpuValue : cpuValue / gpuValue;
+
+    return [
+      {
+        key: modelName,
+        label: modelName,
+        ratio,
+        baselineText: metric.format(cpuValue),
+        comparedText: metric.format(gpuValue),
+      },
+    ];
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Speed against memory
+// ---------------------------------------------------------------------------
+
+export interface TradeoffPoint {
+  key: string;
+  label: string;
+  /** Peak memory, bytes. */
+  x: number;
+  /** Generation speed, tokens per second. */
+  y: number;
+  color: string;
+}
+
+/**
+ * Every completed row as a point: memory on x, speed on y.
+ *
+ * Rows are per model AND device, so a model benchmarked on both appears twice - correctly,
+ * because the GPU run has a different memory cost and a different speed. The device is part
+ * of the label for that reason.
+ */
+export function buildTradeoff(run: ModelBenchmarkRun): TradeoffPoint[] {
+  const models = [...new Set(run.rows.map((row) => row.modelName))];
+
+  return run.rows.flatMap((row) => {
+    if (row.status !== 'ok') return [];
+    const memory = memoryOf(row);
+    if (memory === null || row.tokensPerSecond === null) return [];
+
+    const hue = models.indexOf(row.modelName) % SERIES_COLORS.length;
+    return [
+      {
+        key: `${row.modelName}-${row.compute}`,
+        label: `${row.modelName} · ${row.compute.toUpperCase()}`,
+        x: memory,
+        y: row.tokensPerSecond,
+        color: SERIES_COLORS[hue] as string,
+      },
+    ];
+  });
+}
+
+/** Memory ceilings worth marking, in bytes - the machines an engineer is likely to be given. */
+export const MEMORY_BANDS = [
+  { at: 4 * 1024 ** 3, label: '4 GB' },
+  { at: 8 * 1024 ** 3, label: '8 GB' },
+  { at: 16 * 1024 ** 3, label: '16 GB' },
+];
+
+// ---------------------------------------------------------------------------
+// Filtering
+// ---------------------------------------------------------------------------
+
+export interface RunFilter {
+  /** Empty means every device. */
+  devices: ComputeMode[];
+  /** Empty means every model. */
+  models: string[];
+  /** Rows that could not run - kept out of the charts by default, never out of the table. */
+  includeUnmeasured: boolean;
+}
+
+export const NO_FILTER: RunFilter = { devices: [], models: [], includeUnmeasured: false };
+
+/**
+ * Narrows a run to what the filter admits.
+ *
+ * An empty list means "everything" rather than "nothing" - the alternative is a screen that
+ * goes blank the moment the last checkbox is cleared, which reads as a bug.
+ */
+export function applyFilter(run: ModelBenchmarkRun, filter: RunFilter): ModelBenchmarkRun {
+  return {
+    ...run,
+    rows: run.rows.filter((row) => {
+      if (!filter.includeUnmeasured && row.status !== 'ok') return false;
+      if (filter.devices.length > 0 && !filter.devices.includes(row.compute)) return false;
+      if (filter.models.length > 0 && !filter.models.includes(row.modelName)) return false;
+      return true;
+    }),
+  };
+}
+
+/** Every model name that appears in the history, for the model filter's option list. */
+export function modelsMeasured(history: ModelBenchmarkRun[]): string[] {
+  const seen = new Set<string>();
+  for (const run of history) for (const row of run.rows) seen.add(row.modelName);
+  return [...seen].sort();
+}

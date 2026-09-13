@@ -2,13 +2,24 @@ import { useMemo, useState } from 'react';
 import type { ComputeMode, ModelBenchmarkRun } from '@localchat/contracts';
 import { GroupedColumns } from '@/shared/ui/charts/GroupedColumns';
 import { TimeSeries } from '@/shared/ui/charts/TimeSeries';
+import { SpeedupBars } from '@/shared/ui/charts/SpeedupBars';
+import { Scatter } from '@/shared/ui/charts/Scatter';
+import { formatBytes } from '@/shared/lib/format';
 import {
+  MEMORY_BANDS,
   METRICS,
+  NO_FILTER,
   RUN_RANGES,
+  applyFilter,
   buildComparison,
+  buildSpeedup,
+  buildTradeoff,
   buildTrend,
   devicesMeasured,
+  modelsMeasured,
   recentRuns,
+  recommend,
+  type RunFilter,
 } from './benchmarkSeries';
 import styles from './Settings.module.css';
 
@@ -20,10 +31,10 @@ interface BenchmarkChartsProps {
 /**
  * The benchmark, drawn.
  *
- * Two charts, one measure at a time: which model is fastest on this machine right now, and
- * whether that has been moving. The table underneath keeps every figure - it is the detail
- * view and the accessibility relief for the light theme, where three of the six series hues
- * sit below 3:1 against white.
+ * Four views of one run, in the order the questions get asked: what should we ship, how do
+ * the models compare, does the GPU earn its place, and is any of this moving. The table
+ * underneath keeps every figure — it is the detail view and the accessibility relief for
+ * the light theme, where three of the six series hues sit below 3:1 against white.
  */
 export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
   const [metricKey, setMetricKey] = useState(METRICS[0]!.key);
@@ -31,17 +42,86 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
 
   const [rangeKey, setRangeKey] = useState(RUN_RANGES[RUN_RANGES.length - 1]!.key);
   const range = RUN_RANGES.find((candidate) => candidate.key === rangeKey) ?? RUN_RANGES[0]!;
-  const shown = useMemo(() => recentRuns(history, range.count), [history, range]);
 
-  const devices = useMemo(() => devicesMeasured(shown), [shown]);
+  const [filter, setFilter] = useState<RunFilter>(NO_FILTER);
+
+  const shown = useMemo(() => recentRuns(history, range.count), [history, range]);
+  const filteredHistory = useMemo(
+    () => shown.map((run) => applyFilter(run, filter)),
+    [shown, filter],
+  );
+  const filteredLatest = useMemo(() => applyFilter(latest, filter), [latest, filter]);
+
+  const allDevices = useMemo(() => devicesMeasured([latest, ...history]), [latest, history]);
+  const allModels = useMemo(() => modelsMeasured([latest, ...history]), [latest, history]);
+
+  const devices = useMemo(() => devicesMeasured(filteredHistory), [filteredHistory]);
   const [device, setDevice] = useState<ComputeMode>('cpu');
   const active = devices.includes(device) ? device : (devices[0] ?? 'cpu');
 
-  const comparison = useMemo(() => buildComparison(latest, metric), [latest, metric]);
-  const trend = useMemo(() => buildTrend(shown, metric, active), [shown, metric, active]);
+  const advice = useMemo(() => recommend(filteredLatest), [filteredLatest]);
+  const comparison = useMemo(
+    () => buildComparison(filteredLatest, metric),
+    [filteredLatest, metric],
+  );
+  const speedup = useMemo(() => buildSpeedup(filteredLatest, metric), [filteredLatest, metric]);
+  const tradeoff = useMemo(() => buildTradeoff(filteredLatest), [filteredLatest]);
+  const trend = useMemo(
+    () => buildTrend(filteredHistory, metric, active),
+    [filteredHistory, metric, active],
+  );
+
+  const toggleModel = (name: string) =>
+    setFilter((current) => ({
+      ...current,
+      models: current.models.includes(name)
+        ? current.models.filter((entry) => entry !== name)
+        : [...current.models, name],
+    }));
+
+  const toggleDevice = (candidate: ComputeMode) =>
+    setFilter((current) => ({
+      ...current,
+      devices: current.devices.includes(candidate)
+        ? current.devices.filter((entry) => entry !== candidate)
+        : [...current.devices, candidate],
+    }));
 
   return (
     <div className={styles.charts}>
+      {(advice.fastest || advice.leanest) && (
+        <p className={styles.advice}>
+          {advice.sameModel && advice.fastest ? (
+            <>
+              <strong>{advice.fastest.modelName}</strong> is both the fastest and the leanest here —{' '}
+              {metricValue(advice.fastest.tokensPerSecond, (value) => `${value} tok/s`)} on{' '}
+              {advice.fastest.compute.toUpperCase()}, {formatBytes(memoryOf(advice.fastest), 1)}{' '}
+              peak.
+            </>
+          ) : (
+            <>
+              Fastest here:{' '}
+              <strong>{advice.fastest ? advice.fastest.modelName : 'nothing measured'}</strong>
+              {advice.fastest && (
+                <>
+                  {' '}
+                  ({metricValue(
+                    advice.fastest.tokensPerSecond,
+                    (value) => `${value} tok/s`,
+                  )} on {advice.fastest.compute.toUpperCase()})
+                </>
+              )}
+              {advice.leanest && (
+                <>
+                  {' · '}Smallest footprint: <strong>{advice.leanest.modelName}</strong> (
+                  {formatBytes(memoryOf(advice.leanest), 1)})
+                </>
+              )}
+            </>
+          )}
+        </p>
+      )}
+
       <div className={styles.chartControls}>
         <label className={styles.benchPicker}>
           <span className={styles.benchPickerLabel}>Measure</span>
@@ -57,6 +137,7 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
             ))}
           </select>
         </label>
+
         <label className={styles.benchPicker}>
           <span className={styles.benchPickerLabel}>History</span>
           <select
@@ -72,9 +153,56 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
             ))}
           </select>
         </label>
+
         <p className={styles.chartHint}>
           {metric.higherIsBetter ? 'Higher is better.' : 'Lower is better.'}
         </p>
+      </div>
+
+      {/*
+        Filters sit in one row above every chart, so it is never ambiguous which of them a
+        filter applies to. An empty selection means "all" rather than "none": clearing the
+        last checkbox should not blank the screen.
+      */}
+      <div className={styles.filterRow}>
+        {allDevices.length > 1 && (
+          <span className={styles.filterGroup} role="group" aria-label="Devices">
+            <span className={styles.benchPickerLabel}>Device</span>
+            {allDevices.map((candidate) => (
+              <FilterChip
+                key={candidate}
+                label={candidate.toUpperCase()}
+                on={filter.devices.length === 0 || filter.devices.includes(candidate)}
+                onClick={() => toggleDevice(candidate)}
+              />
+            ))}
+          </span>
+        )}
+
+        {allModels.length > 1 && (
+          <span className={styles.filterGroup} role="group" aria-label="Models">
+            <span className={styles.benchPickerLabel}>Models</span>
+            {allModels.map((name) => (
+              <FilterChip
+                key={name}
+                label={name}
+                on={filter.models.length === 0 || filter.models.includes(name)}
+                onClick={() => toggleModel(name)}
+              />
+            ))}
+          </span>
+        )}
+
+        <label className={styles.filterToggle}>
+          <input
+            type="checkbox"
+            checked={filter.includeUnmeasured}
+            onChange={(event) =>
+              setFilter((current) => ({ ...current, includeUnmeasured: event.target.checked }))
+            }
+          />
+          Include runs that did not complete
+        </label>
       </div>
 
       <figure className={styles.chartFigure}>
@@ -93,10 +221,47 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
         )}
       </figure>
 
+      {/*
+        Only worth drawing when both devices ran. On a machine with no GPU build this whole
+        figure disappears rather than showing an empty frame captioned "GPU against CPU".
+      */}
+      {speedup.length > 0 && (
+        <figure className={styles.chartFigure}>
+          <figcaption className={styles.chartTitle}>
+            <span>What the GPU changes — {metric.label.toLowerCase()}</span>
+          </figcaption>
+          <SpeedupBars rows={speedup} baselineLabel="CPU" caption={metric.label} />
+          <p className={styles.chartFootnote}>
+            Above 1× means the GPU helped, whichever direction the underlying measure runs in. On
+            integrated graphics expect a real gain on time to first token and close to none on
+            generation speed — the GPU shares the same memory, so there is no extra bandwidth to
+            win.
+          </p>
+        </figure>
+      )}
+
+      <figure className={styles.chartFigure}>
+        <figcaption className={styles.chartTitle}>Speed against memory</figcaption>
+        {tradeoff.length > 0 ? (
+          <Scatter
+            points={tradeoff}
+            xLabel="Peak memory"
+            yLabel="Generation speed"
+            formatX={(value) => formatBytes(value, 0)}
+            formatY={(value) => `${value.toFixed(0)} tok/s`}
+            bands={MEMORY_BANDS}
+            bestCornerNote="Top-left is the corner worth being in: fast, and small enough to run on a laptop."
+          />
+        ) : (
+          <p className={styles.chartEmpty}>No completed rows report both speed and memory.</p>
+        )}
+      </figure>
+
       <figure className={styles.chartFigure}>
         <figcaption className={styles.chartTitle}>
           <span>
-            {metric.label} over {shown.length} run{shown.length === 1 ? '' : 's'}
+            {metric.label} over {filteredHistory.length} run
+            {filteredHistory.length === 1 ? '' : 's'}
           </span>
           {devices.length > 1 && (
             <span className={styles.chartTabs} role="group" aria-label="Device">
@@ -130,7 +295,7 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
           </>
         ) : (
           <p className={styles.chartEmpty}>
-            {shown.length < 2
+            {filteredHistory.length < 2
               ? 'Run the benchmark again to compare against this one.'
               : `No ${active.toUpperCase()} results in these runs.`}
           </p>
@@ -138,6 +303,27 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
       </figure>
     </div>
   );
+}
+
+function FilterChip({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className={on ? styles.filterChipOn : styles.filterChip}
+      aria-pressed={on}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
+function memoryOf(row: { peakVramBytes: number | null; peakMemoryBytes: number | null }): number {
+  return row.peakVramBytes ?? row.peakMemoryBytes ?? 0;
+}
+
+function metricValue(value: number | null, format: (value: string) => string): string {
+  return value === null ? 'not measured' : format(value.toFixed(value < 10 ? 1 : 0));
 }
 
 function formatRunDate(at: number): string {

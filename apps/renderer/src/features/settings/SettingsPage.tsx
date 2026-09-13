@@ -11,6 +11,7 @@ import {
   useActiveModel,
   useBenchmark,
   useEmbeddingBenchmark,
+  useEmbeddingBenchmarkHistory,
   useEmbeddingModels,
   useModels,
   useBenchmarkHistory,
@@ -28,6 +29,7 @@ import {
 } from '@/shared/api/queries';
 import { describeError } from '@/shared/api/http';
 import { BenchmarkCharts } from './BenchmarkCharts';
+import { EmbeddingBenchmarkCharts } from './EmbeddingBenchmarkCharts';
 import { Button } from '@/shared/ui/Button';
 import { Toggle } from '@/shared/ui/Controls';
 import { Icon, type IconName } from '@/shared/ui/Icon';
@@ -651,6 +653,7 @@ function EmbeddingModelRow({
  */
 function EmbeddingBenchmarkCard() {
   const benchmark = useEmbeddingBenchmark();
+  const history = useEmbeddingBenchmarkHistory();
   const models = useEmbeddingModels();
   const run = useRunEmbeddingBenchmark();
   const result = benchmark.data;
@@ -737,6 +740,10 @@ function EmbeddingBenchmarkCard() {
       )}
 
       {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
+
+      {measured.length > 0 && (
+        <EmbeddingBenchmarkCharts latest={result} history={history.data ?? [result]} />
+      )}
 
       <div className={styles.benchScroll}>
         <table className={styles.benchTable}>

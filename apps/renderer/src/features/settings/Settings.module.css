@@ -654,3 +654,80 @@
   line-height: var(--leading-normal);
   color: var(--text-secondary);
 }
+
+/* ---------------------------------------------------------------------------
+   The answer, in words
+
+   A chart ranks; it never says "ship this one". The line above the charts does, and it
+   names two models rather than one, because the fastest may not fit the hardware BEUMER
+   issues and the leanest may be too slow to use.
+   --------------------------------------------------------------------------- */
+
+.advice {
+  padding: var(--space-4) var(--space-5);
+  border-left: 2px solid var(--accent);
+  background: var(--surface-accent-soft);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  font-size: var(--text-row);
+  line-height: var(--leading-normal);
+  color: var(--text-body);
+}
+
+.advice strong {
+  color: var(--text-primary);
+  font-weight: var(--weight-semibold);
+}
+
+/* ----- filters ----------------------------------------------------------- */
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.filterGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.filterChip,
+.filterChipOn {
+  padding: 2px var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-micro);
+  color: var(--text-label);
+}
+
+.filterChip:hover {
+  border-color: var(--border-strong);
+  color: var(--text-body);
+}
+
+.filterChipOn {
+  border-color: var(--accent);
+  background: var(--surface-active);
+  color: var(--accent-text);
+}
+
+.filterToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-micro);
+  color: var(--text-label);
+}
+
+.chartFootnote {
+  margin-top: var(--space-3);
+  font-size: var(--text-micro);
+  line-height: var(--leading-normal);
+  color: var(--text-label);
+  max-width: 68ch;
+}

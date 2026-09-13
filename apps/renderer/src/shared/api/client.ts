@@ -8,6 +8,7 @@ import {
   type ComputeMode,
   type CreateChatRequest,
   type CreateProjectRequest,
+  EmbeddingBenchmarkHistoryResponse,
   EmbeddingBenchmarkResponse,
   HealthResponse,
   type IndexStats,
@@ -434,6 +435,16 @@ export const api = {
     LIVE
       ? { run: await service.latestEmbeddingBenchmark(signal) }
       : request(routes.embeddingBenchmark(), { schema: EmbeddingBenchmarkResponse, signal }),
+
+  getEmbeddingBenchmarkHistory: async (
+    signal?: AbortSignal,
+  ): Promise<EmbeddingBenchmarkHistoryResponse> =>
+    LIVE
+      ? { runs: await service.embeddingBenchmarkHistory(signal) }
+      : request(routes.embeddingBenchmarkHistory(), {
+          schema: EmbeddingBenchmarkHistoryResponse,
+          signal,
+        }),
 
   runEmbeddingBenchmark: async (
     body: RunEmbeddingBenchmarkRequest,

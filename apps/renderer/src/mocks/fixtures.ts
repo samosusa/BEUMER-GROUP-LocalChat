@@ -723,6 +723,22 @@ export const EMBEDDING_MODELS: EmbeddingModel[] = [
   },
 ];
 
+/**
+ * How much slower model `index` is than the baseline on a given text tier.
+ *
+ * Deterministic, not random: a mock whose numbers move on every reload makes it impossible
+ * to tell a rendering bug from noise. Model 0 is a large, accurate model that suffers badly
+ * on long text; model 2 is small and stays flat. That contrast is the finding the tier
+ * chart exists to show.
+ */
+function embeddingCost(index: number, tier: 'short' | 'medium' | 'long'): number {
+  const base = [1.9, 1.25, 0.85][index % 3] as number;
+  const longPenalty = [1.55, 1.1, 0.95][index % 3] as number;
+  if (tier === 'short') return base;
+  if (tier === 'medium') return base * ((1 + longPenalty) / 2);
+  return base * longPenalty;
+}
+
 /** A finished embedding benchmark: every registered model across the three text tiers. */
 export const EMBEDDING_BENCHMARK: EmbeddingBenchmarkRun = {
   id: '1',
@@ -731,7 +747,13 @@ export const EMBEDDING_BENCHMARK: EmbeddingBenchmarkRun = {
   current: null,
   startedAt: daysAgo(2),
   finishedAt: daysAgo(2),
-  rows: EMBEDDING_MODELS.flatMap((model) =>
+  /*
+   * Throughput is scaled per model rather than identical across them, and the penalty on
+   * long text differs by model on purpose: the whole point of measuring three tiers is that
+   * a model can be fastest on short text and worst on long, which is the wrong choice for a
+   * 200-page manual. Identical rows would draw three flat bars and hide exactly that.
+   */
+  rows: EMBEDDING_MODELS.flatMap((model, index) =>
     (
       [
         { label: 'short', count: 5, embedMs: 40, throughput: 125 },
@@ -746,8 +768,8 @@ export const EMBEDDING_BENCHMARK: EmbeddingBenchmarkRun = {
       loadMs: 900 + model.dimension,
       textLabel: tier.label,
       textCount: tier.count,
-      embedMs: tier.embedMs,
-      textsPerSecond: tier.throughput,
+      embedMs: Math.round(tier.embedMs * embeddingCost(index, tier.label)),
+      textsPerSecond: Math.round((tier.throughput / embeddingCost(index, tier.label)) * 10) / 10,
       peakMemoryBytes: 350_000_000 + model.dimension * 500_000,
       ranAt: daysAgo(2),
     })),

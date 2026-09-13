@@ -1,5 +1,5 @@
 import { http, HttpResponse, delay } from 'msw';
-import type { ModelBenchmarkRun } from '@localchat/contracts';
+import type { EmbeddingBenchmarkRun, ModelBenchmarkRun } from '@localchat/contracts';
 import {
   AskRequest,
   CreateChatRequest,
@@ -534,6 +534,11 @@ export const handlers = [
     return HttpResponse.json({ run: catalogue.embeddingBenchmark });
   }),
 
+  http.get(route(routes.embeddingBenchmarkHistory()), async () => {
+    await delay(LATENCY.fast);
+    return HttpResponse.json({ runs: embeddingHistory() });
+  }),
+
   http.post(route(routes.embeddingBenchmark()), async ({ request }) => {
     const parsed = RunEmbeddingBenchmarkRequest.safeParse(await request.json());
     if (!parsed.success) return badRequest('Malformed embedding benchmark request.');
@@ -622,6 +627,45 @@ function benchmarkHistory(): ModelBenchmarkRun[] {
           timeToFirstTokenMs: scale(row.timeToFirstTokenMs, 1 / factor),
           loadMs: scale(row.loadMs, 1 / factor),
           totalMs: scale(row.totalMs, 1 / factor),
+        })),
+    };
+  });
+}
+
+/**
+ * Five past embedding runs, a week apart, derived from the finished one.
+ *
+ * Same deterministic-drift rule as `benchmarkHistory` above. The newest model only appears
+ * in the last two runs, because a model added to config/embedding_models.json partway
+ * through cannot have results from before it existed - and a chart that pretends otherwise
+ * teaches the reader to distrust it.
+ */
+function embeddingHistory(): EmbeddingBenchmarkRun[] {
+  const RUNS = 5;
+  const DAY = 86_400_000;
+  const finished = Date.parse(
+    catalogue.embeddingBenchmark.finishedAt ?? catalogue.embeddingBenchmark.startedAt,
+  );
+  const newest = catalogue.embeddingBenchmark.rows.at(-1)?.model;
+
+  return Array.from({ length: RUNS }, (_, index) => {
+    const age = RUNS - 1 - index;
+    const at = new Date(finished - age * 7 * DAY).toISOString();
+    const factor = 1 - age * 0.05;
+
+    return {
+      ...catalogue.embeddingBenchmark,
+      id: `embedding-history-${index}`,
+      startedAt: at,
+      finishedAt: at,
+      rows: catalogue.embeddingBenchmark.rows
+        .filter((row) => row.model !== newest || age < 2)
+        .map((row) => ({
+          ...row,
+          ranAt: at,
+          textsPerSecond: scale(row.textsPerSecond, factor),
+          embedMs: scale(row.embedMs, 1 / factor),
+          loadMs: scale(row.loadMs, 1 / factor),
         })),
     };
   });

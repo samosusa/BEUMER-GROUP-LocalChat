@@ -143,6 +143,18 @@
   --chart-grid: #0a3543;
   --chart-axis: #12556b;
 
+  /*
+   * Diverging pair, for a value read against a baseline rather than against other values -
+   * the GPU speedup chart, where 1x means "no different from CPU".
+   *
+   * Warm and cool poles so the two directions read as opposites, with the baseline itself
+   * as the neutral middle. Deliberately NOT the status colours: those are reserved for
+   * state and always ship with an icon and a label, and a bar sitting at 0.9x is a
+   * measurement, not an error.
+   */
+  --chart-above: #009fe3;
+  --chart-below: #e05252;
+
   --shadow-panel: 0 18px 40px rgb(0 0 0 / 45%);
   --shadow-overlay: 0 24px 50px rgb(0 0 0 / 50%);
 
@@ -203,6 +215,8 @@
   --series-6: #008300;
   --chart-grid: #e2e9ec;
   --chart-axis: #d5dfe3;
+  --chart-above: #0079ad;
+  --chart-below: #c2352f;
 
   --shadow-panel: 0 12px 28px rgb(0 42 54 / 12%);
   --shadow-overlay: 0 20px 44px rgb(0 42 54 / 18%);
@@ -263,6 +277,8 @@
     --series-6: #008300;
     --chart-grid: #e2e9ec;
     --chart-axis: #d5dfe3;
+    --chart-above: #0079ad;
+    --chart-below: #c2352f;
 
     --shadow-panel: 0 12px 28px rgb(0 42 54 / 12%);
     --shadow-overlay: 0 20px 44px rgb(0 42 54 / 18%);
