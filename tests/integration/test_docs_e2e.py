@@ -60,12 +60,20 @@ def test_delete_document_cascades_chunks_and_vector_index(tmp_path: Path, monkey
     query can still retrieve and cite a document the user believes was removed."""
     import src.api.ingest as ingest_api
 
-    def fake_process_upload(job_id: int, title: str, path: str, project_id: int | None = None) -> None:
+    def fake_process_upload(
+        job_id: int, title: str, path: str, project_id: int | None = None, also_general: bool = False
+    ) -> None:
         from src.ingest.pipeline import run_pipeline
 
         with SessionLocal() as db:
             run_pipeline(
-                db, job_id, title, path, embedder=lambda texts: [[1.0, 0.0] for _ in texts], project_id=project_id
+                db,
+                job_id,
+                title,
+                path,
+                embedder=lambda texts: [[1.0, 0.0] for _ in texts],
+                project_id=project_id,
+                also_general=also_general,
             )
         Path(path).unlink(missing_ok=True)
 

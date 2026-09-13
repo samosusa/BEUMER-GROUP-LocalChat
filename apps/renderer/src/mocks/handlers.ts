@@ -6,7 +6,10 @@ import {
   CreateProjectRequest,
   IngestDocumentsRequest,
   RunBenchmarkRequest,
+  RunEmbeddingBenchmarkRequest,
   ReindexRequest,
+  SetActiveEmbeddingModelRequest,
+  StartRagEvalRequest,
   UpdateChatContextRequest,
   UpdateSettingsRequest,
   routes,
@@ -228,6 +231,7 @@ export const handlers = [
       const document = {
         id: nextId('doc'),
         projectId: parsed.data.projectId,
+        alsoGeneral: parsed.data.alsoGeneral,
         filename,
         title: filename.replace(/\.[^.]+$/, ''),
         format,
@@ -472,6 +476,113 @@ export const handlers = [
     );
     return HttpResponse.json({
       run: { ...catalogue.benchmark, rows, startedAt: finishedAt, finishedAt },
+    });
+  }),
+
+  // --- embedding models, re-embedding, embedding benchmark -----------------
+  http.get(route(routes.embeddingModels()), async () => {
+    await delay(LATENCY.fast);
+    return HttpResponse.json({ embeddingModels: catalogue.embeddingModels });
+  }),
+
+  http.get(route(routes.activeEmbeddingModel()), async () => {
+    await delay(LATENCY.fast);
+    const model = catalogue.embeddingModels.find((m) => m.name === store.settings.embeddingModel);
+    return HttpResponse.json({
+      model: store.settings.embeddingModel,
+      dimension: model?.dimension ?? 0,
+    });
+  }),
+
+  http.post(route(routes.activeEmbeddingModel()), async ({ request }) => {
+    const parsed = SetActiveEmbeddingModelRequest.safeParse(await request.json());
+    if (!parsed.success) return badRequest('Choose an embedding model.');
+    const model = catalogue.embeddingModels.find((m) => m.name === parsed.data.model);
+    if (!model) return badRequest('Unknown embedding model.', { model: parsed.data.model });
+
+    await delay(LATENCY.fast);
+    store.settings.embeddingModel = model.name;
+
+    // A real switch re-embeds every document in the background, which can take minutes on a
+    // large corpus. The mock simulates that as an already-finished job rather than modelling
+    // a multi-step progress bar nobody watching the mock could act on anyway.
+    const finishedAt = new Date().toISOString();
+    store.reindexJob = {
+      id: nextId('reindex'),
+      status: 'completed',
+      model: model.name,
+      progress: `${store.documents.length} of ${store.documents.length}`,
+      currentDocument: null,
+      startedAt: finishedAt,
+      finishedAt,
+    };
+
+    return HttpResponse.json({
+      model: model.name,
+      dimension: model.dimension,
+      reindexJobId: store.reindexJob.id,
+    });
+  }),
+
+  http.get(route(routes.reindexJob()), async () => {
+    await delay(LATENCY.fast);
+    return HttpResponse.json({ job: store.reindexJob });
+  }),
+
+  http.get(route(routes.embeddingBenchmark()), async () => {
+    await delay(LATENCY.fast);
+    return HttpResponse.json({ run: catalogue.embeddingBenchmark });
+  }),
+
+  http.post(route(routes.embeddingBenchmark()), async ({ request }) => {
+    const parsed = RunEmbeddingBenchmarkRequest.safeParse(await request.json());
+    if (!parsed.success) return badRequest('Malformed embedding benchmark request.');
+
+    // Embedding models are far smaller than a GGUF, so this is a shorter simulated wait
+    // than the answer-model benchmark above, not a design inconsistency.
+    await delay(1_000);
+    const finishedAt = new Date().toISOString();
+    const models = parsed.data.models;
+    const rows = models
+      ? catalogue.embeddingBenchmark.rows.filter((row) => models.includes(row.model))
+      : catalogue.embeddingBenchmark.rows;
+    return HttpResponse.json({
+      run: { ...catalogue.embeddingBenchmark, rows, startedAt: finishedAt, finishedAt },
+    });
+  }),
+
+  // --- RAG evaluation --------------------------------------------------------
+  http.get(route(routes.ragEvalDatasets()), async () => {
+    await delay(LATENCY.fast);
+    return HttpResponse.json(catalogue.ragEvalDatasets);
+  }),
+
+  http.get(route(routes.ragEval()), async () => {
+    await delay(LATENCY.fast);
+    return HttpResponse.json({ run: catalogue.ragEval });
+  }),
+
+  http.post(route(routes.ragEval()), async ({ request }) => {
+    const parsed = StartRagEvalRequest.safeParse(await request.json());
+    if (!parsed.success) return badRequest('Malformed RAG evaluation request.');
+    if (!catalogue.ragEvalDatasets.some((dataset) => dataset.id === parsed.data.datasetId)) {
+      return badRequest('Unknown RAG eval dataset.', { datasetId: parsed.data.datasetId });
+    }
+
+    // A real run answers every question end to end - retrieval plus generation plus an
+    // LLM-judge call - which is minutes of work across 45 questions. The mock simulates that
+    // as an already-finished run against the fixed sample rows rather than modelling
+    // per-question progress nobody watching the mock could act on anyway.
+    await delay(2_000);
+    const finishedAt = new Date().toISOString();
+    return HttpResponse.json({
+      run: {
+        ...catalogue.ragEval,
+        datasetId: parsed.data.datasetId,
+        projectId: parsed.data.projectId,
+        startedAt: finishedAt,
+        finishedAt,
+      },
     });
   }),
 ];

@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/mocks/server';
+import { useNotificationStore } from '@/shared/store/notificationStore';
+import { NotificationStack } from '@/app/layout/NotificationStack';
 import { store } from '@/mocks/db';
 import { ChatPage } from './ChatPage';
 
@@ -17,10 +19,13 @@ import { ChatPage } from './ChatPage';
  */
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  server.resetHandlers();
+  useNotificationStore.setState({ notifications: [] });
+});
 afterAll(() => server.close());
 
-function renderChat(chatId: string) {
+function renderChat(chatId: string, extra?: React.ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
@@ -33,6 +38,7 @@ function renderChat(chatId: string) {
     ...render(
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
+        {extra}
       </QueryClientProvider>,
     ),
   };
@@ -310,17 +316,29 @@ describe('ChatPage', () => {
    * returned `rejected: [{ path, reason }]` and nothing rendered it, so the screen simply
    * did not change. The reason the backend gives is the actionable part.
    *
+   * Covered here as well as in GeneralDocumentsPage because this is a different entry
+   * point: a drop onto the transcript, not the "Add files" button, and it is the one an
+   * engineer reaches for mid-conversation.
+   *
    * Driven through the drop handler rather than the file picker: the browser picker
-   * resolves on a real dialog, which jsdom has none of.
+   * resolves on a real dialog, which jsdom has none of. NotificationStack is rendered as a
+   * sibling because it normally lives in AppLayout, above the router.
    */
-  it('says why a document was rejected instead of silently doing nothing', async () => {
+  it('says why a dropped document was rejected instead of silently doing nothing', async () => {
     server.use(
       http.post('*/api/documents/ingest', () =>
         HttpResponse.json({
           accepted: [],
+          /*
+           * `path` echoes back the exact label the request supplied, which for a browser
+           * file is its name — ingestLive pushes { path: file.name }, and the mock echoes
+           * the `paths` it was given, built from those same names. useIngestDocuments
+           * relies on that to tell an accepted file from a rejected one; a fixture that
+           * returns some other spelling reports the same file as both.
+           */
           rejected: [
             {
-              path: '/site/notes.zip',
+              path: 'notes.zip',
               reason: 'LocalChat reads PDF, DOCX, Markdown and plain text.',
             },
           ],
@@ -328,7 +346,7 @@ describe('ChatPage', () => {
       ),
     );
 
-    const { container } = renderChat('chat-throughput');
+    const { container } = renderChat('chat-throughput', <NotificationStack />);
     await screen.findByLabelText(/Ask a question/);
 
     const page = container.firstElementChild as HTMLElement;
@@ -336,8 +354,13 @@ describe('ChatPage', () => {
       dataTransfer: { files: [new File(['x'], 'notes.zip')], types: ['Files'] },
     });
 
-    const note = await screen.findByRole('status');
-    expect(note).toHaveTextContent('notes.zip');
-    expect(note).toHaveTextContent(/reads PDF, DOCX, Markdown and plain text/i);
+    expect(
+      await screen.findByText('1 file could not be indexed', undefined, { timeout: 3000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/notes\.zip/)).toBeInTheDocument();
+    expect(screen.getByText(/reads PDF, DOCX, Markdown and plain text/i)).toBeInTheDocument();
+
+    // A rejected file must not also be announced as indexed.
+    expect(screen.queryByText(/ready to use/i)).not.toBeInTheDocument();
   });
 });

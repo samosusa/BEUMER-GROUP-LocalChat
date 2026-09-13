@@ -5,12 +5,14 @@ import type {
   CreateProjectRequest,
   ReindexRequest,
   RunBenchmarkRequest,
+  RunEmbeddingBenchmarkRequest,
   UpdateChatContextRequest,
   UpdateSettingsRequest,
 } from '@localchat/contracts';
 import { api, type IngestInput } from './client';
-import { ApiError } from './http';
+import { ApiError, describeError } from './http';
 import { withMeasuredTimings } from './turnTimings';
+import { useNotificationStore } from '@/shared/store/notificationStore';
 
 /**
  * Query keys are declared once, hierarchically, so an invalidation can target exactly the
@@ -37,6 +39,12 @@ export const keys = {
   models: ['models'] as const,
   benchmark: ['benchmark'] as const,
   benchmarkHistory: ['benchmark', 'history'] as const,
+  embeddingModels: ['embeddingModels'] as const,
+  activeEmbeddingModel: ['activeEmbeddingModel'] as const,
+  reindexJob: ['reindexJob'] as const,
+  embeddingBenchmark: ['embeddingBenchmark'] as const,
+  ragEvalDatasets: ['ragEvalDatasets'] as const,
+  ragEval: ['ragEval'] as const,
 };
 
 /** Anything the retriever wrote is cheap to refetch and expensive to show stale. */
@@ -222,6 +230,73 @@ export function useBenchmarkHistory() {
   });
 }
 
+export function useEmbeddingModels() {
+  return useQuery({
+    queryKey: keys.embeddingModels,
+    queryFn: ({ signal }) => api.listEmbeddingModels(signal),
+    select: (data) => data.embeddingModels,
+    ...STATIC,
+  });
+}
+
+/** The embedding model actually indexing and searching with, straight off the service. */
+export function useActiveEmbeddingModel() {
+  return useQuery({
+    queryKey: keys.activeEmbeddingModel,
+    queryFn: ({ signal }) => api.getActiveEmbeddingModel(signal),
+    ...STATIC,
+  });
+}
+
+/**
+ * The current or most recent re-embed job. Polls while running: switching models queues a
+ * pass over every indexed document, which can take minutes on a large corpus, and a fixed
+ * interval would either lag an active run or keep polling long after a finished one.
+ */
+export function useReindexJob() {
+  return useQuery({
+    queryKey: keys.reindexJob,
+    queryFn: ({ signal }) => api.getReindexJob(signal),
+    select: (data) => data.job,
+    ...STATIC,
+    refetchInterval: (query) => (query.state.data?.job?.status === 'running' ? 2_000 : false),
+  });
+}
+
+/** Same shape as `useBenchmark`, for the embedding-model benchmark instead of the answer model. */
+export function useEmbeddingBenchmark() {
+  return useQuery({
+    queryKey: keys.embeddingBenchmark,
+    queryFn: ({ signal }) => api.getEmbeddingBenchmark(signal),
+    select: (data) => data.run,
+    ...STATIC,
+    refetchInterval: (query) => (query.state.data?.run?.status === 'running' ? 3_000 : false),
+  });
+}
+
+/** Every question set under data/eval/ on the service - drop a new file in to add a choice. */
+export function useRagEvalDatasets() {
+  return useQuery({
+    queryKey: keys.ragEvalDatasets,
+    queryFn: ({ signal }) => api.getRagEvalDatasets(signal),
+    ...STATIC,
+  });
+}
+
+/**
+ * The current or most recent evaluation run. Polls while running: each question is a full
+ * retrieval + generation + judge round trip, so a 45-question run can take minutes.
+ */
+export function useRagEval() {
+  return useQuery({
+    queryKey: keys.ragEval,
+    queryFn: ({ signal }) => api.getRagEval(signal),
+    select: (data) => data.run,
+    ...STATIC,
+    refetchInterval: (query) => (query.state.data?.run?.status === 'running' ? 3_000 : false),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Mutations
 // ---------------------------------------------------------------------------
@@ -328,9 +403,57 @@ export function useIngestDocuments() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (input: IngestInput) => api.ingestDocuments(input),
-    onSuccess: () => {
+    /**
+     * Runs even if the page that started the ingest has since unmounted — mutation
+     * callbacks live on the query client, not the component — so a rejection is still
+     * reported when the engineer has already moved on to another screen.
+     */
+    onSuccess: (data, input) => {
       void client.invalidateQueries({ queryKey: ['documents'] });
       void client.invalidateQueries({ queryKey: keys.projects.all });
+      if (data.rejected.length > 0) {
+        useNotificationStore.getState().push({
+          tone: 'warning',
+          title:
+            data.rejected.length === 1
+              ? '1 file could not be indexed'
+              : `${data.rejected.length} files could not be indexed`,
+          detail: data.rejected.map((item) => `${item.path} — ${item.reason}`),
+        });
+      }
+
+      const rejected = new Set(data.rejected.map((item) => item.path));
+      const names = [
+        ...(input.paths ?? [])
+          .filter((path) => !rejected.has(path))
+          .map((path) => path.split(/[\\/]/).pop() ?? path),
+        ...(input.files ?? []).filter((file) => !rejected.has(file.name)).map((file) => file.name),
+      ];
+      if (names.length > 0) {
+        const scope =
+          input.projectId === null ? 'General' : input.alsoGeneral ? 'Both' : 'Project-specific';
+        useNotificationStore.getState().push({
+          tone: 'info',
+          title:
+            names.length === 1
+              ? 'Document indexed and ready to use'
+              : `${names.length} documents indexed and ready to use`,
+          detail: names.map((name) => `${name} — ${scope}`),
+        });
+      }
+    },
+    /**
+     * The request itself failing — the local service unreachable, or down — would otherwise
+     * vanish silently: every caller just `await`s `mutateAsync` and has nothing of its own to
+     * catch the rejection with, so "add folder"/"add files" would visibly do nothing at all
+     * rather than explain why.
+     */
+    onError: (error) => {
+      useNotificationStore.getState().push({
+        tone: 'warning',
+        title: 'Could not add documents',
+        detail: [describeError(error)],
+      });
     },
   });
 }
@@ -401,6 +524,42 @@ export function useRunBenchmark() {
   return useMutation({
     mutationFn: (body: RunBenchmarkRequest) => api.runBenchmark(body),
     onSuccess: (data) => client.setQueryData(keys.benchmark, data),
+  });
+}
+
+/**
+ * Switching always queues a re-embed of the existing corpus — there is no way to switch
+ * without one. `onSuccess` seeds both the new active model and the freshly-queued job so the
+ * interface reflects the switch immediately rather than waiting on the next poll of each.
+ */
+export function useSetActiveEmbeddingModel() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (model: string) => api.setActiveEmbeddingModel(model),
+    onSuccess: (data) => {
+      client.setQueryData(keys.activeEmbeddingModel, {
+        model: data.model,
+        dimension: data.dimension,
+      });
+      void client.invalidateQueries({ queryKey: keys.reindexJob });
+    },
+  });
+}
+
+export function useRunEmbeddingBenchmark() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RunEmbeddingBenchmarkRequest) => api.runEmbeddingBenchmark(body),
+    onSuccess: (data) => client.setQueryData(keys.embeddingBenchmark, data),
+  });
+}
+
+/** projectId: null runs against the general (project-less) corpus. */
+export function useRunRagEval() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { projectId: string | null; datasetId: string }) => api.runRagEval(args),
+    onSuccess: (data) => client.setQueryData(keys.ragEval, data),
   });
 }
 

@@ -1,12 +1,24 @@
-import type { AnswerEvent, Chat, Document, Message, Project, Settings } from '@localchat/contracts';
+import type {
+  AnswerEvent,
+  Chat,
+  Document,
+  Message,
+  Project,
+  ReindexJob,
+  Settings,
+} from '@localchat/contracts';
 import {
   APPROVED_TOOLS,
   BENCHMARK,
   CHATS,
   DOCUMENTS,
+  EMBEDDING_BENCHMARK,
+  EMBEDDING_MODELS,
   MESSAGES,
   MODELS,
   PROJECTS,
+  RAG_EVAL,
+  RAG_EVAL_DATASETS,
   SETTINGS,
 } from './fixtures';
 
@@ -25,6 +37,8 @@ interface Store {
   chats: Chat[];
   messages: Map<string, Message[]>;
   settings: Settings;
+  /** The current or most recent re-embed job, or null before any switch has ever run. */
+  reindexJob: ReindexJob | null;
 }
 
 export const store: Store = {
@@ -33,9 +47,18 @@ export const store: Store = {
   chats: structuredClone(CHATS),
   messages: new Map(Object.entries(structuredClone(MESSAGES))),
   settings: structuredClone(SETTINGS),
+  reindexJob: null,
 };
 
-export const catalogue = { models: MODELS, benchmark: BENCHMARK, tools: APPROVED_TOOLS };
+export const catalogue = {
+  models: MODELS,
+  benchmark: BENCHMARK,
+  tools: APPROVED_TOOLS,
+  embeddingModels: EMBEDDING_MODELS,
+  embeddingBenchmark: EMBEDDING_BENCHMARK,
+  ragEval: RAG_EVAL,
+  ragEvalDatasets: RAG_EVAL_DATASETS,
+};
 
 let sequence = 0;
 export function nextId(prefix: string): string {
@@ -44,6 +67,9 @@ export function nextId(prefix: string): string {
 }
 
 export function documentsFor(projectId: string | null): Document[] {
+  if (projectId === null) {
+    return store.documents.filter((doc) => doc.projectId === null || doc.alsoGeneral);
+  }
   return store.documents.filter((doc) => doc.projectId === projectId);
 }
 

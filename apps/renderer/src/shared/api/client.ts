@@ -1,4 +1,5 @@
 import {
+  ActiveEmbeddingModelResponse,
   AnswerEvent,
   type AskRequest,
   BenchmarkHistoryResponse,
@@ -7,6 +8,7 @@ import {
   type ComputeMode,
   type CreateChatRequest,
   type CreateProjectRequest,
+  EmbeddingBenchmarkResponse,
   HealthResponse,
   type IndexStats,
   type IngestDocumentsRequest,
@@ -14,14 +16,21 @@ import {
   ListApprovedToolsResponse,
   ListChatsResponse,
   ListDocumentsResponse,
+  ListEmbeddingModelsResponse,
   ListMessagesResponse,
   ListModelsResponse,
   ListProjectsResponse,
   type Message,
   ProjectResponse,
+  RagEvalDatasetsResponse,
+  RagEvalRunResponse,
+  ReindexJobResponse,
   type ReindexRequest,
   type RunBenchmarkRequest,
+  type RunEmbeddingBenchmarkRequest,
+  SetActiveEmbeddingModelResponse,
   SettingsResponse,
+  type StartRagEvalRequest,
   type UpdateChatContextRequest,
   type UpdateProjectRequest,
   type UpdateSettingsRequest,
@@ -150,7 +159,12 @@ export const api = {
       });
     }
     const all = await service.listDocuments(signal);
-    const documents = projectId === null ? all : all.filter((doc) => doc.projectId === projectId);
+    // General (projectId === null) also draws in project-scoped documents explicitly opted
+    // into general visibility; a project's own listing stays exact-match regardless of that
+    // flag, since the document still belongs to it.
+    const documents = all.filter(
+      (doc) => doc.projectId === projectId || (projectId === null && doc.alsoGeneral),
+    );
     return { documents, stats: statsFromDocuments(documents.length) };
   },
 
@@ -166,6 +180,7 @@ export const api = {
     const body: IngestDocumentsRequest = {
       projectId: input.projectId,
       paths: input.paths?.length ? input.paths : (input.files ?? []).map((file) => file.name),
+      alsoGeneral: input.alsoGeneral ?? false,
     };
     if (body.paths.length === 0) return { accepted: [], rejected: [] };
     return request(routes.ingest(), { method: 'POST', body, schema: IngestDocumentsResponse });
@@ -373,6 +388,90 @@ export const api = {
 
   ask: (chatId: string, body: AskRequest, signal?: AbortSignal) =>
     LIVE ? askLive(chatId, body, signal) : streamAnswer(chatId, body, signal),
+
+  // --- embedding models, re-embedding, embedding benchmark -----------------
+  // Unlike the answer model, switching this one is real work: it changes the vector space
+  // every existing document's chunks are stored in, so a switch always queues a re-embed of
+  // the corpus (see setActiveEmbeddingModel/getReindexJob) rather than being a pure toggle.
+
+  listEmbeddingModels: async (signal?: AbortSignal): Promise<ListEmbeddingModelsResponse> =>
+    LIVE
+      ? { embeddingModels: await service.listEmbeddingModels(signal) }
+      : request(routes.embeddingModels(), { schema: ListEmbeddingModelsResponse, signal }),
+
+  getActiveEmbeddingModel: (signal?: AbortSignal): Promise<ActiveEmbeddingModelResponse> =>
+    LIVE
+      ? service.activeEmbeddingModel(signal)
+      : request(routes.activeEmbeddingModel(), { schema: ActiveEmbeddingModelResponse, signal }),
+
+  /**
+   * Blocks only on the swap itself (comparable to loading any other sentence-transformers
+   * model); the corpus-wide re-embed that follows runs in the background, tracked by the
+   * returned `reindexJobId` and polled through `getReindexJob`.
+   */
+  setActiveEmbeddingModel: async (model: string): Promise<SetActiveEmbeddingModelResponse> => {
+    if (!LIVE) {
+      return request(routes.activeEmbeddingModel(), {
+        method: 'POST',
+        body: { model },
+        schema: SetActiveEmbeddingModelResponse,
+      });
+    }
+    const active = await service.setActiveEmbeddingModel(model);
+    return {
+      model: active.model,
+      dimension: active.dimension,
+      reindexJobId: String(active.reindex_job_id),
+    };
+  },
+
+  getReindexJob: async (signal?: AbortSignal): Promise<ReindexJobResponse> =>
+    LIVE
+      ? { job: await service.latestReindexJob(signal) }
+      : request(routes.reindexJob(), { schema: ReindexJobResponse, signal }),
+
+  getEmbeddingBenchmark: async (signal?: AbortSignal): Promise<EmbeddingBenchmarkResponse> =>
+    LIVE
+      ? { run: await service.latestEmbeddingBenchmark(signal) }
+      : request(routes.embeddingBenchmark(), { schema: EmbeddingBenchmarkResponse, signal }),
+
+  runEmbeddingBenchmark: async (
+    body: RunEmbeddingBenchmarkRequest,
+  ): Promise<EmbeddingBenchmarkResponse> => {
+    if (!LIVE) {
+      return request(routes.embeddingBenchmark(), {
+        method: 'POST',
+        body,
+        schema: EmbeddingBenchmarkResponse,
+      });
+    }
+    await service.startEmbeddingBenchmark(body.models);
+    return { run: await service.latestEmbeddingBenchmark() };
+  },
+
+  // --- RAG evaluation --------------------------------------------------------
+  // Runs a labeled question set end to end (real retrieval + real generation) against
+  // whichever project's documents are currently ingested - see docs/backend-wiring.md and
+  // data/eval/rag_qa_pairs.json. Distinct from the two benchmarks above: those measure speed,
+  // this measures whether the system actually answers correctly.
+
+  getRagEvalDatasets: async (signal?: AbortSignal): Promise<RagEvalDatasetsResponse> =>
+    LIVE
+      ? service.ragEvalDatasets(signal)
+      : request(routes.ragEvalDatasets(), { schema: RagEvalDatasetsResponse, signal }),
+
+  getRagEval: async (signal?: AbortSignal): Promise<RagEvalRunResponse> =>
+    LIVE
+      ? { run: await service.latestRagEval(signal) }
+      : request(routes.ragEval(), { schema: RagEvalRunResponse, signal }),
+
+  runRagEval: async (body: StartRagEvalRequest): Promise<RagEvalRunResponse> => {
+    if (!LIVE) {
+      return request(routes.ragEval(), { method: 'POST', body, schema: RagEvalRunResponse });
+    }
+    await service.startRagEval(body.projectId, body.datasetId);
+    return { run: await service.latestRagEval() };
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -387,6 +486,8 @@ export interface IngestInput {
   projectId: string | null;
   paths?: string[];
   files?: File[];
+  /** Also surface these documents in the general corpus. Meaningless when projectId is null. */
+  alsoGeneral?: boolean;
 }
 
 const INGEST_POLL_MS = 750;
@@ -408,7 +509,10 @@ async function ingestLive(input: IngestInput): Promise<IngestDocumentsResponse> 
 
   const start = async (label: string, file: File) => {
     const title = file.name.replace(/\.[^.]+$/, '');
-    jobs.push({ path: label, jobId: await service.startIngestion(file, title, input.projectId) });
+    jobs.push({
+      path: label,
+      jobId: await service.startIngestion(file, title, input.projectId, input.alsoGeneral ?? false),
+    });
   };
 
   // Files the host already handed over need no bridge at all.

@@ -27,10 +27,19 @@ const bridge = {
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke(CHANNELS.pickFolder),
   /**
    * Documents found inside a previously-picked folder, ready to be read the same way an
-   * individually-picked file is via `readDocument`.
+   * individually-picked file is via `readDocument`. `skipped` names whatever was found in
+   * the folder but isn't a format the pipeline reads.
    */
-  listFolderDocuments: (folderPath: string): Promise<string[]> =>
+  listFolderDocuments: (folderPath: string): Promise<{ paths: string[]; skipped: string[] }> =>
     ipcRenderer.invoke(CHANNELS.listFolderDocuments, folderPath),
+  /**
+   * Resolves paths from a native drag-and-drop onto the window: expands any that are
+   * folders and validates every one, ready to read via `readDocument` like any other pick.
+   * `skipped` names anything dropped, or found inside a dropped folder, that isn't a format
+   * the pipeline reads.
+   */
+  resolveDroppedPaths: (paths: string[]): Promise<{ paths: string[]; skipped: string[] }> =>
+    ipcRenderer.invoke(CHANNELS.resolveDroppedPaths, paths),
   revealInFolder: (path: string): Promise<void> =>
     ipcRenderer.invoke(CHANNELS.revealInFolder, path),
 

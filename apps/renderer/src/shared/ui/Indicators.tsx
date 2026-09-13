@@ -89,20 +89,24 @@ export function Callout({
   title,
   children,
   actions,
+  className,
+  actionsClassName,
 }: {
   tone?: 'warning' | 'accent';
   icon?: IconName;
   title: string;
   children?: ReactNode;
   actions?: ReactNode;
+  className?: string;
+  actionsClassName?: string;
 }) {
   return (
-    <div className={cn(styles.callout, styles[`callout_${tone}`])} role="status">
+    <div className={cn(styles.callout, styles[`callout_${tone}`], className)} role="status">
       <Icon name={icon} size={19} className={styles.calloutIcon} />
       <div className={styles.calloutBody}>
         <p className={styles.calloutTitle}>{title}</p>
         {children && <div className={styles.calloutText}>{children}</div>}
-        {actions && <div className={styles.calloutActions}>{actions}</div>}
+        {actions && <div className={cn(styles.calloutActions, actionsClassName)}>{actions}</div>}
       </div>
     </div>
   );

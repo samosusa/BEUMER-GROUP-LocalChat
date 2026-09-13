@@ -3,8 +3,12 @@ import type {
   BenchmarkRowStatus,
   Chat,
   Citation,
+  ComplexityTier,
   Document,
   DocumentFormat,
+  EmbeddingBenchmarkRow,
+  EmbeddingBenchmarkRun,
+  EmbeddingModel,
   IngestionStatus,
   Message,
   Model,
@@ -12,6 +16,16 @@ import type {
   ModelBenchmarkRun,
   NoEvidenceReason,
   Project,
+  RagEvalBucket,
+  RagEvalDatasetInfo,
+  RagEvalDifficulty,
+  RagEvalJobStatus,
+  RagEvalJudgeVerdict,
+  RagEvalRow,
+  RagEvalRun,
+  RagEvalSummary,
+  ReindexJob,
+  ReindexJobStatus,
 } from '@localchat/contracts';
 import type {
   ServiceAnswer,
@@ -22,10 +36,20 @@ import type {
   ServiceConversation,
   ServiceConversationDetail,
   ServiceDocument,
+  ServiceEmbeddingBenchmarkResults,
+  ServiceEmbeddingBenchmarkRow,
+  ServiceEmbeddingBenchmarkStatus,
+  ServiceEmbeddingModel,
   ServiceIngestStatus,
   ServiceMessage,
   ServiceModel,
   ServiceProject,
+  ServiceRagEvalDatasetInfo,
+  ServiceRagEvalResults,
+  ServiceRagEvalRow,
+  ServiceRagEvalStatus,
+  ServiceRagEvalSummary,
+  ServiceReindexStatus,
 } from './dto';
 
 /**
@@ -108,6 +132,7 @@ export function documentFromService(dto: ServiceDocument): Document {
   return {
     id: toId(dto.id),
     projectId: dto.project_id === null ? null : toId(dto.project_id),
+    alsoGeneral: dto.also_general,
     filename: basename(dto.path),
     title: dto.title,
     format: formatFromPath(dto.path),
@@ -442,6 +467,183 @@ export function benchmarkRunFromService(
     progress: meta.status?.progress ?? null,
     current: meta.status?.current ?? null,
     rows,
+    startedAt: toIso(meta.startedAt),
+    finishedAt: toIsoOrNull(meta.finishedAt),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Embedding models
+// ---------------------------------------------------------------------------
+
+export function embeddingModelFromService(dto: ServiceEmbeddingModel): EmbeddingModel {
+  return {
+    id: dto.name,
+    name: dto.name,
+    dimension: dto.dimension,
+    description: dto.description,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Re-embedding
+// ---------------------------------------------------------------------------
+
+const REINDEX_JOB_STATUS: Record<string, ReindexJobStatus> = {
+  running: 'running',
+  completed: 'completed',
+  failed: 'failed',
+};
+
+export function reindexJobFromService(
+  status: ServiceReindexStatus,
+  meta: { id: string; startedAt: string; finishedAt: string | null },
+): ReindexJob {
+  return {
+    id: meta.id,
+    status: REINDEX_JOB_STATUS[status.status.toLowerCase()] ?? 'running',
+    model: status.model,
+    progress: status.progress,
+    currentDocument: status.current_document,
+    startedAt: toIso(meta.startedAt),
+    finishedAt: toIsoOrNull(meta.finishedAt),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Embedding benchmark
+// ---------------------------------------------------------------------------
+
+export function embeddingBenchmarkRowFromService(
+  dto: ServiceEmbeddingBenchmarkRow,
+): EmbeddingBenchmarkRow {
+  return {
+    model: dto.model,
+    dimension: dto.dimension,
+    status: ROW_STATUS[dto.status.toLowerCase()] ?? 'failed',
+    detail: dto.detail,
+    loadMs: toMs(dto.load_s),
+    textLabel: dto.text_label,
+    textCount: dto.text_count,
+    embedMs: toMs(dto.embed_s),
+    textsPerSecond: dto.texts_per_s,
+    peakMemoryBytes: toBytes(dto.peak_mem_mb),
+    ranAt: toIso(dto.run_at),
+  };
+}
+
+export function embeddingBenchmarkRunFromService(
+  results: ServiceEmbeddingBenchmarkResults,
+  meta: { startedAt: string; finishedAt: string | null; status?: ServiceEmbeddingBenchmarkStatus },
+): EmbeddingBenchmarkRun {
+  const rows = results.results.map(embeddingBenchmarkRowFromService);
+  return {
+    id: toId(results.embedding_benchmark_job_id),
+    status: JOB_STATUS[(meta.status?.status ?? results.status).toLowerCase()] ?? 'running',
+    progress: meta.status?.progress ?? null,
+    current: meta.status?.current ?? null,
+    rows,
+    startedAt: toIso(meta.startedAt),
+    finishedAt: toIsoOrNull(meta.finishedAt),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// RAG evaluation
+// ---------------------------------------------------------------------------
+
+export function ragEvalDatasetInfoFromService(dto: ServiceRagEvalDatasetInfo): RagEvalDatasetInfo {
+  return {
+    id: dto.id,
+    documents: dto.documents.map((doc) => ({
+      source: doc.source,
+      titleHint: doc.title_hint,
+      questionCount: doc.question_count,
+    })),
+    totalQuestions: dto.total_questions,
+  };
+}
+
+const RAG_EVAL_DIFFICULTY: Record<string, RagEvalDifficulty> = {
+  easy: 'easy',
+  medium: 'medium',
+  hard: 'hard',
+};
+
+const RAG_EVAL_JUDGE_VERDICT: Record<string, RagEvalJudgeVerdict> = {
+  correct: 'correct',
+  partial: 'partial',
+  incorrect: 'incorrect',
+  error: 'error',
+};
+
+const RAG_EVAL_JOB_STATUS: Record<string, RagEvalJobStatus> = {
+  running: 'running',
+  completed: 'completed',
+  failed: 'failed',
+};
+
+export function ragEvalRowFromService(dto: ServiceRagEvalRow): RagEvalRow {
+  return {
+    source: dto.source,
+    // An unrecognised difficulty defaults to 'hard' rather than silently dropping the row -
+    // the reader should notice something is off, not lose data from the results table.
+    difficulty: RAG_EVAL_DIFFICULTY[dto.difficulty.toLowerCase()] ?? 'hard',
+    question: dto.question,
+    expectedAnswer: dto.expected_answer,
+    actualAnswer: dto.actual_answer,
+    notFound: dto.not_found,
+    retrievalHit: dto.retrieval_hit,
+    judgeVerdict: dto.judge_verdict
+      ? (RAG_EVAL_JUDGE_VERDICT[dto.judge_verdict.toLowerCase()] ?? 'error')
+      : null,
+    judgeDetail: dto.judge_detail,
+    complexityTier: dto.complexity_tier as ComplexityTier | null,
+    complexityScore: dto.complexity_score,
+    latencyMs: toMs(dto.latency_s),
+    citations: dto.citations,
+    ranAt: toIso(dto.run_at),
+  };
+}
+
+function ragEvalBucketFromService(dto: ServiceRagEvalSummary): RagEvalBucket {
+  return {
+    total: dto.total,
+    retrievalHitRate: dto.retrieval_hit_rate,
+    judgeCounts: dto.judge_counts,
+  };
+}
+
+export function ragEvalSummaryFromService(dto: ServiceRagEvalSummary): RagEvalSummary {
+  return {
+    ...ragEvalBucketFromService(dto),
+    byDifficulty: Object.fromEntries(
+      Object.entries(dto.by_difficulty).map(([difficulty, bucket]) => [
+        difficulty,
+        ragEvalBucketFromService({ ...bucket, by_difficulty: {} }),
+      ]),
+    ),
+  };
+}
+
+export function ragEvalRunFromService(
+  results: ServiceRagEvalResults,
+  meta: {
+    projectId: string | null;
+    startedAt: string;
+    finishedAt: string | null;
+    status?: ServiceRagEvalStatus;
+  },
+): RagEvalRun {
+  return {
+    id: toId(results.rag_eval_job_id),
+    status: RAG_EVAL_JOB_STATUS[(meta.status?.status ?? results.status).toLowerCase()] ?? 'running',
+    datasetId: meta.status?.dataset_id ?? results.dataset_id,
+    projectId: meta.projectId,
+    progress: meta.status?.progress ?? null,
+    currentQuestion: meta.status?.current_question ?? null,
+    summary: ragEvalSummaryFromService(results.summary),
+    rows: results.results.map(ragEvalRowFromService),
     startedAt: toIso(meta.startedAt),
     finishedAt: toIsoOrNull(meta.finishedAt),
   };

@@ -3,15 +3,21 @@ import type {
   Chat,
   ComputeMode,
   Document,
+  EmbeddingBenchmarkRun,
+  EmbeddingModel,
   HealthResponse,
   Message,
   Model,
   ModelBenchmarkRun,
   Project,
+  RagEvalDatasetInfo,
+  RagEvalRun,
+  ReindexJob,
   RetrievalScope,
 } from '@localchat/contracts';
 import { request } from '../http';
 import {
+  ServiceActiveEmbeddingModel,
   ServiceActiveModel,
   ServiceBenchmarkAccepted,
   ServiceBenchmarkResults,
@@ -20,6 +26,11 @@ import {
   ServiceConversationDetail,
   ServiceConversationList,
   ServiceDocumentList,
+  ServiceEmbeddingBenchmarkAccepted,
+  ServiceEmbeddingBenchmarkResults,
+  ServiceEmbeddingBenchmarkRunList,
+  ServiceEmbeddingBenchmarkStatus,
+  ServiceEmbeddingModelList,
   ServiceHealth,
   ServiceIngestAccepted,
   ServiceIngestStatus,
@@ -27,6 +38,14 @@ import {
   ServiceModelList,
   ServiceProject,
   ServiceProjectList,
+  ServiceRagEvalAccepted,
+  ServiceRagEvalDatasetList,
+  ServiceRagEvalResults,
+  ServiceRagEvalRunList,
+  ServiceRagEvalStatus,
+  ServiceReindexRunList,
+  ServiceReindexStatus,
+  ServiceSetActiveEmbeddingModel,
 } from './dto';
 import {
   benchmarkRunFromService,
@@ -34,11 +53,16 @@ import {
   chatFromService,
   createDocumentIndex,
   documentFromService,
+  embeddingBenchmarkRunFromService,
+  embeddingModelFromService,
   ingestionProgressFromService,
   ingestionStatusFromService,
   messageFromService,
   modelFromService,
   projectFromService,
+  ragEvalDatasetInfoFromService,
+  ragEvalRunFromService,
+  reindexJobFromService,
   toId,
   toServiceId,
 } from './map';
@@ -208,11 +232,13 @@ export async function startIngestion(
   file: File,
   title: string,
   projectId: string | null,
+  alsoGeneral = false,
 ): Promise<string> {
   const form = new FormData();
   form.set('file', file, file.name);
   form.set('title', title);
   if (projectId !== null) form.set('project_id', String(toServiceId(projectId, 'project')));
+  if (alsoGeneral) form.set('also_general', 'true');
   const dto = await request('/ingest', {
     method: 'POST',
     body: form,
@@ -433,4 +459,160 @@ export async function benchmarkHistory(signal?: AbortSignal): Promise<ModelBench
   );
 
   return detailed;
+}
+
+// ---------------------------------------------------------------------------
+// Embedding models
+// ---------------------------------------------------------------------------
+
+export async function listEmbeddingModels(signal?: AbortSignal): Promise<EmbeddingModel[]> {
+  const dto = await request('/embeddings/models', { schema: ServiceEmbeddingModelList, signal });
+  return dto.map(embeddingModelFromService);
+}
+
+export function activeEmbeddingModel(signal?: AbortSignal) {
+  return request('/embeddings/active', { schema: ServiceActiveEmbeddingModel, signal });
+}
+
+/**
+ * Switching always queues a full re-embed of the existing corpus (see `latestReindexJob`
+ * below) — unlike the answer model, there is no way to switch without one: the old vectors
+ * are not merely stale, they live in a different, now-incompatible space.
+ */
+export function setActiveEmbeddingModel(model: string) {
+  return request('/embeddings/active', {
+    method: 'POST',
+    body: { model },
+    schema: ServiceSetActiveEmbeddingModel,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Re-embedding
+// ---------------------------------------------------------------------------
+
+/**
+ * The current or most recent re-embed job, assembled from two endpoints the same way
+ * `latestBenchmark` joins three: `/embeddings/reindex` lists jobs with their timestamps but
+ * no live progress, `/embeddings/reindex/status/{id}` has progress but no timestamps.
+ */
+export async function latestReindexJob(signal?: AbortSignal): Promise<ReindexJob | null> {
+  const runs = await request('/embeddings/reindex', { schema: ServiceReindexRunList, signal });
+  if (runs.length === 0) return null;
+
+  const newest = [...runs].sort((a, b) => b.reindex_job_id - a.reindex_job_id)[0];
+  if (!newest) return null;
+
+  const status = await request(`/embeddings/reindex/status/${newest.reindex_job_id}`, {
+    schema: ServiceReindexStatus,
+    signal,
+  });
+  return reindexJobFromService(status, {
+    id: toId(newest.reindex_job_id),
+    startedAt: newest.created_at,
+    finishedAt: newest.finished_at,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Embedding benchmark
+// ---------------------------------------------------------------------------
+
+/** Starts a run and returns its job id. Loads each embedding model in sequence, on CPU only. */
+export async function startEmbeddingBenchmark(models: string[] | null): Promise<string> {
+  const dto = await request('/embeddings/benchmark', {
+    method: 'POST',
+    body: { models },
+    schema: ServiceEmbeddingBenchmarkAccepted,
+  });
+  return toId(dto.embedding_benchmark_job_id);
+}
+
+/** The most recent run, assembled the same three-endpoint way as `latestBenchmark`. */
+export async function latestEmbeddingBenchmark(
+  signal?: AbortSignal,
+): Promise<EmbeddingBenchmarkRun | null> {
+  const runs = await request('/embeddings/benchmark/results', {
+    schema: ServiceEmbeddingBenchmarkRunList,
+    signal,
+  });
+  if (runs.length === 0) return null;
+
+  const newest = [...runs].sort(
+    (a, b) => b.embedding_benchmark_job_id - a.embedding_benchmark_job_id,
+  )[0];
+  if (!newest) return null;
+
+  const results = await request(
+    `/embeddings/benchmark/results/${newest.embedding_benchmark_job_id}`,
+    {
+      schema: ServiceEmbeddingBenchmarkResults,
+      signal,
+    },
+  );
+
+  let status;
+  if (newest.status.toLowerCase() === 'running') {
+    status = await request(`/embeddings/benchmark/status/${newest.embedding_benchmark_job_id}`, {
+      schema: ServiceEmbeddingBenchmarkStatus,
+      signal,
+    });
+  }
+
+  return embeddingBenchmarkRunFromService(results, {
+    startedAt: newest.created_at,
+    finishedAt: newest.finished_at,
+    status,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// RAG evaluation
+// ---------------------------------------------------------------------------
+
+export async function ragEvalDatasets(signal?: AbortSignal): Promise<RagEvalDatasetInfo[]> {
+  const dto = await request('/rag-eval/datasets', { schema: ServiceRagEvalDatasetList, signal });
+  return dto.map(ragEvalDatasetInfoFromService);
+}
+
+/** Starts a run against a project's currently-ingested documents and returns its job id. */
+export async function startRagEval(projectId: string | null, datasetId: string): Promise<string> {
+  const dto = await request('/rag-eval', {
+    method: 'POST',
+    body: {
+      project_id: projectId === null ? null : toServiceId(projectId, 'project'),
+      dataset_id: datasetId,
+    },
+    schema: ServiceRagEvalAccepted,
+  });
+  return toId(dto.rag_eval_job_id);
+}
+
+/** The most recent run, assembled the same three-endpoint way as `latestBenchmark`. */
+export async function latestRagEval(signal?: AbortSignal): Promise<RagEvalRun | null> {
+  const runs = await request('/rag-eval/results', { schema: ServiceRagEvalRunList, signal });
+  if (runs.length === 0) return null;
+
+  const newest = [...runs].sort((a, b) => b.rag_eval_job_id - a.rag_eval_job_id)[0];
+  if (!newest) return null;
+
+  const results = await request(`/rag-eval/results/${newest.rag_eval_job_id}`, {
+    schema: ServiceRagEvalResults,
+    signal,
+  });
+
+  let status;
+  if (newest.status.toLowerCase() === 'running') {
+    status = await request(`/rag-eval/status/${newest.rag_eval_job_id}`, {
+      schema: ServiceRagEvalStatus,
+      signal,
+    });
+  }
+
+  return ragEvalRunFromService(results, {
+    projectId: newest.project_id === null ? null : toId(newest.project_id),
+    startedAt: newest.created_at,
+    finishedAt: newest.finished_at,
+    status,
+  });
 }

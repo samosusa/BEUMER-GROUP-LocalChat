@@ -1,18 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CreateProjectRequest } from '@localchat/contracts';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
 import { Mono } from '@/shared/ui/Indicators';
+import { DropOverlay } from '@/shared/ui/DropOverlay';
 import { formatCount } from '@/shared/lib/format';
 import {
   chooseDocuments,
   chooseFolderDocuments,
-  hasDesktopBridge,
   type ChosenDocuments,
 } from '@/shared/lib/localFiles';
+import { withUnprocessableConfirm } from '@/shared/lib/confirmUnprocessable';
+import { useDocumentDrop } from '@/shared/hooks/useDocumentDrop';
 import styles from './NewProjectDialog.module.css';
 
-const EMPTY_DOCUMENTS: ChosenDocuments = { paths: [], files: [] };
+const EMPTY_DOCUMENTS: ChosenDocuments = { paths: [], files: [], skipped: [] };
 
 /**
  * Native `<dialog>`, so focus trapping, Escape and the backdrop come from the platform
@@ -41,8 +43,10 @@ export function NewProjectDialog({
 
   async function addFolder() {
     const picked = await chooseFolderDocuments();
+    const confirmed = await withUnprocessableConfirm(picked.documents);
+    if (!confirmed) return;
     if (picked.folderPath) setFolderPath(picked.folderPath);
-    setDocuments((prev) => mergeDocuments(prev, picked.documents));
+    setDocuments((prev) => mergeDocuments(prev, confirmed));
   }
 
   async function addFiles() {
@@ -50,10 +54,19 @@ export function NewProjectDialog({
     setDocuments((prev) => mergeDocuments(prev, chosen));
   }
 
+  const drop = useDocumentDrop(
+    useCallback(async (chosen: ChosenDocuments) => {
+      const confirmed = await withUnprocessableConfirm(chosen);
+      if (!confirmed) return;
+      setDocuments((prev) => mergeDocuments(prev, confirmed));
+    }, []),
+  );
+
   function removeQueued(key: string) {
     setDocuments((prev) => ({
       paths: prev.paths.filter((path) => pathKey(path) !== key),
       files: prev.files.filter((file) => fileKey(file) !== key),
+      skipped: prev.skipped,
     }));
   }
 
@@ -67,11 +80,15 @@ export function NewProjectDialog({
       <form
         method="dialog"
         className={styles.form}
+        onDragEnter={drop.onDragEnter}
         onSubmit={(event) => {
           event.preventDefault();
           if (name.trim() === '') return;
           void onCreate({ name: name.trim(), description, folderPath, instructions }, documents);
         }}
+        onDragOver={drop.onDragOver}
+        onDragLeave={drop.onDragLeave}
+        onDrop={drop.onDrop}
       >
         <h2 className={styles.title}>New project</h2>
 
@@ -102,11 +119,9 @@ export function NewProjectDialog({
         <div className={styles.field}>
           <span className={styles.label}>Documents</span>
           <div className={styles.actionsRow}>
-            {hasDesktopBridge() && (
-              <Button variant="outline" size="sm" icon="folder" onClick={addFolder}>
-                Add folder
-              </Button>
-            )}
+            <Button variant="outline" size="sm" icon="folder" onClick={addFolder}>
+              Add folder
+            </Button>
             <Button variant="outline" size="sm" icon="plus" onClick={addFiles}>
               Add files
             </Button>
@@ -168,6 +183,13 @@ export function NewProjectDialog({
             Create project
           </Button>
         </footer>
+
+        {drop.active && (
+          <DropOverlay
+            title="Drop to queue for this project"
+            hint="PDF, DOCX, Markdown, TXT, PNG, JPG — files or folders"
+          />
+        )}
       </form>
     </dialog>
   );
@@ -196,5 +218,5 @@ function mergeDocuments(prev: ChosenDocuments, next: ChosenDocuments): ChosenDoc
       files.push(file);
     }
   }
-  return { paths, files };
+  return { paths, files, skipped: [] };
 }

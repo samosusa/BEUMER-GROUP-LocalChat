@@ -1,11 +1,27 @@
 import { useState } from 'react';
-import type { ComputeMode, Model, ModelBenchmarkRow } from '@localchat/contracts';
+import type {
+  ComputeMode,
+  EmbeddingBenchmarkRow,
+  EmbeddingModel,
+  Model,
+  ModelBenchmarkRow,
+} from '@localchat/contracts';
 import {
+  useActiveEmbeddingModel,
   useActiveModel,
   useBenchmark,
+  useEmbeddingBenchmark,
+  useEmbeddingModels,
   useModels,
   useBenchmarkHistory,
+  useProjects,
+  useRagEval,
+  useRagEvalDatasets,
+  useReindexJob,
   useRunBenchmark,
+  useRunEmbeddingBenchmark,
+  useRunRagEval,
+  useSetActiveEmbeddingModel,
   useSetActiveModel,
   useSettings,
   useUpdateSettings,
@@ -154,6 +170,8 @@ export function SettingsPage() {
               )}
             </section>
 
+            <EmbeddingModelCard />
+
             {/*
               The benchmark sits under the model list on purpose. It measures exactly
               the thing the list asks you to choose between, and on its own page the
@@ -161,6 +179,8 @@ export function SettingsPage() {
               Full width because six numeric columns were unreadable in the rail.
             */}
             <BenchmarkCard />
+            <EmbeddingBenchmarkCard />
+            <RagEvalCard />
           </div>
 
           <div className={styles.rail}>
@@ -521,4 +541,474 @@ function formatPeakMemory(memoryBytes: number | null, vramBytes: number | null):
   if (vramBytes !== null) return `${formatBytes(vramBytes)} VRAM`;
   if (memoryBytes !== null) return formatBytes(memoryBytes);
   return '—';
+}
+
+/**
+ * Unlike the answer model, switching this one is not a pure toggle: it changes the vector
+ * space every already-indexed document's chunks live in, so a switch always queues a
+ * re-embed of the whole corpus (see `useReindexJob`) before search results can be trusted
+ * again. The row list stays disabled for the duration so a second click mid-reindex cannot
+ * queue a third, conflicting switch.
+ */
+function EmbeddingModelCard() {
+  const models = useEmbeddingModels();
+  const active = useActiveEmbeddingModel();
+  const reindexJob = useReindexJob();
+  const setActive = useSetActiveEmbeddingModel();
+
+  const pendingModel = setActive.isPending ? (setActive.variables ?? null) : null;
+  const job = reindexJob.data;
+  const reindexing = job?.status === 'running';
+
+  return (
+    <section className={styles.card}>
+      <header className={styles.cardHeader}>
+        <SectionLabel
+          action={
+            active.data && (
+              <Mono className={styles.cardHeaderMeta}>{active.data.dimension}-dim vectors</Mono>
+            )
+          }
+        >
+          Embedding model
+        </SectionLabel>
+      </header>
+      <p className={styles.hint}>
+        Switching this re-embeds every indexed document before search results can be trusted again —
+        it changes the vector space documents are stored in, not just which model answers.
+      </p>
+      {models.isError && <p className={styles.benchWarning}>{describeError(models.error)}</p>}
+      <div className={styles.modelList} role="radiogroup" aria-label="Embedding model">
+        {models.data?.map((model) => (
+          <EmbeddingModelRow
+            key={model.id}
+            model={model}
+            selected={model.id === active.data?.model}
+            pending={model.id === pendingModel}
+            disabled={(pendingModel !== null && model.id !== pendingModel) || reindexing}
+            onSelect={() => setActive.mutate(model.id)}
+          />
+        ))}
+      </div>
+      {setActive.isError && <p className={styles.benchWarning}>{describeError(setActive.error)}</p>}
+      {job && (
+        <p className={reindexing ? styles.benchWarning : styles.hint}>
+          {reindexing
+            ? `Re-embedding into ${job.model} — ${job.progress ?? 'starting'}${
+                job.currentDocument ? ` (${job.currentDocument})` : ''
+              }. Search results may be incomplete until this finishes.`
+            : job.status === 'failed'
+              ? `The last re-embed into ${job.model} did not finish. Switch models again to retry.`
+              : `Every indexed document is embedded with ${job.model}.`}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function EmbeddingModelRow({
+  model,
+  selected,
+  pending,
+  disabled,
+  onSelect,
+}: {
+  model: EmbeddingModel;
+  selected: boolean;
+  pending: boolean;
+  disabled: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      aria-busy={pending || undefined}
+      disabled={disabled}
+      className={cn(styles.modelRow, selected && styles.modelRowSelected)}
+      onClick={onSelect}
+    >
+      {pending ? (
+        <Icon name="refresh" size={16} className={styles.modelSpinner} />
+      ) : (
+        <span className={cn(styles.radio, selected && styles.radioSelected)} aria-hidden="true" />
+      )}
+      <span className={styles.modelText}>
+        <span className={styles.modelName}>{model.name}</span>
+        <Mono className={styles.modelMeta}>
+          {pending ? 'Loading model onto CPU…' : `${model.dimension}-dim · ${model.description}`}
+        </Mono>
+      </span>
+    </button>
+  );
+}
+
+/**
+ * Measures embedding throughput, not retrieval quality — the same caveat `BenchmarkCard`
+ * carries for the answer model, applied to the embedder instead. Every embedding model runs
+ * CPU-only, so there is no device picker here the way there is above.
+ */
+function EmbeddingBenchmarkCard() {
+  const benchmark = useEmbeddingBenchmark();
+  const models = useEmbeddingModels();
+  const run = useRunEmbeddingBenchmark();
+  const result = benchmark.data;
+  const running = result?.status === 'running' || run.isPending;
+
+  /** Empty means every registered model, which is what the service does with `models: null`. */
+  const [only, setOnly] = useState('');
+  const start = () => run.mutate({ models: only ? [only] : null });
+
+  const picker = (
+    <div className={styles.benchPickerRow}>
+      <label className={styles.benchPicker}>
+        <span className={styles.benchPickerLabel}>Benchmark</span>
+        <select
+          className={styles.benchSelect}
+          value={only}
+          disabled={running}
+          onChange={(event) => setOnly(event.target.value)}
+        >
+          <option value="">every embedding model</option>
+          {(models.data ?? []).map((model) => (
+            <option key={model.id} value={model.id}>
+              {model.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+
+  if (!result) {
+    return (
+      <section className={styles.card}>
+        <SectionLabel>Embedding benchmark</SectionLabel>
+        <p className={styles.hint}>
+          Compares embedding models on this machine — model load time and encoding throughput across
+          short, medium and long text. It does not measure retrieval quality.
+        </p>
+        {picker}
+        {benchmark.isError && (
+          <p className={styles.benchWarning}>{describeError(benchmark.error)}</p>
+        )}
+        {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
+        <Button variant="outline" size="sm" loading={running} onClick={start}>
+          Run benchmark
+        </Button>
+      </section>
+    );
+  }
+
+  const measured = result.rows.filter((row) => row.status === 'ok');
+  const fastest = measured.reduce<EmbeddingBenchmarkRow | undefined>(
+    (best, row) => ((row.textsPerSecond ?? 0) > (best?.textsPerSecond ?? 0) ? row : best),
+    undefined,
+  );
+
+  return (
+    <section className={styles.card}>
+      <SectionLabel
+        action={
+          <Mono className={styles.cardHeaderMeta}>
+            {result.status === 'running'
+              ? (result.progress ?? 'running')
+              : formatRelative(result.finishedAt ?? result.startedAt)}
+          </Mono>
+        }
+      >
+        Embedding benchmark
+      </SectionLabel>
+
+      <p className={styles.hint}>
+        Encoding throughput per model and text size. This is not a measure of retrieval quality — no
+        document is searched.
+      </p>
+
+      {result.status === 'running' && (
+        <p className={styles.benchWarning}>
+          Running{result.current ? ` — ${result.current}` : ''}.
+        </p>
+      )}
+
+      {result.status === 'failed' && (
+        <p className={styles.benchWarning}>The run did not finish. Start it again below.</p>
+      )}
+
+      {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
+
+      <div className={styles.benchScroll}>
+        <table className={styles.benchTable}>
+          <thead>
+            <tr>
+              <th scope="col">Model</th>
+              <th scope="col">Text size</th>
+              <th scope="col">Load</th>
+              <th scope="col">Encode</th>
+              <th scope="col">Texts/s</th>
+              <th scope="col">Peak memory</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.rows.map((row) => (
+              <tr key={`${row.model}-${row.textLabel}`}>
+                <th scope="row" className={styles.benchModel}>
+                  {row.model}
+                </th>
+                <td>
+                  <Mono>{row.textLabel ?? '—'}</Mono>
+                </td>
+                {row.status === 'ok' ? (
+                  <>
+                    <td>
+                      <Mono>{row.loadMs === null ? '—' : formatDuration(row.loadMs)}</Mono>
+                    </td>
+                    <td>
+                      <Mono>{row.embedMs === null ? '—' : formatDuration(row.embedMs)}</Mono>
+                    </td>
+                    <td className={cn(row === fastest && styles.benchAccent)}>
+                      <Mono>
+                        {row.textsPerSecond === null ? '—' : row.textsPerSecond.toFixed(1)}
+                      </Mono>
+                    </td>
+                    <td>
+                      <Mono>
+                        {row.peakMemoryBytes === null ? '—' : formatBytes(row.peakMemoryBytes)}
+                      </Mono>
+                    </td>
+                  </>
+                ) : (
+                  <td colSpan={4} className={styles.benchSkipped}>
+                    {row.detail ?? (row.status === 'skipped' ? 'Skipped' : 'Failed')}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {picker}
+
+      <Button variant="outline" size="sm" loading={running} onClick={start}>
+        Run benchmark again
+      </Button>
+    </section>
+  );
+}
+
+const RAG_EVAL_DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
+
+function formatHitRate(rate: number | null): string {
+  return rate === null ? '—' : `${Math.round(rate * 100)}%`;
+}
+
+/**
+ * Unlike the two benchmarks above, this measures whether the system gets the *right answer*,
+ * not how fast it runs. It replays a hand-labeled question set — any file dropped under
+ * data/eval/ on the service, so testing a different corpus never means overwriting the one
+ * you already have — against whichever project's documents are currently ingested.
+ * Retrieval-hit is an objective check (did the right source show up in the citations), while
+ * the judge verdict comes from the same model that may have generated the answer being
+ * judged, so both the expected and actual answer are always shown for a human to read too.
+ */
+function RagEvalCard() {
+  const datasets = useRagEvalDatasets();
+  const projects = useProjects();
+  const evalRun = useRagEval();
+  const run = useRunRagEval();
+
+  const [projectId, setProjectId] = useState('');
+  const [datasetId, setDatasetId] = useState('');
+  const result = evalRun.data;
+  const running = result?.status === 'running' || run.isPending;
+
+  // Derived, not synced: defaults to the first dataset the service reports once that list
+  // has loaded, without needing an effect to keep it in step as that list arrives.
+  const selectedDatasetId = datasetId || (datasets.data ?? [])[0]?.id || '';
+  const selectedDataset = datasets.data?.find((dataset) => dataset.id === selectedDatasetId);
+
+  const start = () => {
+    if (!selectedDatasetId) return;
+    run.mutate({ projectId: projectId || null, datasetId: selectedDatasetId });
+  };
+
+  const picker = (
+    <div className={styles.benchPickerRow}>
+      <label className={styles.benchPicker}>
+        <span className={styles.benchPickerLabel}>Question set</span>
+        <select
+          className={styles.benchSelect}
+          value={selectedDatasetId}
+          disabled={running}
+          onChange={(event) => setDatasetId(event.target.value)}
+        >
+          {(datasets.data ?? []).map((dataset) => (
+            <option key={dataset.id} value={dataset.id}>
+              {dataset.id} ({dataset.totalQuestions} questions)
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className={styles.benchPicker}>
+        <span className={styles.benchPickerLabel}>Project</span>
+        <select
+          className={styles.benchSelect}
+          value={projectId}
+          disabled={running}
+          onChange={(event) => setProjectId(event.target.value)}
+        >
+          <option value="">General (no project)</option>
+          {(projects.data ?? []).map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+
+  const datasetHint = selectedDataset && (
+    <p className={styles.hint}>
+      {selectedDataset.totalQuestions} questions across {selectedDataset.documents.length} documents
+      ({selectedDataset.documents.map((doc) => doc.titleHint).join(', ')}). Ingest documents whose
+      titles contain those names into the chosen project before running, or the questions about them
+      will correctly come back as retrieval misses.
+    </p>
+  );
+
+  if (!result) {
+    return (
+      <section className={styles.card}>
+        <SectionLabel>RAG evaluation</SectionLabel>
+        <p className={styles.hint}>
+          Runs a labeled question set end to end — real retrieval and real generation — and scores
+          whether the right document was retrieved and whether the generated answer matches a
+          written reference answer.
+        </p>
+        {datasetHint}
+        {picker}
+        {datasets.isError && <p className={styles.benchWarning}>{describeError(datasets.error)}</p>}
+        {evalRun.isError && <p className={styles.benchWarning}>{describeError(evalRun.error)}</p>}
+        {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
+        <Button
+          variant="outline"
+          size="sm"
+          loading={running}
+          disabled={!selectedDatasetId}
+          onClick={start}
+        >
+          Run evaluation
+        </Button>
+      </section>
+    );
+  }
+
+  const summary = result.summary;
+
+  return (
+    <section className={styles.card}>
+      <SectionLabel
+        action={
+          <Mono className={styles.cardHeaderMeta}>
+            {result.datasetId} ·{' '}
+            {result.status === 'running'
+              ? (result.progress ?? 'running')
+              : formatRelative(result.finishedAt ?? result.startedAt)}
+          </Mono>
+        }
+      >
+        RAG evaluation
+      </SectionLabel>
+
+      <p className={styles.hint}>
+        Retrieval-hit rate is objective: did the right document show up in the citations. The judge
+        verdict is the active model grading its own family&apos;s answers, so treat it as a second
+        signal, not ground truth — read the question and both answers yourself below.
+      </p>
+
+      {result.status === 'running' && (
+        <p className={styles.benchWarning}>
+          Running{result.currentQuestion ? ` — ${result.currentQuestion}` : ''}.
+        </p>
+      )}
+      {result.status === 'failed' && (
+        <p className={styles.benchWarning}>The run did not finish. Start it again below.</p>
+      )}
+      {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
+
+      {summary && (
+        <div className={styles.evalSummaryRow}>
+          <div className={styles.evalStat}>
+            <span className={styles.evalStatLabel}>Retrieval hit rate</span>
+            <span className={styles.evalStatValue}>{formatHitRate(summary.retrievalHitRate)}</span>
+          </div>
+          {RAG_EVAL_DIFFICULTIES.map((difficulty) => (
+            <div className={styles.evalStat} key={difficulty}>
+              <span className={styles.evalStatLabel}>{difficulty}</span>
+              <span className={styles.evalStatValue}>
+                {formatHitRate(summary.byDifficulty[difficulty]?.retrievalHitRate ?? null)}
+              </span>
+            </div>
+          ))}
+          <div className={styles.evalStat}>
+            <span className={styles.evalStatLabel}>Judge correct</span>
+            <span className={styles.evalStatValue}>{summary.judgeCounts.correct ?? 0}</span>
+          </div>
+          <div className={styles.evalStat}>
+            <span className={styles.evalStatLabel}>Judge partial</span>
+            <span className={styles.evalStatValue}>{summary.judgeCounts.partial ?? 0}</span>
+          </div>
+          <div className={styles.evalStat}>
+            <span className={styles.evalStatLabel}>Judge incorrect</span>
+            <span className={styles.evalStatValue}>{summary.judgeCounts.incorrect ?? 0}</span>
+          </div>
+        </div>
+      )}
+
+      <div className={styles.evalRows}>
+        {result.rows.map((row, index) => (
+          <div className={styles.evalRow} key={`${row.source}-${index}`}>
+            <div className={styles.evalRowHead}>
+              <span>{row.difficulty}</span>
+              <span>{row.source}</span>
+              <span className={row.retrievalHit ? styles.evalHit : styles.evalMiss}>
+                {row.retrievalHit ? 'Retrieval hit' : 'Retrieval miss'}
+              </span>
+              {row.judgeVerdict && <span>Judge: {row.judgeVerdict}</span>}
+              {row.latencyMs !== null && <span>{formatDuration(row.latencyMs)}</span>}
+            </div>
+            <div className={styles.evalQuestion}>{row.question}</div>
+            <div className={styles.evalAnswers}>
+              <div>
+                <div className={styles.evalAnswerLabel}>Expected</div>
+                <div className={styles.evalAnswerText}>{row.expectedAnswer}</div>
+              </div>
+              <div>
+                <div className={styles.evalAnswerLabel}>Got</div>
+                <div className={styles.evalAnswerText}>
+                  {row.notFound ? 'Not found in the indexed documentation.' : row.actualAnswer}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {datasetHint}
+      {picker}
+
+      <Button
+        variant="outline"
+        size="sm"
+        loading={running}
+        disabled={!selectedDatasetId}
+        onClick={start}
+      >
+        Run evaluation again
+      </Button>
+    </section>
+  );
 }

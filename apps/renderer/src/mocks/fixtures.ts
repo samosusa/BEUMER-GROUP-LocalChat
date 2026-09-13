@@ -3,9 +3,13 @@ import type {
   ModelBenchmarkRun,
   Chat,
   Document,
+  EmbeddingBenchmarkRun,
+  EmbeddingModel,
   Message,
   Model,
   Project,
+  RagEvalDatasetInfo,
+  RagEvalRun,
   Settings,
 } from '@localchat/contracts';
 
@@ -86,6 +90,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-commissioning',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'LS-4000E Commissioning Manual.pdf',
     title: 'LS-4000E Commissioning Manual',
     format: 'pdf',
@@ -106,6 +111,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-sortation',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'Induction & Sortation Control Logic.pdf',
     title: 'Induction & Sortation Control Logic',
     format: 'pdf',
@@ -126,6 +132,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-chute-table',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'Chute Allocation Table.docx',
     title: 'Chute Allocation Table',
     format: 'docx',
@@ -146,6 +153,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-chute-layout',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'Chute layout rev C.png',
     title: 'Chute layout rev C',
     format: 'image',
@@ -166,6 +174,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-sat-notes',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'Site Acceptance Notes.md',
     title: 'Site Acceptance Notes',
     format: 'markdown',
@@ -186,6 +195,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-sat-protocol',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'Safety Acceptance Test Protocol.pdf',
     title: 'Safety Acceptance Test Protocol',
     format: 'pdf',
@@ -206,6 +216,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-asbuilt',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'As-built E-plan (scanned).pdf',
     title: 'As-built E-plan (scanned)',
     format: 'pdf',
@@ -226,6 +237,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-mech-install',
     projectId: 'prj-cph-t3',
+    alsoGeneral: false,
     filename: 'Mechanical Installation Guide.pdf',
     title: 'Mechanical Installation Guide',
     format: 'pdf',
@@ -246,6 +258,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-conveyor-maint',
     projectId: 'prj-handover',
+    alsoGeneral: false,
     filename: 'Conveyor CB-200 Maintenance Manual.pdf',
     title: 'Conveyor CB-200 Maintenance Manual',
     format: 'pdf',
@@ -266,6 +279,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-estop-standard',
     projectId: null,
+    alsoGeneral: false,
     filename: 'Emergency Stop Circuits — Group Standard.pdf',
     title: 'Emergency Stop Circuits — Group Standard',
     format: 'pdf',
@@ -286,6 +300,7 @@ export const DOCUMENTS: Document[] = [
   {
     id: 'doc-lubrication',
     projectId: null,
+    alsoGeneral: false,
     filename: 'Lubrication Schedules — Palletising.pdf',
     title: 'Lubrication Schedules — Palletising',
     format: 'pdf',
@@ -575,7 +590,7 @@ export const MODELS: Model[] = [
 
 export const SETTINGS: Settings = {
   activeModelId: 'qwen2.5-7b-instruct-q4km',
-  embeddingModel: 'bge-m3',
+  embeddingModel: 'nomic-ai/nomic-embed-text-v1.5',
   compute: 'gpu',
   hardware: {
     cpuThreads: 12,
@@ -675,6 +690,270 @@ export const BENCHMARK: ModelBenchmarkRun = {
     },
   ],
 };
+
+/**
+ * The embedding models the service can switch to, matching what `src/ingest/embedder.py`
+ * actually registers — kept in sync by hand rather than by codegen, the same tradeoff as
+ * `MODELS` above for GGUF files.
+ */
+export const EMBEDDING_MODELS: EmbeddingModel[] = [
+  {
+    id: 'nomic-ai/nomic-embed-text-v1.5',
+    name: 'nomic-ai/nomic-embed-text-v1.5',
+    dimension: 768,
+    description: 'Balanced quality/speed general-purpose model; the long-standing default.',
+  },
+  {
+    id: 'BAAI/bge-small-en-v1.5',
+    name: 'BAAI/bge-small-en-v1.5',
+    dimension: 384,
+    description: 'Small and fast, with strong English retrieval quality for its size.',
+  },
+  {
+    id: 'intfloat/e5-base-v2',
+    name: 'intfloat/e5-base-v2',
+    dimension: 768,
+    description: 'General-purpose model competitive with larger models on retrieval benchmarks.',
+  },
+  {
+    id: 'sentence-transformers/all-MiniLM-L6-v2',
+    name: 'sentence-transformers/all-MiniLM-L6-v2',
+    dimension: 384,
+    description: 'Very fast and lightweight; lower retrieval quality ceiling than the others.',
+  },
+];
+
+/** A finished embedding benchmark: every registered model across the three text tiers. */
+export const EMBEDDING_BENCHMARK: EmbeddingBenchmarkRun = {
+  id: '1',
+  status: 'completed',
+  progress: '12 of 12',
+  current: null,
+  startedAt: daysAgo(2),
+  finishedAt: daysAgo(2),
+  rows: EMBEDDING_MODELS.flatMap((model) =>
+    (
+      [
+        { label: 'short', count: 5, embedMs: 40, throughput: 125 },
+        { label: 'medium', count: 5, embedMs: 210, throughput: 24 },
+        { label: 'long', count: 5, embedMs: 480, throughput: 10 },
+      ] as const
+    ).map((tier) => ({
+      model: model.name,
+      dimension: model.dimension,
+      status: 'ok' as const,
+      detail: null,
+      loadMs: 900 + model.dimension,
+      textLabel: tier.label,
+      textCount: tier.count,
+      embedMs: tier.embedMs,
+      textsPerSecond: tier.throughput,
+      peakMemoryBytes: 350_000_000 + model.dimension * 500_000,
+      ranAt: daysAgo(2),
+    })),
+  ),
+};
+
+/**
+ * A finished RAG evaluation run against the CPH T3 project's own documents - a small,
+ * hand-picked set of rows rather than the full 45-question set the real service ships with
+ * (data/eval/rag_qa_pairs.json), including one retrieval miss and one partial judge verdict
+ * so the results table is exercised against failure states too, not just a clean sweep.
+ */
+export const RAG_EVAL: RagEvalRun = {
+  id: 'rag-eval-1',
+  status: 'completed',
+  datasetId: 'rag_qa_pairs',
+  projectId: 'prj-cph-t3',
+  progress: '6 of 6',
+  currentQuestion: null,
+  startedAt: daysAgo(1),
+  finishedAt: daysAgo(1),
+  summary: {
+    // Row 6 is not_found, so it was never handed to the judge at all - the 5 verdicts below
+    // (4 correct + 1 partial) account for every judged row, not all 6.
+    total: 6,
+    retrievalHitRate: 5 / 6,
+    judgeCounts: { correct: 4, partial: 1, incorrect: 0, error: 0 },
+    byDifficulty: {
+      easy: {
+        total: 2,
+        retrievalHitRate: 1,
+        judgeCounts: { correct: 2, partial: 0, incorrect: 0, error: 0 },
+      },
+      medium: {
+        total: 2,
+        retrievalHitRate: 1,
+        judgeCounts: { correct: 1, partial: 1, incorrect: 0, error: 0 },
+      },
+      hard: {
+        total: 2,
+        retrievalHitRate: 0.5,
+        judgeCounts: { correct: 1, partial: 0, incorrect: 0, error: 0 },
+      },
+    },
+  },
+  rows: [
+    {
+      source: 'LS-4000E Commissioning Manual',
+      difficulty: 'easy',
+      question: 'What is the nominal carrier speed at rated throughput?',
+      expectedAnswer: '2.2 m/s.',
+      actualAnswer: 'The nominal carrier speed at rated throughput is 2.2 m/s.',
+      notFound: false,
+      retrievalHit: true,
+      judgeVerdict: 'correct',
+      judgeDetail: 'CORRECT',
+      complexityTier: 'simple',
+      complexityScore: 0.12,
+      latencyMs: 1_840,
+      citations: [
+        {
+          title: 'LS-4000E Commissioning Manual',
+          section: '§ 3.2 Performance data',
+          page: 41,
+          score: 0.9,
+        },
+      ],
+      ranAt: daysAgo(1),
+    },
+    {
+      source: 'LS-4000E Commissioning Manual',
+      difficulty: 'easy',
+      question: 'What is the rated throughput at a 600 mm tray pitch?',
+      expectedAnswer: '13,200 items per hour.',
+      actualAnswer: 'Rated throughput is 13,200 items/hour at a 600 mm tray pitch.',
+      notFound: false,
+      retrievalHit: true,
+      judgeVerdict: 'correct',
+      judgeDetail: 'CORRECT',
+      complexityTier: 'simple',
+      complexityScore: 0.1,
+      latencyMs: 1_620,
+      citations: [
+        {
+          title: 'LS-4000E Commissioning Manual',
+          section: '§ 3.2 Performance data',
+          page: 41,
+          score: 0.91,
+        },
+      ],
+      ranAt: daysAgo(1),
+    },
+    {
+      source: 'Induction & Sortation Control Logic',
+      difficulty: 'medium',
+      question: 'What happens to an oversized item longer than 800 mm?',
+      expectedAnswer:
+        'It is allocated two consecutive trays, and the induction controller blanks the following tray.',
+      actualAnswer:
+        'Items longer than 800 mm take up two trays, so the following tray gets skipped.',
+      notFound: false,
+      retrievalHit: true,
+      judgeVerdict: 'partial',
+      judgeDetail: 'PARTIAL',
+      complexityTier: 'moderate',
+      complexityScore: 0.31,
+      latencyMs: 3_210,
+      citations: [
+        {
+          title: 'Induction & Sortation Control Logic',
+          section: '§ 7.4 Recirculation',
+          page: 112,
+          score: 0.86,
+        },
+      ],
+      ranAt: daysAgo(1),
+    },
+    {
+      source: 'Induction & Sortation Control Logic',
+      difficulty: 'medium',
+      question: 'What does the sorter do when a destination reports CHUTE_FULL?',
+      expectedAnswer: 'The item is recirculated for one further pass.',
+      actualAnswer: 'The allocator recirculates the item for another pass around the sorter.',
+      notFound: false,
+      retrievalHit: true,
+      judgeVerdict: 'correct',
+      judgeDetail: 'CORRECT',
+      complexityTier: 'moderate',
+      complexityScore: 0.28,
+      latencyMs: 2_980,
+      citations: [
+        {
+          title: 'Induction & Sortation Control Logic',
+          section: '§ 7.4 Recirculation',
+          page: 112,
+          score: 0.84,
+        },
+      ],
+      ranAt: daysAgo(1),
+    },
+    {
+      source: 'Emergency Stop Circuits — Group Standard',
+      difficulty: 'hard',
+      question:
+        'Trace the full restart sequence after an e-stop, including the relay settling time.',
+      expectedAnswer:
+        'Every actuated device must be physically reset, SAFETY_OK must hold true for 2 s continuously, and no active drive fault can be present on the carrier line.',
+      actualAnswer:
+        'Reset every actuated device, wait for the safety relay to settle, then confirm no drive fault before restarting.',
+      notFound: false,
+      retrievalHit: true,
+      judgeVerdict: 'correct',
+      judgeDetail: 'CORRECT',
+      complexityTier: 'complex',
+      complexityScore: 0.58,
+      latencyMs: 5_940,
+      citations: [
+        {
+          title: 'Emergency Stop Circuits — Group Standard',
+          section: '§ 4.2 Dual-channel monitoring',
+          page: 22,
+          score: 0.89,
+        },
+      ],
+      ranAt: daysAgo(1),
+    },
+    {
+      source: 'Chute Allocation Table',
+      difficulty: 'hard',
+      question:
+        'Compare the chute allocation table across rev E and rev F — what specifically changed?',
+      expectedAnswer:
+        'Rev F revised the allocation priority for oversized items and added two new chute groups introduced with the SBD retrofit.',
+      actualAnswer: null,
+      notFound: true,
+      retrievalHit: false,
+      judgeVerdict: null,
+      judgeDetail: null,
+      complexityTier: 'complex',
+      complexityScore: 0.52,
+      latencyMs: 640,
+      citations: [],
+      ranAt: daysAgo(1),
+    },
+  ],
+};
+
+/**
+ * Every question set the mock offers. Matches the real service's data/eval/*.json files -
+ * each entry there is a separate selectable dataset, not a single fixed set.
+ */
+export const RAG_EVAL_DATASETS: RagEvalDatasetInfo[] = [
+  {
+    id: 'rag_qa_pairs',
+    documents: [
+      { source: 'OPNL_B01_EN.pdf', titleHint: 'OPNL_B01', questionCount: 15 },
+      { source: 'OPNL_B02_EN.pdf', titleHint: 'OPNL_B02', questionCount: 15 },
+      {
+        source: 'Operating_instructions_CLV69x_Bar_code_scanners_en_IM0045360.pdf',
+        titleHint: 'CLV69x',
+        questionCount: 15,
+      },
+    ],
+    totalQuestions: 45,
+  },
+];
 
 export const APPROVED_TOOLS: ApprovedTool[] = [
   {

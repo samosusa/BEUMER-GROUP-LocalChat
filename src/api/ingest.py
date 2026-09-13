@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 from src.api.projects import get_project_or_404
 from src.db import SessionLocal, get_db
 from src.errors import AppError
-from src.ingest.loader import SUPPORTED_SUFFIXES, load_file
+from src.ingest.chunker import chunk_file
+from src.ingest.loader import SUPPORTED_SUFFIXES
 from src.ingest.pipeline import run_pipeline
 from src.models.ingestion_job import IngestionJob
 from src.validation import ROOT, validate_against_schema
@@ -32,9 +33,11 @@ class IngestStatusResponse(BaseModel):
     last_checkpoint: dict | None
 
 
-def process_upload(job_id: int, title: str, path: str, project_id: int | None = None) -> None:
+def process_upload(
+    job_id: int, title: str, path: str, project_id: int | None = None, also_general: bool = False
+) -> None:
     with SessionLocal() as db:
-        run_pipeline(db, job_id, title, path, project_id=project_id)
+        run_pipeline(db, job_id, title, path, project_id=project_id, also_general=also_general)
     temp_path = Path(path)
     temp_path.unlink(missing_ok=True)
     try:
@@ -67,7 +70,7 @@ def _safe_upload_name(filename: str) -> str:
 
 def _ensure_parseable(path: str, filename: str) -> None:
     try:
-        load_file(path)
+        chunks = chunk_file(path)
     except Exception as error:
         raise AppError(
             "ERR_PARSE_FAILED",
@@ -75,6 +78,18 @@ def _ensure_parseable(path: str, filename: str) -> None:
             {"file": filename, "reason": str(error)},
             status_code=422,
         ) from error
+    # An empty/whitespace-only file or a scanned/image-only PDF with no text layer parses
+    # without error but yields no chunks, which would otherwise crash later in the
+    # background pipeline (FaissVectorStore.save() has no index to save with nothing
+    # indexed). Reject it here, synchronously, so the caller gets an immediate, honest
+    # error instead of a job that silently flips to "failed" after a 202 response.
+    if not chunks:
+        raise AppError(
+            "ERR_NO_EXTRACTABLE_TEXT",
+            "No extractable text was found in the uploaded file",
+            {"file": filename},
+            status_code=422,
+        )
 
 
 def _create_queued_job(db: Session) -> IngestionJob:
@@ -93,6 +108,7 @@ async def ingest_document(
     file: UploadFile | None = File(None),
     title: str | None = Form(None),
     project_id: int | None = Form(None),
+    also_general: bool = Form(False),
     db: Session = Depends(get_db),
 ) -> IngestResponse:
     validate_against_schema(
@@ -115,7 +131,9 @@ async def ingest_document(
         temp_path.write_bytes(await file.read())
         _ensure_parseable(str(temp_path), file.filename or "unknown")
         job = _create_queued_job(db)
-        background_tasks.add_task(process_upload, job.id, title, str(temp_path), project_id)
+        background_tasks.add_task(
+            process_upload, job.id, title, str(temp_path), project_id, also_general
+        )
         return IngestResponse(job_id=job.id)
     except Exception:
         shutil.rmtree(upload_dir, ignore_errors=True)

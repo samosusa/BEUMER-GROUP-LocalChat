@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from src.complexity import measure_document_complexity
 from src.ingest.chunker import TextChunk, chunk_file
-from src.ingest.embedder import embed
+from src.ingest.embedder import embed, embedding_adapter
 from src.ingest.vector_store import FaissVectorStore
 from src.models.chunk import Chunk
 from src.models.document import Document
@@ -28,7 +28,12 @@ def _get_job(db: Session, job_id: int) -> IngestionJob:
 
 
 def _create_document(
-    db: Session, job: IngestionJob, title: str, path: Path, project_id: int | None
+    db: Session,
+    job: IngestionJob,
+    title: str,
+    path: Path,
+    project_id: int | None,
+    also_general: bool = False,
 ) -> tuple[Document, list[TextChunk]]:
     chunks = chunk_file(path)
     complexity = measure_document_complexity(" ".join(chunk.text for chunk in chunks))
@@ -38,6 +43,8 @@ def _create_document(
         checksum=file_checksum(path),
         version=1,
         project_id=project_id,
+        # Meaningless for a document with no project of its own - it is already general.
+        also_general=also_general and project_id is not None,
         uploaded_at=datetime.utcnow(),
         complexity_tier=complexity.tier,
         complexity_score=complexity.score,
@@ -87,6 +94,14 @@ def _finalize(db: Session, document: Document, job: IngestionJob, store: FaissVe
     job.offset = total_chunks
     job.last_checkpoint = {"offset": total_chunks, "total_chunks": total_chunks}
     document.indexed_at = datetime.utcnow()
+    # Tags this document with whichever embedding model is currently active, so the retriever
+    # can later tell it apart from documents indexed under a different one (see
+    # src/retriever.py, src/ingest/embedder.py). The default `embedder=embed` always routes
+    # through this same adapter; a caller passing a custom embedder callable (tests only) is
+    # still tagged this way since that adapter is what a real query-time retrieval matches against.
+    active = embedding_adapter.active
+    document.embedding_model = active["model"]
+    document.embedding_dim = active["dimension"]
     job.status = "completed"
     db.commit()
 
@@ -108,12 +123,13 @@ def run_pipeline(
     embedder: Embedder = embed,
     vector_store: FaissVectorStore | None = None,
     project_id: int | None = None,
+    also_general: bool = False,
 ) -> None:
     path = Path(source_path)
     job = _get_job(db, job_id)
 
     try:
-        document, chunks = _create_document(db, job, title, path, project_id)
+        document, chunks = _create_document(db, job, title, path, project_id, also_general)
         store = vector_store or FaissVectorStore()
         for start in range(0, len(chunks), CHECKPOINT_SIZE):
             batch = chunks[start:start + CHECKPOINT_SIZE]

@@ -44,6 +44,7 @@ export const ServiceDocument = z.object({
   checksum: z.string(),
   version: z.number().int().positive(),
   project_id: pk.nullable(),
+  also_general: z.boolean(),
   uploaded_at: naiveDateTime,
   indexed_at: naiveDateTime.nullable(),
   complexity_tier: ServiceComplexityTier.nullable(),
@@ -223,3 +224,184 @@ export const ServiceBenchmarkRunList = z.array(
     finished_at: naiveDateTime.nullable(),
   }),
 );
+
+// ---------------------------------------------------------------------------
+// Embedding models — GET /embeddings/models, GET/POST /embeddings/active
+// ---------------------------------------------------------------------------
+
+export const ServiceEmbeddingModel = z.object({
+  name: z.string(),
+  dimension: z.number().int().positive(),
+  description: z.string(),
+});
+export type ServiceEmbeddingModel = z.infer<typeof ServiceEmbeddingModel>;
+
+export const ServiceEmbeddingModelList = z.array(ServiceEmbeddingModel);
+
+export const ServiceActiveEmbeddingModel = z.object({
+  model: z.string(),
+  dimension: z.number().int().positive(),
+});
+export type ServiceActiveEmbeddingModel = z.infer<typeof ServiceActiveEmbeddingModel>;
+
+/** A model switch always queues a re-embed job, hence the id alongside the new active model. */
+export const ServiceSetActiveEmbeddingModel = ServiceActiveEmbeddingModel.extend({
+  reindex_job_id: pk,
+});
+export type ServiceSetActiveEmbeddingModel = z.infer<typeof ServiceSetActiveEmbeddingModel>;
+
+// ---------------------------------------------------------------------------
+// Re-embedding — GET /embeddings/reindex/status/{id}, GET /embeddings/reindex
+// ---------------------------------------------------------------------------
+
+export const ServiceReindexStatus = z.object({
+  status: z.string(),
+  model: z.string(),
+  progress: z.string(),
+  current_document: z.string().nullable(),
+});
+export type ServiceReindexStatus = z.infer<typeof ServiceReindexStatus>;
+
+export const ServiceReindexRunList = z.array(
+  z.object({
+    reindex_job_id: pk,
+    status: z.string(),
+    model: z.string(),
+    created_at: naiveDateTime,
+    finished_at: naiveDateTime.nullable(),
+  }),
+);
+export type ServiceReindexRunList = z.infer<typeof ServiceReindexRunList>;
+
+// ---------------------------------------------------------------------------
+// Embedding benchmark — mirrors the model benchmark shapes above
+// ---------------------------------------------------------------------------
+
+export const ServiceEmbeddingBenchmarkAccepted = z.object({ embedding_benchmark_job_id: pk });
+
+export const ServiceEmbeddingBenchmarkStatus = z.object({
+  status: z.string(),
+  progress: z.string(),
+  current: z.string().nullable(),
+});
+export type ServiceEmbeddingBenchmarkStatus = z.infer<typeof ServiceEmbeddingBenchmarkStatus>;
+
+export const ServiceEmbeddingBenchmarkRow = z.object({
+  model: z.string(),
+  dimension: z.number().int().nullable(),
+  status: z.string(),
+  detail: z.string().nullable(),
+  load_s: z.number().nullable(),
+  text_label: z.string().nullable(),
+  text_count: z.number().int().nullable(),
+  embed_s: z.number().nullable(),
+  texts_per_s: z.number().nullable(),
+  peak_mem_mb: z.number().nullable(),
+  run_at: naiveDateTime,
+});
+export type ServiceEmbeddingBenchmarkRow = z.infer<typeof ServiceEmbeddingBenchmarkRow>;
+
+export const ServiceEmbeddingBenchmarkResults = z.object({
+  embedding_benchmark_job_id: pk,
+  status: z.string(),
+  results: z.array(ServiceEmbeddingBenchmarkRow),
+});
+export type ServiceEmbeddingBenchmarkResults = z.infer<typeof ServiceEmbeddingBenchmarkResults>;
+
+export const ServiceEmbeddingBenchmarkRunList = z.array(
+  z.object({
+    embedding_benchmark_job_id: pk,
+    status: z.string(),
+    models: z.array(z.string()).nullable(),
+    created_at: naiveDateTime,
+    finished_at: naiveDateTime.nullable(),
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// RAG evaluation — GET /rag-eval/datasets, POST /rag-eval, GET /rag-eval/status/{id},
+// GET /rag-eval/results, GET /rag-eval/results/{id}
+// ---------------------------------------------------------------------------
+
+export const ServiceRagEvalDatasetInfo = z.object({
+  id: z.string(),
+  documents: z.array(
+    z.object({
+      source: z.string(),
+      title_hint: z.string(),
+      question_count: z.number().int().nonnegative(),
+    }),
+  ),
+  total_questions: z.number().int().nonnegative(),
+});
+export type ServiceRagEvalDatasetInfo = z.infer<typeof ServiceRagEvalDatasetInfo>;
+
+export const ServiceRagEvalDatasetList = z.array(ServiceRagEvalDatasetInfo);
+export type ServiceRagEvalDatasetList = z.infer<typeof ServiceRagEvalDatasetList>;
+
+export const ServiceRagEvalAccepted = z.object({ rag_eval_job_id: pk });
+
+export const ServiceRagEvalStatus = z.object({
+  status: z.string(),
+  dataset_id: z.string(),
+  progress: z.string(),
+  current_question: z.string().nullable(),
+});
+export type ServiceRagEvalStatus = z.infer<typeof ServiceRagEvalStatus>;
+
+export const ServiceRagEvalCitation = z.object({
+  title: z.string(),
+  section: z.string().nullable(),
+  page: z.number().int().nullable(),
+  score: z.number(),
+});
+
+export const ServiceRagEvalRow = z.object({
+  source: z.string(),
+  difficulty: z.string(),
+  question: z.string(),
+  expected_answer: z.string(),
+  actual_answer: z.string().nullable(),
+  not_found: z.boolean(),
+  retrieval_hit: z.boolean(),
+  judge_verdict: z.string().nullable(),
+  judge_detail: z.string().nullable(),
+  complexity_tier: z.string().nullable(),
+  complexity_score: z.number().nullable(),
+  latency_s: z.number().nullable(),
+  citations: z.array(ServiceRagEvalCitation).nullable(),
+  run_at: naiveDateTime,
+});
+export type ServiceRagEvalRow = z.infer<typeof ServiceRagEvalRow>;
+
+export const ServiceRagEvalBucket = z.object({
+  total: z.number().int().nonnegative(),
+  retrieval_hit_rate: z.number().nullable(),
+  judge_counts: z.record(z.string(), z.number().int().nonnegative()),
+});
+
+export const ServiceRagEvalSummary = ServiceRagEvalBucket.extend({
+  by_difficulty: z.record(z.string(), ServiceRagEvalBucket),
+});
+export type ServiceRagEvalSummary = z.infer<typeof ServiceRagEvalSummary>;
+
+export const ServiceRagEvalResults = z.object({
+  rag_eval_job_id: pk,
+  status: z.string(),
+  dataset_id: z.string(),
+  summary: ServiceRagEvalSummary,
+  results: z.array(ServiceRagEvalRow),
+});
+export type ServiceRagEvalResults = z.infer<typeof ServiceRagEvalResults>;
+
+export const ServiceRagEvalRunList = z.array(
+  z.object({
+    rag_eval_job_id: pk,
+    status: z.string(),
+    dataset_id: z.string(),
+    project_id: pk.nullable(),
+    created_at: naiveDateTime,
+    finished_at: naiveDateTime.nullable(),
+  }),
+);
+export type ServiceRagEvalRunList = z.infer<typeof ServiceRagEvalRunList>;

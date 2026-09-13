@@ -21,6 +21,7 @@ export const CHANNELS = {
   quickAskSubmit: 'quick-ask:submit',
   readDocument: 'documents:read',
   listFolderDocuments: 'dialog:list-folder-documents',
+  resolveDroppedPaths: 'documents:resolve-dropped',
 } as const;
 
 /** Formats the ingestion pipeline accepts. Anything else is rejected before it is offered. */
@@ -76,8 +77,18 @@ const MAX_FOLDER_DEPTH = 8;
  * already accepts. An unreadable subdirectory (permissions, a race with something deleting
  * it) is skipped rather than failing the whole pick — one bad folder should not block every
  * other file the engineer selected.
+ *
+ * A file whose extension the pipeline can't read is recorded in `skipped` (by name, not full
+ * path — these are only ever shown back to the engineer who chose the folder) rather than
+ * silently dropped, so the renderer can tell them what won't be indexed before it commits to
+ * ingesting the rest.
  */
-async function walkForDocuments(dir: string, depth: number, found: string[]): Promise<void> {
+async function walkForDocuments(
+  dir: string,
+  depth: number,
+  found: string[],
+  skipped: string[],
+): Promise<void> {
   if (depth > MAX_FOLDER_DEPTH || found.length >= MAX_FOLDER_DOCUMENTS) return;
 
   let entries;
@@ -91,9 +102,10 @@ async function walkForDocuments(dir: string, depth: number, found: string[]): Pr
     if (found.length >= MAX_FOLDER_DOCUMENTS) return;
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
-      await walkForDocuments(full, depth + 1, found);
-    } else if (entry.isFile() && isAllowedDocument(full)) {
-      found.push(normalize(full));
+      await walkForDocuments(full, depth + 1, found, skipped);
+    } else if (entry.isFile()) {
+      if (isAllowedDocument(full)) found.push(normalize(full));
+      else skipped.push(entry.name);
     }
   }
 }
@@ -145,6 +157,52 @@ export function registerIpcHandlers(): void {
     return { name: basename(path), bytes };
   });
 
+  /**
+   * Resolves paths handed over by a native OS drag-and-drop onto the window, expanding any
+   * that are folders and validating every one exactly as the pickers do.
+   *
+   * `File.path` — the only way the renderer learns a dropped item's path at all — is an
+   * Electron addition that only ever appears on a `File` produced by a genuine OS drag; page
+   * script cannot fabricate it by constructing its own `File`/`DataTransfer`. So a path
+   * arriving here required the engineer to actually drag something from their own file
+   * system into the window, which is the same trust the dialog handlers rely on — this just
+   * builds that same `pickedDocuments`/`pickedFolders` membership from a drop instead of a
+   * dialog result.
+   *
+   * Returns `skipped` alongside `paths`: the names of anything dropped (directly, or found
+   * inside a dropped folder) that isn't a format the pipeline reads, so the renderer can warn
+   * before ingesting only the rest.
+   */
+  ipcMain.handle(CHANNELS.resolveDroppedPaths, async (_event, rawPaths: unknown) => {
+    if (!Array.isArray(rawPaths)) return { paths: [], skipped: [] };
+
+    const found: string[] = [];
+    const skipped: string[] = [];
+    for (const rawPath of rawPaths) {
+      if (found.length >= MAX_FOLDER_DOCUMENTS) break;
+      if (typeof rawPath !== 'string' || !isAbsolute(rawPath)) continue;
+
+      const path = normalize(rawPath);
+      let info;
+      try {
+        info = await stat(path);
+      } catch {
+        continue;
+      }
+
+      if (info.isDirectory()) {
+        pickedFolders.add(path);
+        await walkForDocuments(path, 0, found, skipped);
+      } else if (info.isFile()) {
+        if (isAllowedDocument(path)) found.push(path);
+        else skipped.push(basename(path));
+      }
+    }
+
+    for (const path of found) pickedDocuments.add(path);
+    return { paths: found, skipped };
+  });
+
   ipcMain.handle(CHANNELS.pickFolder, async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     if (!window) return null;
@@ -165,6 +223,9 @@ export function registerIpcHandlers(): void {
    * ingestion the same way individually-picked files are. Refuses any folder the dialog did
    * not produce, and the paths it returns become readable through `readDocument` exactly
    * like an individual pick — there is no other way bytes leave the disk.
+   *
+   * Also returns `skipped`, the names of files under the folder in a format the pipeline
+   * doesn't read, so the renderer can ask the engineer whether to proceed with just the rest.
    */
   ipcMain.handle(CHANNELS.listFolderDocuments, async (_event, rawPath: unknown) => {
     if (typeof rawPath !== 'string' || !isAbsolute(rawPath)) {
@@ -176,9 +237,10 @@ export function registerIpcHandlers(): void {
     }
 
     const found: string[] = [];
-    await walkForDocuments(folder, 0, found);
+    const skipped: string[] = [];
+    await walkForDocuments(folder, 0, found, skipped);
     for (const path of found) pickedDocuments.add(path);
-    return found;
+    return { paths: found, skipped };
   });
 
   /**

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import type { IngestDocumentsResponse } from '@localchat/contracts';
 import {
   useChats,
   useDeleteDocument,
@@ -8,12 +9,20 @@ import {
   useProjectDocuments,
 } from '@/shared/api/queries';
 import { Button } from '@/shared/ui/Button';
+import { Toggle } from '@/shared/ui/Controls';
 import { Icon } from '@/shared/ui/Icon';
-import { Mono } from '@/shared/ui/Indicators';
+import { Callout, Mono } from '@/shared/ui/Indicators';
 import { PageHeader } from '@/shared/ui/PageHeader';
+import { DropOverlay } from '@/shared/ui/DropOverlay';
 import { DocumentTable } from '@/features/documents/DocumentTable';
 import { formatCount, formatRelative } from '@/shared/lib/format';
-import { chooseDocuments, chooseFolderDocuments, hasDesktopBridge } from '@/shared/lib/localFiles';
+import {
+  chooseDocuments,
+  chooseFolderDocuments,
+  type ChosenDocuments,
+} from '@/shared/lib/localFiles';
+import { withUnprocessableConfirm } from '@/shared/lib/confirmUnprocessable';
+import { useDocumentDrop } from '@/shared/hooks/useDocumentDrop';
 import { cn } from '@/shared/lib/cn';
 import styles from './ProjectDetail.module.css';
 
@@ -26,29 +35,61 @@ export function ProjectDetailPage() {
   const ingest = useIngestDocuments();
   const deleteDocument = useDeleteDocument();
   const [tab, setTab] = useState<Tab>('documents');
+  // See GeneralDocumentsPage: the notification stack covers the case where the engineer has
+  // already left this page by the time ingestion finishes; this is the in-page detail view
+  // for whoever is still here.
+  const [rejected, setRejected] = useState<IngestDocumentsResponse['rejected']>([]);
+  // Off by default: an upload stays project-only unless the engineer explicitly asks for it
+  // to also be searchable company-wide.
+  const [alsoGeneral, setAlsoGeneral] = useState(false);
 
   // While anything is mid-ingestion the table polls, so progress moves without a refresh.
   const documents = useProjectDocuments(projectId, { refetchInterval: 1_500 });
   const rows = documents.data?.documents ?? [];
 
+  const ingestChosen = useCallback(
+    async (chosen: ChosenDocuments) => {
+      if (chosen.paths.length === 0 && chosen.files.length === 0 && chosen.skipped.length === 0) {
+        return;
+      }
+      const confirmed = await withUnprocessableConfirm(chosen);
+      if (!confirmed || (confirmed.paths.length === 0 && confirmed.files.length === 0)) return;
+      setRejected([]);
+      // A failed request already reports itself through the notification stack (see
+      // useIngestDocuments' onError); swallowed here so it doesn't also surface as an
+      // unhandled rejection from this click handler.
+      const result = await ingest
+        .mutateAsync({
+          projectId: projectId ?? null,
+          paths: confirmed.paths,
+          files: confirmed.files,
+          alsoGeneral,
+        })
+        .catch(() => null);
+      if (result) setRejected(result.rejected);
+    },
+    [ingest, projectId, alsoGeneral],
+  );
+
   async function addDocuments() {
-    const chosen = await chooseDocuments();
-    if (chosen.paths.length === 0 && chosen.files.length === 0) return;
-    await ingest.mutateAsync({
-      projectId: projectId ?? null,
-      paths: chosen.paths,
-      files: chosen.files,
-    });
+    await ingestChosen(await chooseDocuments());
   }
 
   async function addFolder() {
-    const { documents: chosen } = await chooseFolderDocuments();
-    if (chosen.paths.length === 0) return;
-    await ingest.mutateAsync({ projectId: projectId ?? null, paths: chosen.paths, files: [] });
+    const { documents } = await chooseFolderDocuments();
+    await ingestChosen(documents);
   }
 
+  const drop = useDocumentDrop(ingestChosen);
+
   return (
-    <div className={styles.page}>
+    <div
+      className={styles.page}
+      onDragEnter={drop.onDragEnter}
+      onDragOver={drop.onDragOver}
+      onDragLeave={drop.onDragLeave}
+      onDrop={drop.onDrop}
+    >
       <PageHeader
         breadcrumb={
           <>
@@ -81,11 +122,9 @@ export function ProjectDetailPage() {
             >
               New chat
             </Button>
-            {hasDesktopBridge() && (
-              <Button variant="outline" icon="folder" onClick={addFolder}>
-                Add folder
-              </Button>
-            )}
+            <Button variant="outline" icon="folder" onClick={addFolder}>
+              Add folder
+            </Button>
             <Button variant="accent" icon="plus" loading={ingest.isPending} onClick={addDocuments}>
               Add documents
             </Button>
@@ -105,6 +144,33 @@ export function ProjectDetailPage() {
       <div className={styles.body}>
         <div className={styles.main}>
           {tab === 'documents' && (
+            <Toggle
+              checked={alsoGeneral}
+              onChange={setAlsoGeneral}
+              label="Also add new uploads to general documents"
+              description="Applies to documents you add from here, so they're searchable outside this project too."
+            />
+          )}
+          {tab === 'documents' && rejected.length > 0 && (
+            <div className={styles.rejectedCallout}>
+              <Callout
+                title={
+                  rejected.length === 1
+                    ? '1 file could not be indexed'
+                    : `${rejected.length} files could not be indexed`
+                }
+              >
+                <ul className={styles.rejectedList}>
+                  {rejected.map((item) => (
+                    <li key={item.path}>
+                      <Mono>{item.path}</Mono> — {item.reason}
+                    </li>
+                  ))}
+                </ul>
+              </Callout>
+            </div>
+          )}
+          {tab === 'documents' && (
             <DocumentTable
               documents={rows}
               emptyLabel="No documents yet. Add a folder or drop files in."
@@ -114,6 +180,13 @@ export function ProjectDetailPage() {
           {tab === 'chats' && <ChatList projectId={projectId} />}
         </div>
       </div>
+
+      {drop.active && (
+        <DropOverlay
+          title="Drop to add to this project"
+          hint="PDF, DOCX, Markdown, TXT, PNG, JPG — files or folders"
+        />
+      )}
     </div>
   );
 }

@@ -66,6 +66,8 @@ export const DocumentSchema = z.object({
   id: z.string(),
   /** Null means the document belongs to the company-wide ("general") corpus. */
   projectId: z.string().nullable(),
+  /** True surfaces a project-scoped document in the general corpus too, without a second copy. */
+  alsoGeneral: z.boolean(),
   filename: z.string(),
   title: z.string(),
   format: DocumentFormat,
@@ -267,6 +269,19 @@ export type Chat = z.infer<typeof ChatSchema>;
 export const ComputeMode = z.enum(['cpu', 'gpu']);
 export type ComputeMode = z.infer<typeof ComputeMode>;
 
+/**
+ * An embedding model the service can index and search with. Distinct from `ModelSchema`
+ * (the answer-generation model): swapping this one does not just change what answers a
+ * question, it changes the vector space every document's chunks are stored in.
+ */
+export const EmbeddingModelSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  dimension: z.number().int().positive(),
+  description: z.string(),
+});
+export type EmbeddingModel = z.infer<typeof EmbeddingModelSchema>;
+
 export const ModelSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -382,6 +397,166 @@ export const ModelBenchmarkRunSchema = z.object({
   finishedAt: isoDateTime.nullable(),
 });
 export type ModelBenchmarkRun = z.infer<typeof ModelBenchmarkRunSchema>;
+
+// ---------------------------------------------------------------------------
+// Embedding model switching and re-embedding
+// ---------------------------------------------------------------------------
+
+export const ReindexJobStatus = z.enum(['running', 'completed', 'failed']);
+export type ReindexJobStatus = z.infer<typeof ReindexJobStatus>;
+
+/**
+ * Switching the embedding model is not a pure settings change: every document already
+ * indexed under the previous model has vectors in a now-incompatible space, so a switch
+ * always queues this job to re-embed the existing corpus with the newly active model before
+ * search results can be trusted again.
+ */
+export const ReindexJobSchema = z.object({
+  id: z.string(),
+  status: ReindexJobStatus,
+  /** The embedding model this job is re-embedding the corpus into. */
+  model: z.string(),
+  /** Progress as the service words it, e.g. "3 of 12" or "starting". */
+  progress: z.string().nullable(),
+  /** Title of the document currently being re-embedded, while the job runs. */
+  currentDocument: z.string().nullable(),
+  startedAt: isoDateTime,
+  finishedAt: isoDateTime.nullable(),
+});
+export type ReindexJob = z.infer<typeof ReindexJobSchema>;
+
+// ---------------------------------------------------------------------------
+// Embedding model benchmark
+// ---------------------------------------------------------------------------
+
+/**
+ * Measures embedding throughput, not retrieval quality — the same caveat as
+ * `ModelBenchmarkRunSchema`, applied to the embedder instead of the answer model.
+ */
+export const EmbeddingBenchmarkRowSchema = z.object({
+  model: z.string(),
+  dimension: z.number().int().positive().nullable(),
+  status: BenchmarkRowStatus,
+  detail: z.string().nullable(),
+  loadMs: z.number().nonnegative().nullable(),
+  /** Which fixed sample tier this row measured: "short", "medium" or "long" text. */
+  textLabel: z.string().nullable(),
+  textCount: z.number().int().nonnegative().nullable(),
+  embedMs: z.number().nonnegative().nullable(),
+  textsPerSecond: z.number().nonnegative().nullable(),
+  peakMemoryBytes: z.number().nonnegative().nullable(),
+  ranAt: isoDateTime,
+});
+export type EmbeddingBenchmarkRow = z.infer<typeof EmbeddingBenchmarkRowSchema>;
+
+export const EmbeddingBenchmarkRunSchema = z.object({
+  id: z.string(),
+  status: BenchmarkJobStatus,
+  progress: z.string().nullable(),
+  current: z.string().nullable(),
+  rows: z.array(EmbeddingBenchmarkRowSchema),
+  startedAt: isoDateTime,
+  finishedAt: isoDateTime.nullable(),
+});
+export type EmbeddingBenchmarkRun = z.infer<typeof EmbeddingBenchmarkRunSchema>;
+
+// ---------------------------------------------------------------------------
+// RAG evaluation - a labeled question set run end to end against real, ingested documents
+// ---------------------------------------------------------------------------
+
+/**
+ * The difficulty a question was hand-labeled with when the question set was written -
+ * distinct from `ComplexityTier`, which the service measures automatically from the
+ * question text at answer time. The two often agree but are not the same signal.
+ */
+export const RagEvalDifficulty = z.enum(['easy', 'medium', 'hard']);
+export type RagEvalDifficulty = z.infer<typeof RagEvalDifficulty>;
+
+/**
+ * `correct`/`partial`/`incorrect` come from an LLM-as-judge comparing the generated answer
+ * against the reference answer - the same model that may have generated the answer being
+ * judged, which is a real bias to keep in mind, not independent confirmation. `error` means
+ * the judge's own output could not be parsed into a verdict. Null (not part of this enum)
+ * means the question was never judged at all, because no answer was generated to grade.
+ */
+export const RagEvalJudgeVerdict = z.enum(['correct', 'partial', 'incorrect', 'error']);
+export type RagEvalJudgeVerdict = z.infer<typeof RagEvalJudgeVerdict>;
+
+export const RagEvalJobStatus = z.enum(['running', 'completed', 'failed']);
+export type RagEvalJobStatus = z.infer<typeof RagEvalJobStatus>;
+
+export const RagEvalCitationSchema = z.object({
+  title: z.string(),
+  section: z.string().nullable(),
+  page: z.number().int().nullable(),
+  score: z.number(),
+});
+export type RagEvalCitation = z.infer<typeof RagEvalCitationSchema>;
+
+export const RagEvalRowSchema = z.object({
+  source: z.string(),
+  difficulty: RagEvalDifficulty,
+  question: z.string(),
+  expectedAnswer: z.string(),
+  actualAnswer: z.string().nullable(),
+  notFound: z.boolean(),
+  /** Objective and mechanical: did the source document show up in the citations at all? */
+  retrievalHit: z.boolean(),
+  judgeVerdict: RagEvalJudgeVerdict.nullable(),
+  judgeDetail: z.string().nullable(),
+  complexityTier: ComplexityTier.nullable(),
+  complexityScore: z.number().nullable(),
+  latencyMs: z.number().nonnegative().nullable(),
+  citations: z.array(RagEvalCitationSchema).nullable(),
+  ranAt: isoDateTime,
+});
+export type RagEvalRow = z.infer<typeof RagEvalRowSchema>;
+
+export const RagEvalBucketSchema = z.object({
+  total: z.number().int().nonnegative(),
+  retrievalHitRate: z.number().min(0).max(1).nullable(),
+  judgeCounts: z.record(z.string(), z.number().int().nonnegative()),
+});
+export type RagEvalBucket = z.infer<typeof RagEvalBucketSchema>;
+
+export const RagEvalSummarySchema = RagEvalBucketSchema.extend({
+  byDifficulty: z.record(z.string(), RagEvalBucketSchema),
+});
+export type RagEvalSummary = z.infer<typeof RagEvalSummarySchema>;
+
+export const RagEvalRunSchema = z.object({
+  id: z.string(),
+  status: RagEvalJobStatus,
+  /** Which file under data/eval/ this run answered questions from. */
+  datasetId: z.string(),
+  projectId: z.string().nullable(),
+  progress: z.string().nullable(),
+  currentQuestion: z.string().nullable(),
+  summary: RagEvalSummarySchema.nullable(),
+  rows: z.array(RagEvalRowSchema),
+  startedAt: isoDateTime,
+  finishedAt: isoDateTime.nullable(),
+});
+export type RagEvalRun = z.infer<typeof RagEvalRunSchema>;
+
+export const RagEvalDatasetDocumentSchema = z.object({
+  source: z.string(),
+  titleHint: z.string(),
+  questionCount: z.number().int().nonnegative(),
+});
+export type RagEvalDatasetDocument = z.infer<typeof RagEvalDatasetDocumentSchema>;
+
+/**
+ * One selectable question set - any file dropped under data/eval/ on the service side, kept
+ * as its own file rather than a single hardcoded set so testing a different corpus never
+ * means overwriting the one you already have.
+ */
+export const RagEvalDatasetInfoSchema = z.object({
+  id: z.string(),
+  documents: z.array(RagEvalDatasetDocumentSchema),
+  totalQuestions: z.number().int().nonnegative(),
+});
+export type RagEvalDatasetInfo = z.infer<typeof RagEvalDatasetInfoSchema>;
 
 // ---------------------------------------------------------------------------
 // Approved tools

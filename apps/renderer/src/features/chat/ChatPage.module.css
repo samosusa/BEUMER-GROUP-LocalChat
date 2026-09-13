@@ -64,37 +64,3 @@
   font-size: var(--text-meta);
   color: var(--text-tertiary);
 }
-
-/* ---------------------------------------------------------------------------
-   Why a document did not go in
-
-   Sits directly above the composer, where the engineer's attention already is after
-   choosing a file. Carries the backend's own reason rather than a generic failure:
-   "export it to PDF and add it again" is actionable, "upload failed" is not.
-   --------------------------------------------------------------------------- */
-
-.ingestNote {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  margin: 0 var(--space-6) var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--warning-border);
-  background: var(--warning-surface);
-  border-radius: var(--radius-md);
-}
-
-.ingestNoteIcon {
-  color: var(--warning);
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-.ingestNoteText {
-  flex: 1;
-  margin: 0;
-  font-size: var(--text-meta);
-  line-height: var(--leading-normal);
-  color: var(--text-body);
-  white-space: pre-line;
-}

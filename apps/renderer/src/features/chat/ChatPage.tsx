@@ -14,15 +14,14 @@ import {
 } from '@/shared/api/queries';
 import { ScopeSelector } from './components/ScopeSelector';
 import { Icon } from '@/shared/ui/Icon';
-import { IconButton } from '@/shared/ui/Button';
-import { Mono } from '@/shared/ui/Indicators';
 import { Transcript } from './components/Transcript';
-import { describeError } from '@/shared/api/http';
 import { Composer } from './components/Composer';
 import { NewChatIntro } from './components/NewChatIntro';
 import { useAsk } from './hooks/useAsk';
 import { chooseDocuments, type ChosenDocuments } from '@/shared/lib/localFiles';
-import { useDocumentDrop } from './hooks/useDocumentDrop';
+import { withUnprocessableConfirm } from '@/shared/lib/confirmUnprocessable';
+import { useDocumentDrop } from '@/shared/hooks/useDocumentDrop';
+import { DropOverlay } from '@/shared/ui/DropOverlay';
 import styles from './ChatPage.module.css';
 
 export function ChatPage() {
@@ -59,30 +58,31 @@ export function ChatPage() {
    * like a file that worked. A thrown error was worse: `mutateAsync` rejected into an
    * unhandled promise and the screen did not change at all.
    */
-  const [ingestNote, setIngestNote] = useState<string | null>(null);
 
   const addDocuments = useCallback(
     async (chosen: ChosenDocuments) => {
-      if (chosen.paths.length === 0 && chosen.files.length === 0) return;
-      setIngestNote(null);
-      try {
-        const result = await ingest.mutateAsync({
-          projectId: chatId ? (chat.data?.projectId ?? null) : pendingProjectId,
-          paths: chosen.paths,
-          files: chosen.files,
-        });
-        if (result.rejected.length > 0) {
-          setIngestNote(
-            result.rejected
-              .map((entry) => `${entry.path.split(/[\\/]/).pop()}: ${entry.reason}`)
-              .join('\n'),
-          );
-        }
-      } catch (cause) {
-        setIngestNote(describeError(cause));
+      if (chosen.paths.length === 0 && chosen.files.length === 0 && chosen.skipped.length === 0) {
+        return;
       }
+      const confirmed = await withUnprocessableConfirm(chosen);
+      if (!confirmed || (confirmed.paths.length === 0 && confirmed.files.length === 0)) return;
+      // Dropping a file into a "Both" chat means it should be findable outside this project
+      // too, the same way "Both" already widens retrieval - otherwise the corpus a file lands
+      // in silently depends on which project tab it was dragged into, not the scope shown.
+      const scope = chatId ? (chat.data?.scope ?? 'general') : pendingScope;
+      // A failed request already reports itself through the notification stack (see
+      // useIngestDocuments' onError); swallowed here so it doesn't also surface as an
+      // unhandled rejection from this click/drop handler.
+      await ingest
+        .mutateAsync({
+          projectId: chatId ? (chat.data?.projectId ?? null) : pendingProjectId,
+          paths: confirmed.paths,
+          files: confirmed.files,
+          alsoGeneral: scope === 'both',
+        })
+        .catch(() => {});
     },
-    [chat.data, chatId, ingest, pendingProjectId],
+    [chat.data, chatId, ingest, pendingProjectId, pendingScope],
   );
 
   const drop = useDocumentDrop(addDocuments);
@@ -176,6 +176,7 @@ export function ChatPage() {
   return (
     <div
       className={styles.page}
+      onDragEnter={drop.onDragEnter}
       onDragOver={drop.onDragOver}
       onDragLeave={drop.onDragLeave}
       onDrop={drop.onDrop}
@@ -207,14 +208,6 @@ export function ChatPage() {
         <NewChatIntro onDropFiles={pickFiles} />
       )}
 
-      {ingestNote && (
-        <div className={styles.ingestNote} role="status">
-          <Icon name="warning" size={15} className={styles.ingestNoteIcon} />
-          <p className={styles.ingestNoteText}>{ingestNote}</p>
-          <IconButton icon="close" label="Dismiss" size={14} onClick={() => setIngestNote(null)} />
-        </div>
-      )}
-
       <Composer
         placeholder={
           activeProject
@@ -229,13 +222,10 @@ export function ChatPage() {
       />
 
       {drop.active && (
-        <div className={styles.dropOverlay} aria-hidden="true">
-          <div className={styles.dropCard}>
-            <Icon name="upload" size={26} strokeWidth={1.6} />
-            <p className={styles.dropTitle}>Drop to add to this chat’s context</p>
-            <Mono className={styles.dropHint}>PDF, DOCX, Markdown, TXT</Mono>
-          </div>
-        </div>
+        <DropOverlay
+          title="Drop to add to this chat’s context"
+          hint="PDF, DOCX, Markdown, TXT, PNG, JPG — files or folders"
+        />
       )}
     </div>
   );

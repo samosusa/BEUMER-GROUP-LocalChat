@@ -6,11 +6,16 @@ import {
   ChatSchema,
   CitationSchema,
   DocumentSchema,
+  EmbeddingBenchmarkRunSchema,
+  EmbeddingModelSchema,
   FigureSchema,
   IndexStatsSchema,
   MessageSchema,
   ModelSchema,
   ProjectSchema,
+  RagEvalDatasetInfoSchema,
+  RagEvalRunSchema,
+  ReindexJobSchema,
   RetrievalScope,
   SettingsSchema,
   ToolCallSchema,
@@ -79,6 +84,8 @@ export const IngestDocumentsRequest = z.object({
   projectId: z.string().nullable(),
   /** Absolute paths on the engineer's machine, resolved by the desktop shell. */
   paths: z.array(z.string().min(1)).min(1),
+  /** Also surface these documents in the general corpus. Meaningless when projectId is null. */
+  alsoGeneral: z.boolean().default(false),
 });
 export type IngestDocumentsRequest = z.infer<typeof IngestDocumentsRequest>;
 
@@ -197,6 +204,59 @@ export const RunBenchmarkRequest = z.object({
 export type RunBenchmarkRequest = z.infer<typeof RunBenchmarkRequest>;
 
 // ---------------------------------------------------------------------------
+// Embedding models, re-embedding, embedding benchmark
+// ---------------------------------------------------------------------------
+
+export const ListEmbeddingModelsResponse = z.object({
+  embeddingModels: z.array(EmbeddingModelSchema),
+});
+export type ListEmbeddingModelsResponse = z.infer<typeof ListEmbeddingModelsResponse>;
+
+export const ActiveEmbeddingModelResponse = z.object({
+  model: z.string(),
+  dimension: z.number().int().positive(),
+});
+export type ActiveEmbeddingModelResponse = z.infer<typeof ActiveEmbeddingModelResponse>;
+
+export const SetActiveEmbeddingModelRequest = z.object({ model: z.string() });
+export type SetActiveEmbeddingModelRequest = z.infer<typeof SetActiveEmbeddingModelRequest>;
+
+/** A model switch always queues a re-embed; the job id lets the caller poll its progress. */
+export const SetActiveEmbeddingModelResponse = ActiveEmbeddingModelResponse.extend({
+  reindexJobId: z.string(),
+});
+export type SetActiveEmbeddingModelResponse = z.infer<typeof SetActiveEmbeddingModelResponse>;
+
+export const ReindexJobResponse = z.object({ job: ReindexJobSchema.nullable() });
+export type ReindexJobResponse = z.infer<typeof ReindexJobResponse>;
+
+export const EmbeddingBenchmarkResponse = z.object({ run: EmbeddingBenchmarkRunSchema.nullable() });
+export type EmbeddingBenchmarkResponse = z.infer<typeof EmbeddingBenchmarkResponse>;
+
+export const RunEmbeddingBenchmarkRequest = z.object({
+  /** Omit to benchmark every embedding model the service offers. */
+  models: z.array(z.string()).nullable().default(null),
+});
+export type RunEmbeddingBenchmarkRequest = z.infer<typeof RunEmbeddingBenchmarkRequest>;
+
+// ---------------------------------------------------------------------------
+// RAG evaluation
+// ---------------------------------------------------------------------------
+
+export const RagEvalDatasetsResponse = z.array(RagEvalDatasetInfoSchema);
+export type RagEvalDatasetsResponse = z.infer<typeof RagEvalDatasetsResponse>;
+
+export const StartRagEvalRequest = z.object({
+  projectId: z.string().nullable(),
+  /** Matches the service's own default (src/rag_eval.py DEFAULT_DATASET_ID). */
+  datasetId: z.string().default('rag_qa_pairs'),
+});
+export type StartRagEvalRequest = z.infer<typeof StartRagEvalRequest>;
+
+export const RagEvalRunResponse = z.object({ run: RagEvalRunSchema.nullable() });
+export type RagEvalRunResponse = z.infer<typeof RagEvalRunResponse>;
+
+// ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 
@@ -228,4 +288,12 @@ export const routes = {
   models: () => '/api/models',
   benchmark: () => '/api/benchmark',
   benchmarkHistory: () => '/api/benchmark/history',
+  embeddingModels: () => '/api/embeddings/models',
+  activeEmbeddingModel: () => '/api/embeddings/active',
+  /** The current or most recent re-embed job — there is at most one meaningful at a time. */
+  reindexJob: () => '/api/embeddings/reindex',
+  embeddingBenchmark: () => '/api/embeddings/benchmark',
+  ragEvalDatasets: () => '/api/rag-eval/datasets',
+  /** The current or most recent evaluation run - there is at most one meaningful at a time. */
+  ragEval: () => '/api/rag-eval',
 } as const;

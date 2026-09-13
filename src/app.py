@@ -5,10 +5,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from src.api.benchmark import router as benchmark_router
 from src.api.conversations import router as conversations_router
 from src.api.docs import router as docs_router
+from src.api.embeddings import router as embeddings_router
 from src.api.ingest import router as ingest_router
 from src.api.models import router as models_router
 from src.api.projects import router as projects_router
 from src.api.query import router as query_router
+from src.api.rag_eval import router as rag_eval_router
 from src.errors import (
     AppError,
     app_error_handler,
@@ -34,10 +36,12 @@ app = FastAPI(
 app.include_router(benchmark_router)
 app.include_router(conversations_router)
 app.include_router(docs_router)
+app.include_router(embeddings_router)
 app.include_router(ingest_router)
 app.include_router(models_router)
 app.include_router(projects_router)
 app.include_router(query_router)
+app.include_router(rag_eval_router)
 
 
 @app.on_event("startup")

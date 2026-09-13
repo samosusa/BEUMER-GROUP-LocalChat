@@ -61,6 +61,7 @@
 /* ----- content --------------------------------------------------------------- */
 
 .content {
+  position: relative;
   flex: 1;
   min-width: 0;
   overflow-y: auto;
@@ -97,6 +98,15 @@
   display: flex;
   align-items: center;
   gap: var(--space-4);
+}
+
+.rejectedList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 /* ----- project grid ---------------------------------------------------------- */

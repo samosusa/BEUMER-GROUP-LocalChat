@@ -508,6 +508,16 @@
   flex-wrap: wrap;
 }
 
+/* ----- RAG evaluation ----------------------------------------------------- */
+/* Question/answer pairs are paragraph text, not figures - unlike .benchTable, these rows
+   wrap rather than force a wide horizontally-scrolling table. */
+
+.evalSummaryRow {
+  display: flex;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
 .chartFigure {
   margin: 0;
 }
@@ -559,4 +569,88 @@
   font-size: var(--text-meta);
   color: var(--text-label);
   text-align: center;
+}
+
+.evalStat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.evalStatLabel {
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-label);
+}
+
+.evalStatValue {
+  font-size: var(--text-heading, 1.1rem);
+  color: var(--text-body);
+}
+
+.evalRows {
+  display: flex;
+  flex-direction: column;
+}
+
+.evalRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+}
+
+.evalRow + .evalRow {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.evalRowHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-label);
+}
+
+.evalHit {
+  color: var(--accent-text);
+}
+
+.evalMiss {
+  color: var(--warning);
+}
+
+.evalQuestion {
+  font-size: var(--text-row);
+  font-weight: var(--weight-semibold);
+  color: var(--text-body);
+}
+
+.evalAnswers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+  .evalAnswers {
+    grid-template-columns: 1fr;
+  }
+}
+
+.evalAnswerLabel {
+  font-size: var(--text-micro);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-label);
+}
+
+.evalAnswerText {
+  font-size: var(--text-meta);
+  line-height: var(--leading-normal);
+  color: var(--text-secondary);
 }
