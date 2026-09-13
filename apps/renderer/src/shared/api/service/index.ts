@@ -499,10 +499,13 @@ export async function latestEmbeddingBenchmark(
   )[0];
   if (!newest) return null;
 
-  const results = await request(`/embeddings/benchmark/results/${newest.embedding_benchmark_job_id}`, {
-    schema: ServiceEmbeddingBenchmarkResults,
-    signal,
-  });
+  const results = await request(
+    `/embeddings/benchmark/results/${newest.embedding_benchmark_job_id}`,
+    {
+      schema: ServiceEmbeddingBenchmarkResults,
+      signal,
+    },
+  );
 
   let status;
   if (newest.status.toLowerCase() === 'running') {

@@ -481,7 +481,10 @@ export const handlers = [
   http.get(route(routes.activeEmbeddingModel()), async () => {
     await delay(LATENCY.fast);
     const model = catalogue.embeddingModels.find((m) => m.name === store.settings.embeddingModel);
-    return HttpResponse.json({ model: store.settings.embeddingModel, dimension: model?.dimension ?? 0 });
+    return HttpResponse.json({
+      model: store.settings.embeddingModel,
+      dimension: model?.dimension ?? 0,
+    });
   }),
 
   http.post(route(routes.activeEmbeddingModel()), async ({ request }) => {

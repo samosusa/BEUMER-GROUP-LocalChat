@@ -562,9 +562,8 @@ function EmbeddingModelCard() {
         </SectionLabel>
       </header>
       <p className={styles.hint}>
-        Switching this re-embeds every indexed document before search results can be trusted
-        again — it changes the vector space documents are stored in, not just which model
-        answers.
+        Switching this re-embeds every indexed document before search results can be trusted again —
+        it changes the vector space documents are stored in, not just which model answers.
       </p>
       {models.isError && <p className={styles.benchWarning}>{describeError(models.error)}</p>}
       <div className={styles.modelList} role="radiogroup" aria-label="Embedding model">
@@ -579,9 +578,7 @@ function EmbeddingModelCard() {
           />
         ))}
       </div>
-      {setActive.isError && (
-        <p className={styles.benchWarning}>{describeError(setActive.error)}</p>
-      )}
+      {setActive.isError && <p className={styles.benchWarning}>{describeError(setActive.error)}</p>}
       {job && (
         <p className={reindexing ? styles.benchWarning : styles.hint}>
           {reindexing
@@ -677,8 +674,8 @@ function EmbeddingBenchmarkCard() {
       <section className={styles.card}>
         <SectionLabel>Embedding benchmark</SectionLabel>
         <p className={styles.hint}>
-          Compares embedding models on this machine — model load time and encoding throughput
-          across short, medium and long text. It does not measure retrieval quality.
+          Compares embedding models on this machine — model load time and encoding throughput across
+          short, medium and long text. It does not measure retrieval quality.
         </p>
         {picker}
         {benchmark.isError && (
@@ -713,8 +710,8 @@ function EmbeddingBenchmarkCard() {
       </SectionLabel>
 
       <p className={styles.hint}>
-        Encoding throughput per model and text size. This is not a measure of retrieval
-        quality — no document is searched.
+        Encoding throughput per model and text size. This is not a measure of retrieval quality — no
+        document is searched.
       </p>
 
       {result.status === 'running' && (

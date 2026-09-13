@@ -489,7 +489,10 @@ export function useSetActiveEmbeddingModel() {
   return useMutation({
     mutationFn: (model: string) => api.setActiveEmbeddingModel(model),
     onSuccess: (data) => {
-      client.setQueryData(keys.activeEmbeddingModel, { model: data.model, dimension: data.dimension });
+      client.setQueryData(keys.activeEmbeddingModel, {
+        model: data.model,
+        dimension: data.dimension,
+      });
       void client.invalidateQueries({ queryKey: keys.reindexJob });
     },
   });
