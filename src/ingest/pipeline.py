@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from src.complexity import measure_document_complexity
 from src.ingest.chunker import TextChunk, chunk_file
-from src.ingest.embedder import embed
+from src.ingest.embedder import embed, embedding_adapter
 from src.ingest.vector_store import FaissVectorStore
 from src.models.chunk import Chunk
 from src.models.document import Document
@@ -87,6 +87,14 @@ def _finalize(db: Session, document: Document, job: IngestionJob, store: FaissVe
     job.offset = total_chunks
     job.last_checkpoint = {"offset": total_chunks, "total_chunks": total_chunks}
     document.indexed_at = datetime.utcnow()
+    # Tags this document with whichever embedding model is currently active, so the retriever
+    # can later tell it apart from documents indexed under a different one (see
+    # src/retriever.py, src/ingest/embedder.py). The default `embedder=embed` always routes
+    # through this same adapter; a caller passing a custom embedder callable (tests only) is
+    # still tagged this way since that adapter is what a real query-time retrieval matches against.
+    active = embedding_adapter.active
+    document.embedding_model = active["model"]
+    document.embedding_dim = active["dimension"]
     job.status = "completed"
     db.commit()
 

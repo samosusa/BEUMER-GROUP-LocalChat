@@ -257,6 +257,19 @@ export type Chat = z.infer<typeof ChatSchema>;
 export const ComputeMode = z.enum(['cpu', 'gpu']);
 export type ComputeMode = z.infer<typeof ComputeMode>;
 
+/**
+ * An embedding model the service can index and search with. Distinct from `ModelSchema`
+ * (the answer-generation model): swapping this one does not just change what answers a
+ * question, it changes the vector space every document's chunks are stored in.
+ */
+export const EmbeddingModelSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  dimension: z.number().int().positive(),
+  description: z.string(),
+});
+export type EmbeddingModel = z.infer<typeof EmbeddingModelSchema>;
+
 export const ModelSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -372,6 +385,68 @@ export const ModelBenchmarkRunSchema = z.object({
   finishedAt: isoDateTime.nullable(),
 });
 export type ModelBenchmarkRun = z.infer<typeof ModelBenchmarkRunSchema>;
+
+// ---------------------------------------------------------------------------
+// Embedding model switching and re-embedding
+// ---------------------------------------------------------------------------
+
+export const ReindexJobStatus = z.enum(['running', 'completed', 'failed']);
+export type ReindexJobStatus = z.infer<typeof ReindexJobStatus>;
+
+/**
+ * Switching the embedding model is not a pure settings change: every document already
+ * indexed under the previous model has vectors in a now-incompatible space, so a switch
+ * always queues this job to re-embed the existing corpus with the newly active model before
+ * search results can be trusted again.
+ */
+export const ReindexJobSchema = z.object({
+  id: z.string(),
+  status: ReindexJobStatus,
+  /** The embedding model this job is re-embedding the corpus into. */
+  model: z.string(),
+  /** Progress as the service words it, e.g. "3 of 12" or "starting". */
+  progress: z.string().nullable(),
+  /** Title of the document currently being re-embedded, while the job runs. */
+  currentDocument: z.string().nullable(),
+  startedAt: isoDateTime,
+  finishedAt: isoDateTime.nullable(),
+});
+export type ReindexJob = z.infer<typeof ReindexJobSchema>;
+
+// ---------------------------------------------------------------------------
+// Embedding model benchmark
+// ---------------------------------------------------------------------------
+
+/**
+ * Measures embedding throughput, not retrieval quality — the same caveat as
+ * `ModelBenchmarkRunSchema`, applied to the embedder instead of the answer model.
+ */
+export const EmbeddingBenchmarkRowSchema = z.object({
+  model: z.string(),
+  dimension: z.number().int().positive().nullable(),
+  status: BenchmarkRowStatus,
+  detail: z.string().nullable(),
+  loadMs: z.number().nonnegative().nullable(),
+  /** Which fixed sample tier this row measured: "short", "medium" or "long" text. */
+  textLabel: z.string().nullable(),
+  textCount: z.number().int().nonnegative().nullable(),
+  embedMs: z.number().nonnegative().nullable(),
+  textsPerSecond: z.number().nonnegative().nullable(),
+  peakMemoryBytes: z.number().nonnegative().nullable(),
+  ranAt: isoDateTime,
+});
+export type EmbeddingBenchmarkRow = z.infer<typeof EmbeddingBenchmarkRowSchema>;
+
+export const EmbeddingBenchmarkRunSchema = z.object({
+  id: z.string(),
+  status: BenchmarkJobStatus,
+  progress: z.string().nullable(),
+  current: z.string().nullable(),
+  rows: z.array(EmbeddingBenchmarkRowSchema),
+  startedAt: isoDateTime,
+  finishedAt: isoDateTime.nullable(),
+});
+export type EmbeddingBenchmarkRun = z.infer<typeof EmbeddingBenchmarkRunSchema>;
 
 // ---------------------------------------------------------------------------
 // Approved tools

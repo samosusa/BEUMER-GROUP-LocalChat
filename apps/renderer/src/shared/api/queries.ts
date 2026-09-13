@@ -5,6 +5,7 @@ import type {
   CreateProjectRequest,
   ReindexRequest,
   RunBenchmarkRequest,
+  RunEmbeddingBenchmarkRequest,
   UpdateChatContextRequest,
   UpdateSettingsRequest,
 } from '@localchat/contracts';
@@ -36,6 +37,10 @@ export const keys = {
   activeModel: ['activeModel'] as const,
   models: ['models'] as const,
   benchmark: ['benchmark'] as const,
+  embeddingModels: ['embeddingModels'] as const,
+  activeEmbeddingModel: ['activeEmbeddingModel'] as const,
+  reindexJob: ['reindexJob'] as const,
+  embeddingBenchmark: ['embeddingBenchmark'] as const,
 };
 
 /** Anything the retriever wrote is cheap to refetch and expensive to show stale. */
@@ -196,6 +201,50 @@ export function useBenchmark() {
     ...STATIC,
     // Loading a multi-gigabyte model takes tens of seconds, so this is slow on purpose:
     // a tighter interval would add nothing and a fixed one would keep asking forever.
+    refetchInterval: (query) => (query.state.data?.run?.status === 'running' ? 3_000 : false),
+  });
+}
+
+export function useEmbeddingModels() {
+  return useQuery({
+    queryKey: keys.embeddingModels,
+    queryFn: ({ signal }) => api.listEmbeddingModels(signal),
+    select: (data) => data.embeddingModels,
+    ...STATIC,
+  });
+}
+
+/** The embedding model actually indexing and searching with, straight off the service. */
+export function useActiveEmbeddingModel() {
+  return useQuery({
+    queryKey: keys.activeEmbeddingModel,
+    queryFn: ({ signal }) => api.getActiveEmbeddingModel(signal),
+    ...STATIC,
+  });
+}
+
+/**
+ * The current or most recent re-embed job. Polls while running: switching models queues a
+ * pass over every indexed document, which can take minutes on a large corpus, and a fixed
+ * interval would either lag an active run or keep polling long after a finished one.
+ */
+export function useReindexJob() {
+  return useQuery({
+    queryKey: keys.reindexJob,
+    queryFn: ({ signal }) => api.getReindexJob(signal),
+    select: (data) => data.job,
+    ...STATIC,
+    refetchInterval: (query) => (query.state.data?.job?.status === 'running' ? 2_000 : false),
+  });
+}
+
+/** Same shape as `useBenchmark`, for the embedding-model benchmark instead of the answer model. */
+export function useEmbeddingBenchmark() {
+  return useQuery({
+    queryKey: keys.embeddingBenchmark,
+    queryFn: ({ signal }) => api.getEmbeddingBenchmark(signal),
+    select: (data) => data.run,
+    ...STATIC,
     refetchInterval: (query) => (query.state.data?.run?.status === 'running' ? 3_000 : false),
   });
 }
@@ -394,6 +443,30 @@ export function useRunBenchmark() {
   return useMutation({
     mutationFn: (body: RunBenchmarkRequest) => api.runBenchmark(body),
     onSuccess: (data) => client.setQueryData(keys.benchmark, data),
+  });
+}
+
+/**
+ * Switching always queues a re-embed of the existing corpus — there is no way to switch
+ * without one. `onSuccess` seeds both the new active model and the freshly-queued job so the
+ * interface reflects the switch immediately rather than waiting on the next poll of each.
+ */
+export function useSetActiveEmbeddingModel() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (model: string) => api.setActiveEmbeddingModel(model),
+    onSuccess: (data) => {
+      client.setQueryData(keys.activeEmbeddingModel, { model: data.model, dimension: data.dimension });
+      void client.invalidateQueries({ queryKey: keys.reindexJob });
+    },
+  });
+}
+
+export function useRunEmbeddingBenchmark() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RunEmbeddingBenchmarkRequest) => api.runEmbeddingBenchmark(body),
+    onSuccess: (data) => client.setQueryData(keys.embeddingBenchmark, data),
   });
 }
 
