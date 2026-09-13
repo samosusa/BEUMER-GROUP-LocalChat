@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { linePath, linearScale } from './scale';
+import { estimateTickWidth, linePath, linearScale } from './scale';
 import { useElementWidth } from './useElementWidth';
 import styles from './Chart.module.css';
 
@@ -25,7 +25,9 @@ interface TimeSeriesProps {
   height?: number;
 }
 
-const PAD = { top: 10, right: 12, bottom: 28, left: 46 };
+const BASE_PAD = { top: 10, right: 12, bottom: 28, left: 46 };
+/** Space kept between the widest tick label and the axis line. */
+const TICK_GAP = 8;
 
 /**
  * One line per series against run time.
@@ -48,12 +50,21 @@ export function TimeSeries({ lines, format, formatTime, caption, height = 220 }:
     (a, b) => a - b,
   );
 
-  const plotWidth = Math.max(0, width - PAD.left - PAD.right);
-  const plotHeight = height - PAD.top - PAD.bottom;
+  const plotHeight = height - BASE_PAD.top - BASE_PAD.bottom;
   const y = linearScale(
     visible.flatMap((line) => line.points.map((point) => point.value)),
     plotHeight,
   );
+
+  // The gutter has to fit the widest tick label - see the matching comment in
+  // `GroupedColumns`.
+  const left = Math.max(
+    BASE_PAD.left,
+    Math.max(...y.ticks.map((tick) => estimateTickWidth(format(tick)))) + TICK_GAP,
+  );
+  const PAD = { ...BASE_PAD, left };
+
+  const plotWidth = Math.max(0, width - PAD.left - PAD.right);
   const step = stamps.length > 1 ? plotWidth / (stamps.length - 1) : 0;
   const xFor = (at: number) =>
     PAD.left + (stamps.length > 1 ? stamps.indexOf(at) * step : plotWidth / 2);

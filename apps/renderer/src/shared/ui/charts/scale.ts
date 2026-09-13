@@ -105,3 +105,43 @@ export function columnPath(
 export function linePath(points: Array<{ x: number; y: number }>): string {
   return points.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x},${point.y}`).join(' ');
 }
+
+/**
+ * Average glyph width for the 11px sans-serif category label (`.category` in
+ * Chart.module.css), as a fraction of the font size. Real text metrics need a canvas; this
+ * is close enough to decide when a label needs shortening.
+ */
+const AVG_CHAR_WIDTH_PX = 6.2;
+
+/**
+ * Shortens a label with an ellipsis so it fits within `maxWidth` px.
+ *
+ * The chart SVG sets `overflow: visible` on purpose, so a line's edge markers are never
+ * clipped — which also means nothing clips an axis label for free. A short GGUF filename
+ * never ran into this; a HuggingFace-style embedding model id like
+ * "sentence-transformers/all-MiniLM-L6-v2" easily overruns a narrow column's slot.
+ */
+export function truncateLabel(label: string, maxWidth: number): string {
+  if (label.length * AVG_CHAR_WIDTH_PX <= maxWidth) return label;
+  const maxChars = Math.max(1, Math.floor(maxWidth / AVG_CHAR_WIDTH_PX) - 1);
+  return maxChars >= label.length ? label : `${label.slice(0, maxChars)}…`;
+}
+
+/**
+ * Per-glyph width for the 10px mono-space axis ticks (`.tick` in Chart.module.css).
+ * Monospace glyphs are uniform width, unlike the sans-serif category label above, so this is
+ * a plain multiplier rather than an average.
+ */
+const MONO_CHAR_WIDTH_PX = 6;
+
+/**
+ * Rough pixel width of a formatted tick label, for sizing the left gutter to fit it.
+ *
+ * The gutter used to be a fixed 46px, sized for values like "7.4" or "4.2 s". A metric whose
+ * unit is spelled out on every tick - "100 texts/s" rather than "100" - is wide enough to run
+ * past that gutter and, because the chart SVG sets `overflow: visible`, bleed out its left
+ * edge instead of being clipped.
+ */
+export function estimateTickWidth(label: string): number {
+  return label.length * MONO_CHAR_WIDTH_PX;
+}

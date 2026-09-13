@@ -233,6 +233,12 @@ export type ReindexJobResponse = z.infer<typeof ReindexJobResponse>;
 export const EmbeddingBenchmarkResponse = z.object({ run: EmbeddingBenchmarkRunSchema.nullable() });
 export type EmbeddingBenchmarkResponse = z.infer<typeof EmbeddingBenchmarkResponse>;
 
+/** Past embedding-benchmark runs, oldest first — mirrors `BenchmarkHistoryResponse`. */
+export const EmbeddingBenchmarkHistoryResponse = z.object({
+  runs: z.array(EmbeddingBenchmarkRunSchema),
+});
+export type EmbeddingBenchmarkHistoryResponse = z.infer<typeof EmbeddingBenchmarkHistoryResponse>;
+
 export const RunEmbeddingBenchmarkRequest = z.object({
   /** Omit to benchmark every embedding model the service offers. */
   models: z.array(z.string()).nullable().default(null),
@@ -293,6 +299,7 @@ export const routes = {
   /** The current or most recent re-embed job — there is at most one meaningful at a time. */
   reindexJob: () => '/api/embeddings/reindex',
   embeddingBenchmark: () => '/api/embeddings/benchmark',
+  embeddingBenchmarkHistory: () => '/api/embeddings/benchmark/history',
   ragEvalDatasets: () => '/api/rag-eval/datasets',
   /** The current or most recent evaluation run - there is at most one meaningful at a time. */
   ragEval: () => '/api/rag-eval',

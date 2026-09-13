@@ -1,5 +1,5 @@
 import { http, HttpResponse, delay } from 'msw';
-import type { ModelBenchmarkRun } from '@localchat/contracts';
+import type { EmbeddingBenchmarkRun, ModelBenchmarkRun } from '@localchat/contracts';
 import {
   AskRequest,
   CreateChatRequest,
@@ -534,6 +534,11 @@ export const handlers = [
     return HttpResponse.json({ run: catalogue.embeddingBenchmark });
   }),
 
+  http.get(route(routes.embeddingBenchmarkHistory()), async () => {
+    await delay(LATENCY.fast);
+    return HttpResponse.json({ runs: embeddingBenchmarkHistory() });
+  }),
+
   http.post(route(routes.embeddingBenchmark()), async ({ request }) => {
     const parsed = RunEmbeddingBenchmarkRequest.safeParse(await request.json());
     if (!parsed.success) return badRequest('Malformed embedding benchmark request.');
@@ -629,6 +634,39 @@ function benchmarkHistory(): ModelBenchmarkRun[] {
 
 function scale(value: number | null, factor: number): number | null {
   return value === null ? null : Math.round(value * factor * 100) / 100;
+}
+
+/**
+ * Six past embedding-benchmark runs, derived the same deterministic way as `benchmarkHistory`:
+ * a week apart, each 4% faster than the one before, so the trend chart has something to draw
+ * without the numbers changing on every reload.
+ */
+function embeddingBenchmarkHistory(): EmbeddingBenchmarkRun[] {
+  const RUNS = 6;
+  const DAY = 86_400_000;
+  const finished = Date.parse(
+    catalogue.embeddingBenchmark.finishedAt ?? catalogue.embeddingBenchmark.startedAt,
+  );
+
+  return Array.from({ length: RUNS }, (_, index) => {
+    const age = RUNS - 1 - index;
+    const at = new Date(finished - age * 7 * DAY).toISOString();
+    const factor = 1 - age * 0.04;
+
+    return {
+      ...catalogue.embeddingBenchmark,
+      id: `embedding-history-${index}`,
+      startedAt: at,
+      finishedAt: at,
+      rows: catalogue.embeddingBenchmark.rows.map((row) => ({
+        ...row,
+        ranAt: at,
+        textsPerSecond: scale(row.textsPerSecond, factor),
+        embedMs: scale(row.embedMs, 1 / factor),
+        loadMs: scale(row.loadMs, 1 / factor),
+      })),
+    };
+  });
 }
 
 const FORMAT_BY_EXTENSION: Record<string, 'pdf' | 'docx' | 'markdown' | 'text' | 'image'> = {

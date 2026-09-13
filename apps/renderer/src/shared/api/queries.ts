@@ -43,6 +43,7 @@ export const keys = {
   activeEmbeddingModel: ['activeEmbeddingModel'] as const,
   reindexJob: ['reindexJob'] as const,
   embeddingBenchmark: ['embeddingBenchmark'] as const,
+  embeddingBenchmarkHistory: ['embeddingBenchmark', 'history'] as const,
   ragEvalDatasets: ['ragEvalDatasets'] as const,
   ragEval: ['ragEval'] as const,
 };
@@ -271,6 +272,22 @@ export function useEmbeddingBenchmark() {
     select: (data) => data.run,
     ...STATIC,
     refetchInterval: (query) => (query.state.data?.run?.status === 'running' ? 3_000 : false),
+  });
+}
+
+/**
+ * Past embedding-benchmark runs, for the trend charts — mirrors `useBenchmarkHistory` exactly,
+ * keyed off the newest completed embedding run instead of the newest completed model run.
+ */
+export function useEmbeddingBenchmarkHistory() {
+  const latest = useEmbeddingBenchmark();
+  const newestCompleted = latest.data?.status === 'completed' ? latest.data.id : 'none';
+
+  return useQuery({
+    queryKey: [...keys.embeddingBenchmarkHistory, newestCompleted],
+    queryFn: ({ signal }) => api.getEmbeddingBenchmarkHistory(signal),
+    select: (data) => data.runs,
+    ...STATIC,
   });
 }
 

@@ -1,5 +1,13 @@
 import { useState } from 'react';
-import { MAX_COLUMN_WIDTH, SURFACE_GAP, bandScale, columnPath, linearScale } from './scale';
+import {
+  MAX_COLUMN_WIDTH,
+  SURFACE_GAP,
+  bandScale,
+  columnPath,
+  estimateTickWidth,
+  linearScale,
+  truncateLabel,
+} from './scale';
 import { useElementWidth } from './useElementWidth';
 import styles from './Chart.module.css';
 
@@ -22,7 +30,9 @@ interface GroupedColumnsProps {
   height?: number;
 }
 
-const PAD = { top: 8, right: 8, bottom: 28, left: 46 };
+const BASE_PAD = { top: 8, right: 8, bottom: 28, left: 46 };
+/** Space kept between the widest tick label and the axis line. */
+const TICK_GAP = 8;
 
 /**
  * Grouped columns: one slot per category, one column per series inside it.
@@ -40,13 +50,23 @@ export function GroupedColumns({
   const { ref, width } = useElementWidth<HTMLDivElement>();
   const [hover, setHover] = useState<{ index: number; x: number; y: number } | null>(null);
 
-  const plotWidth = Math.max(0, width - PAD.left - PAD.right);
-  const plotHeight = height - PAD.top - PAD.bottom;
+  const plotHeight = height - BASE_PAD.top - BASE_PAD.bottom;
 
   const measured = series.flatMap((entry) =>
     entry.values.filter((value): value is number => value !== null),
   );
   const y = linearScale(measured, plotHeight);
+
+  // The gutter has to fit the widest tick label, not the fixed guess `BASE_PAD.left` was
+  // sized for - a metric like "texts/s" spells its unit out on every tick and easily needs
+  // more room than "7.4" did.
+  const left = Math.max(
+    BASE_PAD.left,
+    Math.max(...y.ticks.map((tick) => estimateTickWidth(format(tick)))) + TICK_GAP,
+  );
+  const PAD = { ...BASE_PAD, left };
+
+  const plotWidth = Math.max(0, width - PAD.left - PAD.right);
   const band = bandScale(categories.length, plotWidth);
 
   const perColumn = series.length > 0 ? band.inner / series.length : 0;
@@ -117,7 +137,8 @@ export function GroupedColumns({
                 y={height - 8}
                 textAnchor="middle"
               >
-                {category}
+                {truncateLabel(category, band.slot - 8)}
+                <title>{category}</title>
               </text>
 
               {/* Hit target spans the whole slot: columns are thin and hard to hover. */}

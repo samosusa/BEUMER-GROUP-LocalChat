@@ -1,10 +1,14 @@
 import type { ComputeMode, ModelBenchmarkRow, ModelBenchmarkRun } from '@localchat/contracts';
 import { formatBytes, formatDuration } from '@/shared/lib/format';
+import { MAX_LINES, RUN_RANGES, SERIES_COLORS, recentRuns } from './runRanges';
 
 /**
  * Turning benchmark rows into chart series. Pure, and kept out of the component so the
  * decisions below can be tested without a DOM.
  */
+
+export { MAX_LINES, RUN_RANGES, SERIES_COLORS, recentRuns };
+export type { RunRange } from './runRanges';
 
 export interface Metric {
   key: string;
@@ -50,18 +54,6 @@ export const METRICS: Metric[] = [
     format: (value) => formatBytes(value, 1),
   },
 ];
-
-export const SERIES_COLORS = [
-  '--series-1',
-  '--series-2',
-  '--series-3',
-  '--series-4',
-  '--series-5',
-  '--series-6',
-] as const;
-
-/** Past this, hue stops being a reliable channel; the rest stay in the table. */
-export const MAX_LINES = SERIES_COLORS.length;
 
 export interface ComparisonSeries {
   key: string;
@@ -151,42 +143,6 @@ export function buildTrend(
   }));
 
   return { lines, omitted: Math.max(0, ranked.length - MAX_LINES) };
-}
-
-/**
- * How far back the trend chart looks, in runs rather than in hours.
- *
- * A benchmark is an event, not a sampled metric: it exists because somebody started it, and
- * a project accumulates tens of them, not thousands. A time window ("last 24 hours") would
- * be empty most of the time and identical to "all" the rest of it, so the axis the reader
- * actually wants to move along is the run count.
- */
-export interface RunRange {
-  key: string;
-  label: string;
-  /** Runs to keep, counting back from the newest. */
-  count: number;
-}
-
-export const RUN_RANGES: RunRange[] = [
-  { key: 'last5', label: 'Last 5 runs', count: 5 },
-  { key: 'last10', label: 'Last 10 runs', count: 10 },
-  { key: 'all', label: 'All runs', count: Number.POSITIVE_INFINITY },
-];
-
-/**
- * The newest `count` runs, still oldest-first.
- *
- * Ordered by when each run finished rather than by id: a run that was started earlier can
- * finish later, and "the last five" means the last five to produce numbers.
- */
-export function recentRuns(history: ModelBenchmarkRun[], count: number): ModelBenchmarkRun[] {
-  if (!Number.isFinite(count)) return history;
-  return [...history]
-    .sort(
-      (a, b) => Date.parse(a.finishedAt ?? a.startedAt) - Date.parse(b.finishedAt ?? b.startedAt),
-    )
-    .slice(-Math.max(1, count));
 }
 
 /** Every device that produced a usable row, so the chart only offers tabs that have data. */

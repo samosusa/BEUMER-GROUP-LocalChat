@@ -11,6 +11,7 @@ import {
   useActiveModel,
   useBenchmark,
   useEmbeddingBenchmark,
+  useEmbeddingBenchmarkHistory,
   useEmbeddingModels,
   useModels,
   useBenchmarkHistory,
@@ -28,6 +29,7 @@ import {
 } from '@/shared/api/queries';
 import { describeError } from '@/shared/api/http';
 import { BenchmarkCharts } from './BenchmarkCharts';
+import { EmbeddingBenchmarkCharts } from './EmbeddingBenchmarkCharts';
 import { Button } from '@/shared/ui/Button';
 import { Toggle } from '@/shared/ui/Controls';
 import { Icon, type IconName } from '@/shared/ui/Icon';
@@ -37,7 +39,10 @@ import { formatBytes, formatCount, formatDuration, formatRelative } from '@/shar
 import { cn } from '@/shared/lib/cn';
 import styles from './Settings.module.css';
 
+type SettingsTab = 'model' | 'benchmarks';
+
 export function SettingsPage() {
+  const [tab, setTab] = useState<SettingsTab>('model');
   const settings = useSettings();
   const activeModelState = useActiveModel();
   const models = useModels();
@@ -62,146 +67,167 @@ export function SettingsPage() {
     <div className={styles.page}>
       <nav className={styles.nav} aria-label="Settings sections">
         <h1 className={styles.navTitle}>Settings</h1>
-        <span className={cn(styles.navItem, styles.navItemActive)}>
+        <button
+          type="button"
+          className={cn(styles.navItem, tab === 'model' && styles.navItemActive)}
+          aria-current={tab === 'model' ? 'page' : undefined}
+          onClick={() => setTab('model')}
+        >
           <Icon name="cpu" size={16} />
           Model &amp; hardware
-        </span>
+        </button>
+        <button
+          type="button"
+          className={cn(styles.navItem, tab === 'benchmarks' && styles.navItemActive)}
+          aria-current={tab === 'benchmarks' ? 'page' : undefined}
+          onClick={() => setTab('benchmarks')}
+        >
+          <Icon name="chart" size={16} />
+          Benchmarks
+        </button>
         <span className={styles.navSpacer} />
         <Mono className={styles.navVersion}>LocalChat 0.4.1</Mono>
       </nav>
 
-      <div className={styles.content}>
-        <PageHeader
-          title="Model & hardware"
-          description="The model, the index and every question stay on this machine."
-        />
+      {tab === 'model' ? (
+        <div className={styles.content}>
+          <PageHeader
+            title="Model & hardware"
+            description="The model, the index and every question stay on this machine."
+          />
 
-        <div className={styles.columns}>
-          <div className={styles.column}>
-            <section className={styles.card}>
-              <header className={styles.cardHeader}>
-                <SectionLabel
-                  action={
-                    <Mono className={styles.cardHeaderMeta}>
-                      {models.data?.length ?? 0} installed ·{' '}
-                      {formatBytes(
-                        (models.data ?? []).reduce((total, m) => total + m.sizeBytes, 0),
-                      )}{' '}
-                      on disk
-                    </Mono>
-                  }
-                >
-                  Answer model
-                </SectionLabel>
-              </header>
-              <div className={styles.modelList} role="radiogroup" aria-label="Answer model">
-                {models.data?.map((model) => (
-                  <ModelRow
-                    key={model.id}
-                    model={model}
-                    selected={model.id === activeModelState.data?.activeModelId}
-                    pending={model.id === pendingModelId}
-                    disabled={pendingModelId !== null && model.id !== pendingModelId}
-                    onSelect={() => setActiveModel.mutate({ modelId: model.id })}
-                  />
-                ))}
-              </div>
-            </section>
-
-            <section className={styles.card}>
-              <SectionLabel>Compute</SectionLabel>
-              <div className={styles.computeRow}>
-                <ComputeCard
-                  mode="cpu"
-                  icon="cpu"
-                  title="CPU only"
-                  detail={
-                    hardware
-                      ? `Works on any machine. ${hardware.cpuThreads} threads available.`
-                      : 'Works on any machine.'
-                  }
-                  selected={activeModelState.data?.compute === 'cpu'}
-                  disabled={setActiveModel.isPending}
-                  onSelect={() => setActiveModel.mutate({ compute: 'cpu' })}
-                />
-                <ComputeCard
-                  mode="gpu"
-                  icon="gpu"
-                  title="GPU acceleration"
-                  detail={
-                    activeModelState.data?.gpuAvailable === false
-                      ? 'No CUDA-enabled build of llama-cpp-python installed — GPU offload is unavailable on this machine.'
-                      : hardware?.gpuName
-                        ? `${hardware.gpuName} · ${formatBytes(hardware.gpuMemoryBytes ?? 0)} · ${hardware.gpuLayersOffloaded} of ${hardware.gpuLayersTotal} layers offloaded`
-                        : 'GPU acceleration, if the installed build supports it.'
-                  }
-                  selected={activeModelState.data?.compute === 'gpu'}
-                  disabled={
-                    setActiveModel.isPending || activeModelState.data?.gpuAvailable === false
-                  }
-                  onSelect={() => setActiveModel.mutate({ compute: 'gpu' })}
-                />
-              </div>
-
-              {setActiveModel.isError && (
-                <p className={styles.benchWarning}>{describeError(setActiveModel.error)}</p>
-              )}
-
-              {hardware?.gpuMemoryBytes && (
-                <div className={styles.vram}>
-                  <div className={styles.vramRow}>
-                    <span>VRAM in use</span>
-                    <Mono>
-                      {formatBytes(hardware.gpuMemoryUsedBytes ?? 0)} /{' '}
-                      {formatBytes(hardware.gpuMemoryBytes)}
-                    </Mono>
-                  </div>
-                  <ProgressBar
-                    value={vramFraction}
-                    thickness={5}
-                    tone={vramFraction > 0.85 ? 'warning' : 'accent'}
-                    label="VRAM in use"
-                  />
-                  <p className={styles.hint}>
-                    A model with a larger context window would exceed this card — LocalChat falls
-                    back to partial offload rather than failing.
-                  </p>
-                </div>
-              )}
-            </section>
-
-            <EmbeddingModelCard />
-
-            {/*
-              The benchmark sits under the model list on purpose. It measures exactly
-              the thing the list asks you to choose between, and on its own page the
-              choice was made on one screen and the evidence for it lived on another.
-              Full width because six numeric columns were unreadable in the rail.
-            */}
-            <BenchmarkCard />
-            <EmbeddingBenchmarkCard />
-            <RagEvalCard />
-          </div>
-
-          <div className={styles.rail}>
-            {settings.data && (
+          <div className={styles.columns}>
+            <div className={styles.column}>
               <section className={styles.card}>
-                <SectionLabel>Network</SectionLabel>
-                <Toggle
-                  checked={settings.data.strictOffline}
-                  onChange={(strictOffline) => update.mutate({ strictOffline })}
-                  label="Strict offline mode"
-                  description="Blocks every outbound request, including approved tools."
-                />
-                <Mono className={styles.outbound}>
-                  outbound requests this session:{' '}
-                  {formatCount(settings.data.outboundRequestsThisSession)}
-                </Mono>
+                <header className={styles.cardHeader}>
+                  <SectionLabel
+                    action={
+                      <Mono className={styles.cardHeaderMeta}>
+                        {models.data?.length ?? 0} installed ·{' '}
+                        {formatBytes(
+                          (models.data ?? []).reduce((total, m) => total + m.sizeBytes, 0),
+                        )}{' '}
+                        on disk
+                      </Mono>
+                    }
+                  >
+                    Answer model
+                  </SectionLabel>
+                </header>
+                <div className={styles.modelList} role="radiogroup" aria-label="Answer model">
+                  {models.data?.map((model) => (
+                    <ModelRow
+                      key={model.id}
+                      model={model}
+                      selected={model.id === activeModelState.data?.activeModelId}
+                      pending={model.id === pendingModelId}
+                      disabled={pendingModelId !== null && model.id !== pendingModelId}
+                      onSelect={() => setActiveModel.mutate({ modelId: model.id })}
+                    />
+                  ))}
+                </div>
               </section>
-            )}
+
+              <section className={styles.card}>
+                <SectionLabel>Compute</SectionLabel>
+                <div className={styles.computeRow}>
+                  <ComputeCard
+                    mode="cpu"
+                    icon="cpu"
+                    title="CPU only"
+                    detail={
+                      hardware
+                        ? `Works on any machine. ${hardware.cpuThreads} threads available.`
+                        : 'Works on any machine.'
+                    }
+                    selected={activeModelState.data?.compute === 'cpu'}
+                    disabled={setActiveModel.isPending}
+                    onSelect={() => setActiveModel.mutate({ compute: 'cpu' })}
+                  />
+                  <ComputeCard
+                    mode="gpu"
+                    icon="gpu"
+                    title="GPU acceleration"
+                    detail={
+                      activeModelState.data?.gpuAvailable === false
+                        ? 'No CUDA-enabled build of llama-cpp-python installed — GPU offload is unavailable on this machine.'
+                        : hardware?.gpuName
+                          ? `${hardware.gpuName} · ${formatBytes(hardware.gpuMemoryBytes ?? 0)} · ${hardware.gpuLayersOffloaded} of ${hardware.gpuLayersTotal} layers offloaded`
+                          : 'GPU acceleration, if the installed build supports it.'
+                    }
+                    selected={activeModelState.data?.compute === 'gpu'}
+                    disabled={
+                      setActiveModel.isPending || activeModelState.data?.gpuAvailable === false
+                    }
+                    onSelect={() => setActiveModel.mutate({ compute: 'gpu' })}
+                  />
+                </div>
+
+                {setActiveModel.isError && (
+                  <p className={styles.benchWarning}>{describeError(setActiveModel.error)}</p>
+                )}
+
+                {hardware?.gpuMemoryBytes && (
+                  <div className={styles.vram}>
+                    <div className={styles.vramRow}>
+                      <span>VRAM in use</span>
+                      <Mono>
+                        {formatBytes(hardware.gpuMemoryUsedBytes ?? 0)} /{' '}
+                        {formatBytes(hardware.gpuMemoryBytes)}
+                      </Mono>
+                    </div>
+                    <ProgressBar
+                      value={vramFraction}
+                      thickness={5}
+                      tone={vramFraction > 0.85 ? 'warning' : 'accent'}
+                      label="VRAM in use"
+                    />
+                    <p className={styles.hint}>
+                      A model with a larger context window would exceed this card — LocalChat
+                      falls back to partial offload rather than failing.
+                    </p>
+                  </div>
+                )}
+              </section>
+
+              <EmbeddingModelCard />
+            </div>
+
+            <div className={styles.rail}>
+              {settings.data && (
+                <section className={styles.card}>
+                  <SectionLabel>Network</SectionLabel>
+                  <Toggle
+                    checked={settings.data.strictOffline}
+                    onChange={(strictOffline) => update.mutate({ strictOffline })}
+                    label="Strict offline mode"
+                    description="Blocks every outbound request, including approved tools."
+                  />
+                  <Mono className={styles.outbound}>
+                    outbound requests this session:{' '}
+                    {formatCount(settings.data.outboundRequestsThisSession)}
+                  </Mono>
+                </section>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className={styles.content}>
+          <PageHeader
+            title="Benchmarks"
+            description="Speed for the answer model and the embedder, and whether retrieval finds the right document — evidence for the choices made on the other tab, not settings of their own."
+          />
+
+          <div className={styles.columns}>
+            <div className={styles.column}>
+              <BenchmarkCard />
+              <EmbeddingBenchmarkCard />
+              <RagEvalCard />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -653,6 +679,7 @@ function EmbeddingBenchmarkCard() {
   const benchmark = useEmbeddingBenchmark();
   const models = useEmbeddingModels();
   const run = useRunEmbeddingBenchmark();
+  const history = useEmbeddingBenchmarkHistory();
   const result = benchmark.data;
   const running = result?.status === 'running' || run.isPending;
 
@@ -737,6 +764,10 @@ function EmbeddingBenchmarkCard() {
       )}
 
       {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
+
+      {measured.length > 0 && (
+        <EmbeddingBenchmarkCharts latest={result} history={history.data ?? [result]} />
+      )}
 
       <div className={styles.benchScroll}>
         <table className={styles.benchTable}>
