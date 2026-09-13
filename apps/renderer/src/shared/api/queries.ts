@@ -330,17 +330,11 @@ export function useIngestDocuments() {
         ...(input.paths ?? [])
           .filter((path) => !rejected.has(path))
           .map((path) => path.split(/[\\/]/).pop() ?? path),
-        ...(input.files ?? [])
-          .filter((file) => !rejected.has(file.name))
-          .map((file) => file.name),
+        ...(input.files ?? []).filter((file) => !rejected.has(file.name)).map((file) => file.name),
       ];
       if (names.length > 0) {
         const scope =
-          input.projectId === null
-            ? 'General'
-            : input.alsoGeneral
-              ? 'Both'
-              : 'Project-specific';
+          input.projectId === null ? 'General' : input.alsoGeneral ? 'Both' : 'Project-specific';
         useNotificationStore.getState().push({
           tone: 'info',
           title:

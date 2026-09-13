@@ -58,12 +58,14 @@ export function ProjectDetailPage() {
       // A failed request already reports itself through the notification stack (see
       // useIngestDocuments' onError); swallowed here so it doesn't also surface as an
       // unhandled rejection from this click handler.
-      const result = await ingest.mutateAsync({
-        projectId: projectId ?? null,
-        paths: confirmed.paths,
-        files: confirmed.files,
-        alsoGeneral,
-      }).catch(() => null);
+      const result = await ingest
+        .mutateAsync({
+          projectId: projectId ?? null,
+          paths: confirmed.paths,
+          files: confirmed.files,
+          alsoGeneral,
+        })
+        .catch(() => null);
       if (result) setRejected(result.rejected);
     },
     [ingest, projectId, alsoGeneral],

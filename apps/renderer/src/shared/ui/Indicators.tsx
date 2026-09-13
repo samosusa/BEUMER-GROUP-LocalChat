@@ -106,9 +106,7 @@ export function Callout({
       <div className={styles.calloutBody}>
         <p className={styles.calloutTitle}>{title}</p>
         {children && <div className={styles.calloutText}>{children}</div>}
-        {actions && (
-          <div className={cn(styles.calloutActions, actionsClassName)}>{actions}</div>
-        )}
+        {actions && <div className={cn(styles.calloutActions, actionsClassName)}>{actions}</div>}
       </div>
     </div>
   );
