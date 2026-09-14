@@ -197,7 +197,7 @@ export function Sidebar() {
           <span className={styles.avatar} aria-hidden="true">
             MP
           </span>
-          <span className={styles.userName}>M. Palas</span>
+          <span className={styles.userName}>S. Susa</span>
           <IconButton
             icon="settings"
             label="Settings"
