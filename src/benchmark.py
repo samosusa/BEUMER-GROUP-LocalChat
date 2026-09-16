@@ -173,10 +173,30 @@ def _cpu_device_name() -> str:
     """
     The CPU as a person would name it.
 
-    platform.processor() is close to useless on the two platforms that matter here: it
-    returns "arm" on Apple Silicon and an empty string on most Linux distributions, so rows
-    were being labelled with nothing worth comparing. Same caching rationale as the GPU.
+    platform.processor() is close to useless on two of the three platforms that matter here:
+    it returns "arm" on Apple Silicon and an empty string on most Linux distributions, so
+    rows were being labelled with nothing worth comparing. Same caching rationale as the GPU.
+
+    Windows is the exception where it returns something - but something like "Intel64 Family
+    6 Model 154 Stepping 3, GenuineIntel", which identifies the silicon without naming the
+    part anyone would recognise in a chart axis. The registry has the marketing string.
     """
+    if platform.system() == "Windows":
+        try:
+            import winreg
+
+            with winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"HARDWARE\DESCRIPTION\System\CentralProcessor\0",
+            ) as key:
+                name = str(winreg.QueryValueEx(key, "ProcessorNameString")[0]).strip()
+                if name:
+                    return name
+        except (ImportError, OSError):
+            # Falls through to platform.processor(), which on Windows at least returns the
+            # family/model string rather than nothing.
+            pass
+
     if platform.system() == "Darwin":
         brand = _first_line(_probe(["sysctl", "-n", "machdep.cpu.brand_string"]))
         if brand:

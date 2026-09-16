@@ -1,3 +1,21 @@
+import sys
+
+# Python 3.10 or newer, checked before anything else is imported.
+#
+# The models and src/api/query.py annotate with PEP 604 unions (`str | None`) without
+# `from __future__ import annotations`, so on 3.9 they are evaluated at class-body time and
+# raise `TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'` from inside
+# SQLAlchemy - which reads as a broken dependency, not as a wrong interpreter. macOS still
+# ships 3.9 as `python3`, so `python3 -m venv .venv` on a Mac lands there by default and the
+# whole dependency tree installs happily before anything explains itself. The Dockerfile
+# builds on 3.11; that is the version this targets.
+if sys.version_info < (3, 10):
+    raise RuntimeError(
+        f"LocalChat needs Python 3.10 or newer (3.11 is what the Dockerfile uses); this is "
+        f"{sys.version.split()[0]}. On macOS `python3` is often the system 3.9 - install a "
+        f"newer one (`brew install python@3.12`) and rebuild the virtualenv with it."
+    )
+
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException

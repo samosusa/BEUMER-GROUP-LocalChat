@@ -131,6 +131,26 @@ env.bak/
 venv.bak/
 
 # ---------------------------------------------------------------------------
+# Scratch commit and merge messages
+#
+# Long commit messages get written to a file and passed with `git commit -F`,
+# because a shell heredoc mangles them and a message worth writing is worth not
+# retyping. They are drafts, not repository content - .mergemsg reached main by
+# being untracked-but-not-ignored on the one day somebody ran `git add -A`.
+# ---------------------------------------------------------------------------
+.commitmsg
+.mergemsg
+
+# ---------------------------------------------------------------------------
+# Benchmark exports
+#
+# Keep a run you want in the report under data/exports/ and commit it there, on
+# purpose. What this ignores is the default filename the export script writes
+# into the repository root.
+# ---------------------------------------------------------------------------
+/benchmark-*.csv
+
+# ---------------------------------------------------------------------------
 # OS
 # ---------------------------------------------------------------------------
 .DS_Store
