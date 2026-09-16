@@ -15,6 +15,11 @@ class RagEvalJob(Base):
     # recorded so a later reader of /rag-eval/results knows what a run actually tested.
     dataset: Mapped[str] = mapped_column(String, nullable=False)
     project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
+    # Which answer model and embedding model were active when the run started - captured
+    # automatically (see src/api/rag_eval.py start_rag_eval), not a run parameter a caller
+    # chooses, so two historical runs can be told apart when comparing them side by side.
+    answer_model: Mapped[str | None] = mapped_column(String)
+    embedding_model: Mapped[str | None] = mapped_column(String)
     total_questions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     completed_questions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     current_question: Mapped[str | None] = mapped_column(Text)

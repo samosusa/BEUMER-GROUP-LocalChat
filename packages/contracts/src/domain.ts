@@ -543,6 +543,10 @@ export const RagEvalRunSchema = z.object({
   /** Which file under data/eval/ this run answered questions from. */
   datasetId: z.string(),
   projectId: z.string().nullable(),
+  /** Which answer model generated these answers - null for a run from before this was tracked. */
+  answerModel: z.string().nullable(),
+  /** Which embedding model retrieval ran against - null for a run from before this was tracked. */
+  embeddingModel: z.string().nullable(),
   progress: z.string().nullable(),
   currentQuestion: z.string().nullable(),
   summary: RagEvalSummarySchema.nullable(),
@@ -551,6 +555,23 @@ export const RagEvalRunSchema = z.object({
   finishedAt: isoDateTime.nullable(),
 });
 export type RagEvalRun = z.infer<typeof RagEvalRunSchema>;
+
+/**
+ * One row of `/rag-eval/runs` - enough to label a run in a picker (dataset, project, which
+ * models were active, when it ran) without paying for its full row-by-row detail, which a
+ * compare view only needs for the (at most two) runs actually selected.
+ */
+export const RagEvalRunSummarySchema = z.object({
+  id: z.string(),
+  status: RagEvalJobStatus,
+  datasetId: z.string(),
+  projectId: z.string().nullable(),
+  answerModel: z.string().nullable(),
+  embeddingModel: z.string().nullable(),
+  startedAt: isoDateTime,
+  finishedAt: isoDateTime.nullable(),
+});
+export type RagEvalRunSummary = z.infer<typeof RagEvalRunSummarySchema>;
 
 export const RagEvalDatasetDocumentSchema = z.object({
   source: z.string(),

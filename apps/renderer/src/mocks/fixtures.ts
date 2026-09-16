@@ -903,6 +903,8 @@ export const RAG_EVAL: RagEvalRun = {
   status: 'completed',
   datasetId: 'rag_qa_pairs',
   projectId: 'prj-cph-t3',
+  answerModel: 'qwen2.5-7b-instruct-q4km',
+  embeddingModel: 'nomic-ai/nomic-embed-text-v1.5',
   progress: '6 of 6',
   currentQuestion: null,
   startedAt: daysAgo(1),
@@ -1083,13 +1085,16 @@ export const RAG_EVAL_DATASETS: RagEvalDatasetInfo[] = [
     documents: [
       { source: 'OPNL_B01_EN.pdf', titleHint: 'OPNL_B01', questionCount: 15 },
       { source: 'OPNL_B02_EN.pdf', titleHint: 'OPNL_B02', questionCount: 15 },
-      {
-        source: 'Operating_instructions_CLV69x_Bar_code_scanners_en_IM0045360.pdf',
-        titleHint: 'CLV69x',
-        questionCount: 15,
-      },
     ],
-    totalQuestions: 45,
+    totalQuestions: 30,
+  },
+  {
+    id: 'rag_qa_pairs_da',
+    documents: [
+      { source: 'OPNL_B01_EN.pdf', titleHint: 'OPNL_B01', questionCount: 15 },
+      { source: 'OPNL_B02_EN.pdf', titleHint: 'OPNL_B02', questionCount: 15 },
+    ],
+    totalQuestions: 30,
   },
 ];
 

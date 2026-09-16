@@ -7,6 +7,7 @@ import {
   gutterFor,
   linearScale,
   tooltipFlipsBelow,
+  truncateLabel,
 } from './scale';
 import { useElementWidth } from './useElementWidth';
 import styles from './Chart.module.css';
@@ -63,6 +64,8 @@ export function GroupedColumns({
     entry.values.filter((value): value is number => value !== null),
   );
   const y = linearScale(measured, plotHeight);
+  // gutterFor does what main's BASE_PAD/TICK_GAP pair did, through the one glyph-width
+  // constant in scale.ts rather than a second copy of it.
   const left = gutterFor(y.ticks.map(format), PAD.left);
   const plotWidth = Math.max(0, width - left - PAD.right);
   const band = bandScale(categories.length, plotWidth);
@@ -155,7 +158,8 @@ export function GroupedColumns({
                 y={height - 8}
                 textAnchor="middle"
               >
-                {category}
+                {truncateLabel(category, band.slot - 8)}
+                <title>{category}</title>
               </text>
 
               {/* Hit target spans the whole slot: columns are thin and hard to hover. */}

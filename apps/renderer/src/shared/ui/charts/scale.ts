@@ -152,23 +152,59 @@ export function linePath(points: Array<{ x: number; y: number }>): string {
 }
 
 /**
+ * Per-glyph width for the 10px mono-space axis ticks (`.tick` in Chart.module.css).
+ * Monospace glyphs are uniform width, unlike the sans-serif category label further down, so
+ * this is a plain multiplier rather than an average.
+ */
+const MONO_CHAR_WIDTH_PX = 6;
+
+/** Rough pixel width of a formatted tick label. */
+export function estimateTickWidth(label: string): number {
+  return label.length * MONO_CHAR_WIDTH_PX;
+}
+
+/**
  * How wide the y-axis gutter has to be for its widest label.
  *
- * Was a hardcoded 46px, which fitted "20 tok/s" and clipped "150 txt/s" the moment a
- * three-digit measure appeared - the label lost its leading digit and read as "50 txt/s",
- * which is worse than no label at all. Ticks are set in 10px mono, so a character is
- * ~6.1px; the constant is measured from that face rather than guessed.
+ * Both branches hit this independently, which is a fair sign the fixed 46px was too small:
+ * it fitted "20 tok/s" and clipped "150 txt/s" the moment a three-digit measure appeared -
+ * the label lost its leading digit and read as "50 txt/s", which is worse than no label -
+ * and it also could not hold a metric whose unit is spelled out on every tick, like
+ * "100 texts/s". The SVG sets `overflow: visible` so that edge markers are never clipped,
+ * which means nothing clips an overrunning label either: it just bleeds out of the frame.
+ *
+ * One glyph-width constant, not two. The two branches guessed 6.1 and 6.0 for the same
+ * typeface, and a measurement that disagrees with itself is the thing worth removing here.
  */
 export function gutterFor(labels: string[], min = 46): number {
-  const widest = labels.reduce((most, label) => Math.max(most, label.length), 0);
-  return Math.max(min, Math.ceil(widest * 6.1) + 14);
+  const widest = labels.reduce((most, label) => Math.max(most, estimateTickWidth(label)), 0);
+  return Math.max(min, Math.ceil(widest) + 14);
+}
+
+/**
+ * Average glyph width for the 11px sans-serif category label (`.category` in
+ * Chart.module.css). Real text metrics need a canvas; this is close enough to decide when a
+ * label needs shortening.
+ */
+const AVG_CHAR_WIDTH_PX = 6.2;
+
+/**
+ * Shortens a label with an ellipsis so it fits within `maxWidth` px.
+ *
+ * A short GGUF filename never ran into this; a HuggingFace-style embedding model id like
+ * "sentence-transformers/all-MiniLM-L6-v2" easily overruns a narrow column's slot.
+ */
+export function truncateLabel(label: string, maxWidth: number): string {
+  if (label.length * AVG_CHAR_WIDTH_PX <= maxWidth) return label;
+  const maxChars = Math.max(1, Math.floor(maxWidth / AVG_CHAR_WIDTH_PX) - 1);
+  return maxChars >= label.length ? label : `${label.slice(0, maxChars)}…`;
 }
 
 /**
  * Which side of its anchor a tooltip can sit on.
  *
  * A tooltip above an anchor near the top of the chart lands outside the frame entirely and
- * over whatever is above it — a time-series tooltip drifting across the chart above it is
+ * over whatever is above it - a time-series tooltip drifting across the chart above it is
  * how this was found. Below the threshold there is no room, so it flips.
  */
 export function tooltipFlipsBelow(anchorTop: number): boolean {

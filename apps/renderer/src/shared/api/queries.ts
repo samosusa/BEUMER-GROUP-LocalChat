@@ -46,6 +46,8 @@ export const keys = {
   embeddingBenchmarkHistory: ['embeddingBenchmark', 'history'] as const,
   ragEvalDatasets: ['ragEvalDatasets'] as const,
   ragEval: ['ragEval'] as const,
+  ragEvalRuns: ['ragEval', 'runs'] as const,
+  ragEvalRun: (id: string) => ['ragEval', 'runs', id] as const,
 };
 
 /** Anything the retriever wrote is cheap to refetch and expensive to show stale. */
@@ -275,7 +277,10 @@ export function useEmbeddingBenchmark() {
   });
 }
 
-/** Past embedding runs, keyed the same way as useBenchmarkHistory so it refetches by itself. */
+/**
+ * Past embedding-benchmark runs, for the trend charts — mirrors `useBenchmarkHistory` exactly,
+ * keyed off the newest completed embedding run instead of the newest completed model run.
+ */
 export function useEmbeddingBenchmarkHistory() {
   const latest = useEmbeddingBenchmark();
   const newestCompleted = latest.data?.status === 'completed' ? latest.data.id : 'none';
@@ -308,6 +313,30 @@ export function useRagEval() {
     select: (data) => data.run,
     ...STATIC,
     refetchInterval: (query) => (query.state.data?.run?.status === 'running' ? 3_000 : false),
+  });
+}
+
+/** Every historical run, for the two pickers in the compare view. */
+export function useRagEvalRuns() {
+  return useQuery({
+    queryKey: keys.ragEvalRuns,
+    queryFn: ({ signal }) => api.getRagEvalRuns(signal),
+    select: (data) => data.runs,
+    ...STATIC,
+  });
+}
+
+/**
+ * One specific historical run by id - each side of the compare view picks its own,
+ * independently of whichever run `useRagEval` currently shows as "the" run.
+ */
+export function useRagEvalRun(id: string | null) {
+  return useQuery({
+    queryKey: keys.ragEvalRun(id ?? 'none'),
+    queryFn: ({ signal }) => api.getRagEvalRun(id as string, signal),
+    select: (data) => data.run,
+    enabled: id !== null,
+    ...STATIC,
   });
 }
 

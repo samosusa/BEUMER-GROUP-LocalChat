@@ -96,6 +96,10 @@ def test_rag_eval_runs_against_ingested_documents_and_stores_results(monkeypatch
     body = results_response.json()
     assert body["status"] == "completed"
     assert len(body["results"]) == 1
+    # No GGUF is loaded in this test process, so there is no active answer model to record;
+    # the embedding adapter always has one, since it loads a default at construction time.
+    assert body["answer_model"] is None
+    assert body["embedding_model"]
 
     row = body["results"][0]
     assert row["not_found"] is False
@@ -110,7 +114,11 @@ def test_rag_eval_runs_against_ingested_documents_and_stores_results(monkeypatch
 
     runs_response = client.get("/rag-eval/results")
     assert runs_response.status_code == 200
-    assert any(run["rag_eval_job_id"] == job_id for run in runs_response.json())
+    runs = runs_response.json()
+    assert any(run["rag_eval_job_id"] == job_id for run in runs)
+    this_run = next(run for run in runs if run["rag_eval_job_id"] == job_id)
+    assert this_run["answer_model"] is None
+    assert this_run["embedding_model"] == body["embedding_model"]
 
 
 def test_rag_eval_datasets_endpoint_reports_the_bundled_question_set():
@@ -120,8 +128,8 @@ def test_rag_eval_datasets_endpoint_reports_the_bundled_question_set():
     datasets = {dataset["id"]: dataset for dataset in response.json()}
     assert "rag_qa_pairs" in datasets
     bundled = datasets["rag_qa_pairs"]
-    assert bundled["total_questions"] == 45
-    assert len(bundled["documents"]) == 3
+    assert bundled["total_questions"] == 30
+    assert len(bundled["documents"]) == 2
     assert all(doc["question_count"] == 15 for doc in bundled["documents"])
 
 

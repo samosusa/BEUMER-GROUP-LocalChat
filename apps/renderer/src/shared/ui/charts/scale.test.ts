@@ -6,6 +6,7 @@ import {
   linearScale,
   linePath,
   tooltipFlipsBelow,
+  truncateLabel,
 } from './scale';
 
 describe('linearScale', () => {
@@ -110,6 +111,27 @@ describe('columnPath', () => {
 
   it('draws nothing for a zero-height column', () => {
     expect(columnPath(0, 0, 20, 0)).toBe('');
+  });
+});
+
+describe('truncateLabel', () => {
+  it('leaves a label alone when it already fits', () => {
+    expect(truncateLabel('phi-3.5-mini', 200)).toBe('phi-3.5-mini');
+  });
+
+  /**
+   * The chart SVG deliberately sets `overflow: visible` so a line's edge markers are not
+   * clipped, which means nothing clips an axis label for free either — a long HuggingFace-
+   * style id like this one needs shortening before it reaches the SVG.
+   */
+  it('shortens a label that would overrun its slot, keeping the ellipsis inside the budget', () => {
+    const truncated = truncateLabel('sentence-transformers/all-MiniLM-L6-v2', 80);
+    expect(truncated.endsWith('…')).toBe(true);
+    expect(truncated.length).toBeLessThan('sentence-transformers/all-MiniLM-L6-v2'.length);
+  });
+
+  it('keeps at least one real character even for a slot too narrow for the label', () => {
+    expect(truncateLabel('nomic-ai/nomic-embed-text-v1.5', 1)).toBe('n…');
   });
 });
 
