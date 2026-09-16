@@ -12,10 +12,12 @@ from __future__ import annotations
 
 import gc
 import platform
+import re
 import subprocess
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -61,37 +63,145 @@ def _prompt(question: str) -> str:
     )
 
 
-def _gpu_device_name() -> str | None:
+def _probe(command: list[str]) -> str | None:
+    """
+    Run a hardware-identification command and return its output, or None.
+
+    Every probe below is optional by nature: nvidia-smi is absent on a Mac, system_profiler
+    on Linux, rocm-smi on anything without ROCm. A missing tool is the normal case, not an
+    error, so it returns None and the caller moves on to the next probe.
+    """
     try:
-        out = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=True,
-        )
-        lines = out.stdout.strip().splitlines()
-        return lines[0].strip() if lines else None
-    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        out = subprocess.run(command, capture_output=True, text=True, timeout=10, check=True)
+    except (FileNotFoundError, OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
+    text = out.stdout.strip()
+    return text or None
+
+
+def _first_line(text: str | None) -> str | None:
+    if text is None:
+        return None
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return lines[0] if lines else None
+
+
+@cache
+def _gpu_device_name() -> str | None:
+    """
+    What the GPU actually is, across the vendors this runs on.
+
+    Previously nvidia-smi only, which meant a GPU row from any non-NVIDIA machine carried no
+    hardware name at all - and comparing runs from different machines is the whole point of
+    recording it. Cached because run_one() asks once per model, device and prompt, and the
+    answer cannot change mid-run; system_profiler in particular takes a noticeable moment.
+    """
+    nvidia = _first_line(_probe(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"]))
+    if nvidia:
+        return nvidia
+
+    # AMD. --csv keeps the shape stable across rocm-smi versions, whose plain output is a
+    # decorated table that has been reformatted more than once.
+    rocm = _probe(["rocm-smi", "--showproductname", "--csv"])
+    if rocm:
+        for line in rocm.splitlines()[1:]:
+            fields = [field.strip() for field in line.split(",")]
+            name = next((field for field in fields[1:] if field and field != "N/A"), None)
+            if name:
+                return name
+
+    if platform.system() == "Darwin":
+        # Deliberately NOT machdep.cpu.brand_string. On Apple Silicon that happens to name
+        # the GPU too, because the GPU is on the same die - but on an Intel Mac it names the
+        # CPU while the GPU is something else entirely, and a confidently wrong hardware
+        # label is worse than none. system_profiler asks about the display hardware itself.
+        displays = _probe(["system_profiler", "SPDisplaysDataType"])
+        if displays:
+            for line in displays.splitlines():
+                if "Chipset Model:" in line:
+                    return line.split(":", 1)[1].strip() or None
+
+    if platform.system() == "Linux":
+        lspci = _probe(["lspci", "-mm"])
+        if lspci:
+            for line in lspci.splitlines():
+                # -mm quotes each field, but a device can carry an unquoted revision
+                # (`-ra1`) between them, so splitting on '" "' tears the device name in
+                # half. Pulling the quoted runs out is the only reading that survives it.
+                fields = re.findall(r'"([^"]*)"', line)
+                if len(fields) >= 3 and fields[0] in ("VGA compatible controller", "3D controller"):
+                    name = f"{fields[1]} {fields[2]}".strip()
+                    if name:
+                        return name
+
+    return None
 
 
 def _gpu_vram_used_mb() -> float | None:
-    try:
-        out = subprocess.run(
-            ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=True,
-        )
-        lines = out.stdout.strip().splitlines()
-        return float(lines[0].strip()) if lines else None
-    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError):
-        return None
+    """
+    VRAM in use, where the concept exists.
+
+    On unified-memory hardware - Apple Silicon, and integrated graphics generally - there is
+    no separate pool to report: the GPU and the CPU are spending the same RAM, which
+    peak_mem_mb already covers. Returning None there is the honest answer, and the interface
+    renders a missing figure rather than inventing one.
+    """
+    nvidia = _first_line(
+        _probe(["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"])
+    )
+    if nvidia:
+        try:
+            return float(nvidia)
+        except ValueError:
+            pass
+
+    rocm = _probe(["rocm-smi", "--showmemuse", "--csv"])
+    if rocm:
+        for line in rocm.splitlines()[1:]:
+            for field in [field.strip() for field in line.split(",")][1:]:
+                try:
+                    # rocm-smi reports bytes here, unlike nvidia-smi's mebibytes.
+                    return float(field) / (1024 * 1024)
+                except ValueError:
+                    continue
+
+    return None
 
 
+@cache
 def _cpu_device_name() -> str:
+    """
+    The CPU as a person would name it.
+
+    platform.processor() is close to useless on the two platforms that matter here: it
+    returns "arm" on Apple Silicon and an empty string on most Linux distributions, so rows
+    were being labelled with nothing worth comparing. Same caching rationale as the GPU.
+    """
+    if platform.system() == "Darwin":
+        brand = _first_line(_probe(["sysctl", "-n", "machdep.cpu.brand_string"]))
+        if brand:
+            return brand
+
+    if platform.system() == "Linux":
+        # lscpu first: /proc/cpuinfo has no "model name" line on ARM, where the fields are
+        # "CPU implementer" and friends instead - so the obvious probe silently finds
+        # nothing on exactly the machines whose names would be most worth recording.
+        lscpu = _probe(["lscpu"])
+        if lscpu:
+            for line in lscpu.splitlines():
+                if line.strip().lower().startswith("model name"):
+                    name = line.split(":", 1)[1].strip()
+                    if name:
+                        return name
+        try:
+            for line in Path("/proc/cpuinfo").read_text(encoding="utf-8").splitlines():
+                if line.startswith("model name"):
+                    name = line.split(":", 1)[1].strip()
+                    if name:
+                        return name
+        except OSError:
+            pass
+
     return platform.processor() or platform.machine() or "cpu"
 
 
