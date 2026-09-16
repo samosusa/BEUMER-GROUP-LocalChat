@@ -203,6 +203,14 @@ export const ServiceBenchmarkRow = z.object({
   total_s: z.number().nullable(),
   peak_mem_mb: z.number().nullable(),
   peak_vram_mb: z.number().nullable(),
+  /*
+   * The service has sent these since the benchmark grew a prompt set; zod strips unknown
+   * keys silently, so until they were declared here they arrived and were thrown away.
+   */
+  question: z.string().nullable().default(null),
+  prompt_label: z.string().nullable().default(null),
+  complexity_tier: ServiceComplexityTier.nullable().default(null),
+  complexity_score: z.number().nullable().default(null),
   run_at: naiveDateTime,
 });
 export type ServiceBenchmarkRow = z.infer<typeof ServiceBenchmarkRow>;

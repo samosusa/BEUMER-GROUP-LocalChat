@@ -12,6 +12,34 @@ export function formatHitRate(rate: number | null): string {
   return rate === null ? '—' : `${Math.round(rate * 100)}%`;
 }
 
+/**
+ * "5 of 6" under a percentage.
+ *
+ * A bare 83% invites the reader to supply their own denominator, and the footnote below the
+ * card says the question set holds 45 - so the obvious reading of the headline figure was
+ * "83% of 45", when it described six questions. A rate without its denominator is a claim
+ * about a sample size it does not disclose. It matters twice over in the compare view,
+ * where two rates sit side by side and may not be over the same number of questions.
+ */
+function formatHitCount(bucket: { total: number; retrievalHitRate: number | null }): string | null {
+  if (bucket.retrievalHitRate === null || bucket.total === 0) return null;
+  return `${Math.round(bucket.retrievalHitRate * bucket.total)} of ${bucket.total}`;
+}
+
+/**
+ * Questions the judge never returned a verdict on.
+ *
+ * Correct + partial + incorrect came to five across six questions and nothing said where the
+ * sixth went. It was the retrieval miss: with no document found there is no answer to grade,
+ * so the judge is not asked. That is reasonable behaviour and an unexplained gap in a row of
+ * totals, which is why it now gets counted out loud instead of being left as arithmetic for
+ * the reader to fail.
+ */
+function unjudgedCount(bucket: { total: number; judgeCounts: Record<string, number> }): number {
+  const judged = Object.values(bucket.judgeCounts).reduce((sum, count) => sum + count, 0);
+  return Math.max(0, bucket.total - judged);
+}
+
 function projectLabel(projectId: string | null, projects: Project[] | undefined): string {
   if (projectId === null) return 'General (no project)';
   return projects?.find((project) => project.id === projectId)?.name ?? projectId;
@@ -33,29 +61,51 @@ export function RagEvalResultBody({ result }: { result: RagEvalRun }) {
     <>
       {summary && (
         <div className={styles.evalSummaryRow}>
-          <div className={styles.evalStat}>
+          <div className={`${styles.evalStat} ${styles.evalStatHero}`}>
             <span className={styles.evalStatLabel}>Retrieval hit rate</span>
             <span className={styles.evalStatValue}>{formatHitRate(summary.retrievalHitRate)}</span>
+            <span className={styles.evalStatDetail}>
+              {formatHitCount(summary) ?? 'no questions'}
+            </span>
           </div>
-          {RAG_EVAL_DIFFICULTIES.map((difficulty) => (
-            <div className={styles.evalStat} key={difficulty}>
-              <span className={styles.evalStatLabel}>{difficulty}</span>
-              <span className={styles.evalStatValue}>
-                {formatHitRate(summary.byDifficulty[difficulty]?.retrievalHitRate ?? null)}
-              </span>
+
+          <div className={styles.evalStatGroup}>
+            {RAG_EVAL_DIFFICULTIES.map((difficulty) => {
+              const bucket = summary.byDifficulty[difficulty];
+              return (
+                <div className={styles.evalStat} key={difficulty}>
+                  <span className={styles.evalStatLabel}>{difficulty}</span>
+                  <span className={styles.evalStatValue}>
+                    {formatHitRate(bucket?.retrievalHitRate ?? null)}
+                  </span>
+                  <span className={styles.evalStatDetail}>
+                    {(bucket && formatHitCount(bucket)) ?? '—'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className={styles.evalStatGroup}>
+            <div className={styles.evalStat}>
+              <span className={styles.evalStatLabel}>Judge correct</span>
+              <span className={styles.evalStatValue}>{summary.judgeCounts.correct ?? 0}</span>
             </div>
-          ))}
-          <div className={styles.evalStat}>
-            <span className={styles.evalStatLabel}>Judge correct</span>
-            <span className={styles.evalStatValue}>{summary.judgeCounts.correct ?? 0}</span>
-          </div>
-          <div className={styles.evalStat}>
-            <span className={styles.evalStatLabel}>Judge partial</span>
-            <span className={styles.evalStatValue}>{summary.judgeCounts.partial ?? 0}</span>
-          </div>
-          <div className={styles.evalStat}>
-            <span className={styles.evalStatLabel}>Judge incorrect</span>
-            <span className={styles.evalStatValue}>{summary.judgeCounts.incorrect ?? 0}</span>
+            <div className={styles.evalStat}>
+              <span className={styles.evalStatLabel}>Judge partial</span>
+              <span className={styles.evalStatValue}>{summary.judgeCounts.partial ?? 0}</span>
+            </div>
+            <div className={styles.evalStat}>
+              <span className={styles.evalStatLabel}>Judge incorrect</span>
+              <span className={styles.evalStatValue}>{summary.judgeCounts.incorrect ?? 0}</span>
+            </div>
+            {unjudgedCount(summary) > 0 && (
+              <div className={styles.evalStat}>
+                <span className={styles.evalStatLabel}>Not judged</span>
+                <span className={styles.evalStatValue}>{unjudgedCount(summary)}</span>
+                <span className={styles.evalStatDetail}>nothing retrieved to grade</span>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -161,11 +211,19 @@ export function RagEvalCompare() {
   }
 
   if (!runs.isLoading && available.length === 0) {
-    return <p className={styles.chartEmpty}>Run the evaluation at least once to have something to compare.</p>;
+    return (
+      <p className={styles.chartEmpty}>
+        Run the evaluation at least once to have something to compare.
+      </p>
+    );
   }
 
   if (!runs.isLoading && available.length === 1) {
-    return <p className={styles.chartEmpty}>Only one run on record so far. Run the evaluation again to compare.</p>;
+    return (
+      <p className={styles.chartEmpty}>
+        Only one run on record so far. Run the evaluation again to compare.
+      </p>
+    );
   }
 
   return (

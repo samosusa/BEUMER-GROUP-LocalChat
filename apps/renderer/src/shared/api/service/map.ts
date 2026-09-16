@@ -454,6 +454,10 @@ export function benchmarkRowFromService(dto: ServiceBenchmarkRow): ModelBenchmar
     totalMs: toMs(dto.total_s),
     peakMemoryBytes: toBytes(dto.peak_mem_mb),
     peakVramBytes: toBytes(dto.peak_vram_mb),
+    promptLabel: dto.prompt_label,
+    question: dto.question,
+    complexityTier: dto.complexity_tier,
+    complexityScore: dto.complexity_score,
     ranAt: toIso(dto.run_at),
   };
 }

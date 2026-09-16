@@ -184,8 +184,8 @@ export function SettingsPage() {
                       label="VRAM in use"
                     />
                     <p className={styles.hint}>
-                      A model with a larger context window would exceed this card — LocalChat
-                      falls back to partial offload rather than failing.
+                      A model with a larger context window would exceed this card — LocalChat falls
+                      back to partial offload rather than failing.
                     </p>
                   </div>
                 )}
@@ -493,6 +493,12 @@ function BenchmarkCard() {
             <tr>
               <th scope="col">Model</th>
               <th scope="col">Device</th>
+              {/*
+                A run measures every model against three questions of rising difficulty, so
+                there are three rows per model and device. Without this column they read as
+                duplicated rows with inexplicably different numbers.
+              */}
+              <th scope="col">Question</th>
               <th scope="col">Load</th>
               <th scope="col">First token</th>
               <th scope="col">Tokens/s</th>
@@ -500,13 +506,22 @@ function BenchmarkCard() {
             </tr>
           </thead>
           <tbody>
-            {result.rows.map((row) => (
-              <tr key={`${row.modelId}-${row.compute}`}>
+            {collapseUnmeasured(result.rows).map(({ row, questions }) => (
+              // The prompt label belongs in the key: three rows now share a model and a
+              // device, and React was being handed the same key three times.
+              <tr key={`${row.modelId}-${row.compute}-${row.promptLabel ?? 'only'}`}>
                 <th scope="row" className={styles.benchModel}>
                   {row.modelName}
                 </th>
-                <td>
-                  <Mono>{row.compute.toUpperCase()}</Mono>
+                <td title={row.deviceName ?? undefined}>
+                  <Mono>
+                    {row.compute.toUpperCase()}
+                    {row.deviceName ? ` · ${row.deviceName}` : ''}
+                  </Mono>
+                </td>
+                {/* The question itself on hover - a label alone is not checkable. */}
+                <td title={questions === 1 ? (row.question ?? undefined) : undefined}>
+                  <Mono>{questions > 1 ? `all ${questions}` : (row.promptLabel ?? '—')}</Mono>
                 </td>
                 {row.status === 'ok' ? (
                   <>
@@ -678,9 +693,9 @@ function EmbeddingModelRow({
  */
 function EmbeddingBenchmarkCard() {
   const benchmark = useEmbeddingBenchmark();
+  const history = useEmbeddingBenchmarkHistory();
   const models = useEmbeddingModels();
   const run = useRunEmbeddingBenchmark();
-  const history = useEmbeddingBenchmarkHistory();
   const result = benchmark.data;
   const running = result?.status === 'running' || run.isPending;
 
@@ -828,6 +843,40 @@ function EmbeddingBenchmarkCard() {
       </Button>
     </section>
   );
+}
+
+/**
+ * Collapses a model+device's identical unmeasured rows into one.
+ *
+ * A run asks three questions, so a combination that could not run at all produced three
+ * rows carrying the same sentence - "needs about 6.4 GB of VRAM..." printed three times
+ * under each other, which reads as three separate problems. Nothing was measured, so the
+ * question axis has no meaning for these rows; one row saying so, with the count, is the
+ * whole fact. Measured rows are never collapsed: their numbers differ by question, and
+ * that difference is the point of the column.
+ */
+function collapseUnmeasured(
+  rows: ModelBenchmarkRow[],
+): Array<{ row: ModelBenchmarkRow; questions: number }> {
+  const out: Array<{ row: ModelBenchmarkRow; questions: number }> = [];
+  const firstAt = new Map<string, number>();
+
+  for (const row of rows) {
+    if (row.status === 'ok') {
+      out.push({ row, questions: 1 });
+      continue;
+    }
+    const key = `${row.modelId}\u0000${row.compute}\u0000${row.status}\u0000${row.detail ?? ''}`;
+    const at = firstAt.get(key);
+    if (at === undefined) {
+      firstAt.set(key, out.length);
+      out.push({ row, questions: 1 });
+    } else {
+      (out[at] as { questions: number }).questions += 1;
+    }
+  }
+
+  return out;
 }
 
 /**

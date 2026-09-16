@@ -610,84 +610,203 @@ export const SETTINGS: Settings = {
 };
 
 /**
- * A finished model benchmark: every installed model on every device this machine has.
+ * The three prompts every benchmark run measures, mirroring BENCHMARK_PROMPTS in
+ * src/benchmark.py.
  *
- * The GPU rows are `skipped` on purpose — the common case is a laptop whose
- * llama-cpp-python was installed without CUDA, and a table that only ever shows the happy
- * path hides how the screen reads when half the runs cannot happen.
+ * This is the shape that matters: a run is models x devices x PROMPTS, so ONE model on ONE
+ * device produces THREE rows. A fixture with a single row per combination let charts read
+ * a model's speed off `rows.find(...)` and look correct, while the same code against real
+ * data would silently report the first prompt - always the simple one - as the model's
+ * headline number.
+ */
+const BENCHMARK_PROMPTS = [
+  {
+    label: 'simple',
+    tier: 'simple' as const,
+    score: 4.2,
+    question: 'How often should pull-cords be inspected?',
+    /** Multiplier on the model's baseline cost. A harder question means a longer prompt. */
+    cost: 1,
+  },
+  {
+    label: 'moderate',
+    tier: 'moderate' as const,
+    score: 8.6,
+    question: 'How do I test an emergency stop pull-cord?',
+    cost: 1.45,
+  },
+  {
+    label: 'complex',
+    tier: 'complex' as const,
+    score: 13.1,
+    question:
+      'Why must pull-cords be tested every shift, and what happens if the drive motor does ' +
+      'not cut power in time?',
+    cost: 2.1,
+  },
+];
+
+/**
+ * Each model twice: what it does on the CPU, and what the same model does on this machine's
+ * GPU.
+ *
+ * `gpu: null` means the run could not happen, and `gpuDetail` says why in the words the
+ * service would use. Exactly one model is in that state, and for a reason the rest of the
+ * screen already claims: the Compute card advertises a 6.0 GB card, and llama-3.1-8b's
+ * weights plus its context do not fit in one. A skipped row whose reason contradicts the
+ * hardware panel above it is worse than no skipped row at all - it was 'no CUDA build
+ * installed' while the same page showed 28 of 28 layers offloaded, so the page argued with
+ * itself and neither half could be trusted.
+ *
+ * The GPU figures are what a 6 GB workstation card does to a llama.cpp workload: generation
+ * gains roughly 3-4x because it is memory-bandwidth bound and VRAM has more of it, while
+ * time to first token gains far more, because prompt processing is compute bound and that
+ * is where a GPU is genuinely in a different class. A fixture that scaled both by one
+ * constant would have hidden the most interesting thing the benchmark measures.
+ */
+const BENCHMARK_MODELS = [
+  {
+    id: 'qwen2.5-7b-instruct-q4km.gguf',
+    name: 'qwen2.5-7b-instruct',
+    loadMs: 4_180,
+    ttftMs: 1_920,
+    tokPerSecond: 7.4,
+    totalMs: 21_500,
+    memoryBytes: 5_100_273_664,
+    gpu: {
+      loadMs: 4_620,
+      ttftMs: 380,
+      tokPerSecond: 31.1,
+      totalMs: 5_900,
+      // Matches SETTINGS.hardware.gpuMemoryUsedBytes: this is the model the card is holding.
+      vramBytes: 5_583_457_484,
+      memoryBytes: 1_042_284_544,
+    },
+    gpuDetail: null,
+  },
+  {
+    id: 'llama-3.1-8b-instruct-q4km.gguf',
+    name: 'llama-3.1-8b-instruct',
+    loadMs: 5_640,
+    ttftMs: 2_480,
+    tokPerSecond: 5.9,
+    totalMs: 27_300,
+    memoryBytes: 5_798_205_030,
+    gpu: null,
+    gpuDetail:
+      'Needs about 6.4 GB of VRAM (5.0 GB of weights plus its context) and this card has ' +
+      '6.0 GB. Measured on the CPU instead.',
+  },
+  {
+    id: 'phi-3.5-mini-q4km.gguf',
+    name: 'phi-3.5-mini',
+    loadMs: 1_240,
+    ttftMs: 640,
+    tokPerSecond: 19.2,
+    totalMs: 8_100,
+    memoryBytes: 2_469_606_195,
+    gpu: {
+      loadMs: 1_480,
+      ttftMs: 150,
+      tokPerSecond: 61.8,
+      totalMs: 2_700,
+      vramBytes: 3_113_851_289,
+      memoryBytes: 712_179_712,
+    },
+    gpuDetail: null,
+  },
+];
+
+const CPU_NAME = 'Intel Core Ultra 7 165H';
+const GPU_NAME = 'RTX A2000';
+
+/**
+ * A finished model benchmark: every installed model on every device this machine has,
+ * across all three prompts.
+ *
+ * One model's GPU rows are `skipped` on purpose. A table that only shows the happy path
+ * hides how the screen reads when a run cannot happen - and a fixture where EVERY GPU row
+ * is skipped hides more than that, because then the speedup chart has nothing to draw and
+ * nobody finds out whether it works until the day it is demonstrated.
  */
 export const BENCHMARK: ModelBenchmarkRun = {
   id: '4',
   status: 'completed',
-  progress: '6 of 6',
+  progress: '18 of 18',
   current: null,
   startedAt: daysAgo(2),
   finishedAt: daysAgo(2),
   rows: [
-    {
-      modelId: 'qwen2.5-7b-instruct-q4km.gguf',
-      modelName: 'qwen2.5-7b-instruct',
-      compute: 'cpu',
-      deviceName: 'Intel Core Ultra 7 165H',
-      status: 'ok',
-      detail: null,
-      loadMs: 4_180,
-      timeToFirstTokenMs: 1_920,
-      generatedTokens: 128,
-      tokensPerSecond: 7.4,
-      totalMs: 21_500,
-      peakMemoryBytes: 5_100_273_664,
-      peakVramBytes: null,
-      ranAt: daysAgo(2),
-    },
-    {
-      modelId: 'llama-3.1-8b-instruct-q4km.gguf',
-      modelName: 'llama-3.1-8b-instruct',
-      compute: 'cpu',
-      deviceName: 'Intel Core Ultra 7 165H',
-      status: 'ok',
-      detail: null,
-      loadMs: 5_640,
-      timeToFirstTokenMs: 2_480,
-      generatedTokens: 128,
-      tokensPerSecond: 5.9,
-      totalMs: 27_300,
-      peakMemoryBytes: 5_798_205_030,
-      peakVramBytes: null,
-      ranAt: daysAgo(2),
-    },
-    {
-      modelId: 'phi-3.5-mini-q4km.gguf',
-      modelName: 'phi-3.5-mini',
-      compute: 'cpu',
-      deviceName: 'Intel Core Ultra 7 165H',
-      status: 'ok',
-      detail: null,
-      loadMs: 1_240,
-      timeToFirstTokenMs: 640,
-      generatedTokens: 128,
-      tokensPerSecond: 19.2,
-      totalMs: 8_100,
-      peakMemoryBytes: 2_469_606_195,
-      peakVramBytes: null,
-      ranAt: daysAgo(2),
-    },
-    {
-      modelId: 'qwen2.5-7b-instruct-q4km.gguf',
-      modelName: 'qwen2.5-7b-instruct',
-      compute: 'gpu',
-      deviceName: null,
-      status: 'skipped',
-      detail: 'This build of llama-cpp-python has no CUDA/GPU offload support installed.',
-      loadMs: null,
-      timeToFirstTokenMs: null,
-      generatedTokens: null,
-      tokensPerSecond: null,
-      totalMs: null,
-      peakMemoryBytes: null,
-      peakVramBytes: null,
-      ranAt: daysAgo(2),
-    },
+    ...BENCHMARK_MODELS.flatMap((model) =>
+      BENCHMARK_PROMPTS.map((prompt) => ({
+        modelId: model.id,
+        modelName: model.name,
+        compute: 'cpu' as const,
+        deviceName: CPU_NAME,
+        status: 'ok' as const,
+        detail: null,
+        // Load time is a property of the model file, not of the question asked.
+        loadMs: model.loadMs,
+        timeToFirstTokenMs: Math.round(model.ttftMs * prompt.cost),
+        generatedTokens: 128,
+        tokensPerSecond: Math.round((model.tokPerSecond / prompt.cost) * 10) / 10,
+        totalMs: Math.round(model.totalMs * prompt.cost),
+        peakMemoryBytes: model.memoryBytes,
+        peakVramBytes: null,
+        promptLabel: prompt.label,
+        question: prompt.question,
+        complexityTier: prompt.tier,
+        complexityScore: prompt.score,
+        ranAt: daysAgo(2),
+      })),
+    ),
+    ...BENCHMARK_MODELS.flatMap((model) =>
+      BENCHMARK_PROMPTS.map((prompt) =>
+        model.gpu === null
+          ? {
+              modelId: model.id,
+              modelName: model.name,
+              compute: 'gpu' as const,
+              // The card is known even though the run did not happen: nvidia-smi answered,
+              // the model simply did not fit. Only a missing CUDA build leaves this null.
+              deviceName: GPU_NAME,
+              status: 'skipped' as const,
+              detail: model.gpuDetail,
+              loadMs: null,
+              timeToFirstTokenMs: null,
+              generatedTokens: null,
+              tokensPerSecond: null,
+              totalMs: null,
+              peakMemoryBytes: null,
+              peakVramBytes: null,
+              promptLabel: prompt.label,
+              question: prompt.question,
+              complexityTier: prompt.tier,
+              complexityScore: prompt.score,
+              ranAt: daysAgo(2),
+            }
+          : {
+              modelId: model.id,
+              modelName: model.name,
+              compute: 'gpu' as const,
+              deviceName: GPU_NAME,
+              status: 'ok' as const,
+              detail: null,
+              loadMs: model.gpu.loadMs,
+              timeToFirstTokenMs: Math.round(model.gpu.ttftMs * prompt.cost),
+              generatedTokens: 128,
+              tokensPerSecond: Math.round((model.gpu.tokPerSecond / prompt.cost) * 10) / 10,
+              totalMs: Math.round(model.gpu.totalMs * prompt.cost),
+              peakMemoryBytes: model.gpu.memoryBytes,
+              peakVramBytes: model.gpu.vramBytes,
+              promptLabel: prompt.label,
+              question: prompt.question,
+              complexityTier: prompt.tier,
+              complexityScore: prompt.score,
+              ranAt: daysAgo(2),
+            },
+      ),
+    ),
   ],
 };
 
@@ -723,6 +842,27 @@ export const EMBEDDING_MODELS: EmbeddingModel[] = [
   },
 ];
 
+/**
+ * Per-model tier profiles, rather than one model scaled by a constant.
+ *
+ * An earlier version multiplied a shared 125/24/10 baseline per model, which meant every
+ * model retained the same ~6% of its short-text speed on long text and the chart had no
+ * story in it. Real embedding models differ in exactly that: a small one with a short
+ * context degrades far less than a large one whose attention cost grows with length.
+ *
+ * So MiniLM is deliberately NOT the fastest on short text and IS the one that holds up -
+ * which is the finding this benchmark exists to surface, and the case where picking by the
+ * headline number gets you the wrong model for a 200-page manual.
+ */
+const EMBEDDING_PROFILES: Record<string, { short: number; medium: number; long: number }> = {
+  'nomic-ai/nomic-embed-text-v1.5': { short: 66, medium: 10, long: 3.4 },
+  'BAAI/bge-small-en-v1.5': { short: 100, medium: 18.3, long: 7.3 },
+  'intfloat/e5-base-v2': { short: 147, medium: 29, long: 12.4 },
+  'sentence-transformers/all-MiniLM-L6-v2': { short: 90, medium: 62, long: 40 },
+};
+
+const TEXT_TIERS = ['short', 'medium', 'long'] as const;
+
 /** A finished embedding benchmark: every registered model across the three text tiers. */
 export const EMBEDDING_BENCHMARK: EmbeddingBenchmarkRun = {
   id: '1',
@@ -732,25 +872,23 @@ export const EMBEDDING_BENCHMARK: EmbeddingBenchmarkRun = {
   startedAt: daysAgo(2),
   finishedAt: daysAgo(2),
   rows: EMBEDDING_MODELS.flatMap((model) =>
-    (
-      [
-        { label: 'short', count: 5, embedMs: 40, throughput: 125 },
-        { label: 'medium', count: 5, embedMs: 210, throughput: 24 },
-        { label: 'long', count: 5, embedMs: 480, throughput: 10 },
-      ] as const
-    ).map((tier) => ({
-      model: model.name,
-      dimension: model.dimension,
-      status: 'ok' as const,
-      detail: null,
-      loadMs: 900 + model.dimension,
-      textLabel: tier.label,
-      textCount: tier.count,
-      embedMs: tier.embedMs,
-      textsPerSecond: tier.throughput,
-      peakMemoryBytes: 350_000_000 + model.dimension * 500_000,
-      ranAt: daysAgo(2),
-    })),
+    TEXT_TIERS.map((tier) => {
+      const profile = EMBEDDING_PROFILES[model.name] ?? { short: 80, medium: 20, long: 8 };
+      const throughput = profile[tier];
+      return {
+        model: model.name,
+        dimension: model.dimension,
+        status: 'ok' as const,
+        detail: null,
+        loadMs: 900 + model.dimension,
+        textLabel: tier,
+        textCount: 5,
+        embedMs: Math.round((5 / throughput) * 1000),
+        textsPerSecond: throughput,
+        peakMemoryBytes: 350_000_000 + model.dimension * 500_000,
+        ranAt: daysAgo(2),
+      };
+    }),
   ),
 };
 

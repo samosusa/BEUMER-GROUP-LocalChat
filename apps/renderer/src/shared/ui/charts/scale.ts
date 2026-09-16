@@ -12,16 +12,60 @@ export interface LinearScale {
 }
 
 /**
- * Rounds an axis maximum up to a value a person would have chosen: 1, 2, 2.5 or 5 times
- * a power of ten. Ticks then land on numbers worth reading rather than on 3.7143.
+ * Rounds a tick step up to one a person would have chosen: 1, 2, 2.5 or 5 times a power
+ * of ten.
+ *
+ * The step is what gets rounded, not the axis maximum. Rounding the maximum and then
+ * dividing it by the tick count is the obvious move and it is wrong: a nice ceiling of
+ * 7 GB over four intervals steps by 1.75, and the axis renders "0 B, 2 GB, 3 GB, 5 GB,
+ * 7 GB" - five labels whose gaps look unequal, on an axis that is perfectly linear. A
+ * reader who trusts the labels misjudges every point on it. Nice steps give nice labels
+ * and a nice maximum for free, because the maximum is just the last step.
  */
-function niceCeil(value: number): number {
+function niceStep(value: number): number {
   if (value <= 0) return 1;
   const magnitude = 10 ** Math.floor(Math.log10(value));
   const normalised = value / magnitude;
   const step =
     normalised <= 1 ? 1 : normalised <= 2 ? 2 : normalised <= 2.5 ? 2.5 : normalised <= 5 ? 5 : 10;
   return step * magnitude;
+}
+
+/**
+ * Tick counts to try, in order of preference.
+ *
+ * Fixing the count at four wastes axis width whenever the data sits just above a step
+ * boundary - 147 txt/s over four intervals of 50 runs the axis to 200 and leaves the top
+ * quarter empty. Trying three and five as well lets the scale pick the tightest fit that
+ * still lands on round numbers: the same data over three intervals reaches exactly 150.
+ * Four stays first so it wins ties and remains the shape most charts get.
+ */
+const TICK_COUNTS = [4, 3, 5];
+
+/** Trims the float noise that i * 0.2 accumulates, to the precision the step implies. */
+function atStepPrecision(value: number, step: number): number {
+  const decimals = Math.min(10, Math.max(0, -Math.floor(Math.log10(step)) + 1));
+  return Number(value.toFixed(decimals));
+}
+
+/**
+ * The tightest axis that covers `highest`, lands every tick on a round number, and uses
+ * a tick count close to the one asked for.
+ */
+function fitAxis(highest: number, preferred: number): { max: number; step: number; count: number } {
+  // Nothing to cover: a 0..1 axis with one interval, rather than three ticks of nothing.
+  if (!(highest > 0)) return { max: 1, step: 1, count: 1 };
+
+  const counts = [preferred, ...TICK_COUNTS.filter((count) => count !== preferred)];
+  let best: { max: number; step: number; count: number } | null = null;
+
+  for (const count of counts) {
+    const step = niceStep(highest / count);
+    const max = atStepPrecision(step * count, step);
+    if (best === null || max < best.max) best = { max, step, count };
+  }
+
+  return best as { max: number; step: number; count: number };
 }
 
 /**
@@ -33,8 +77,7 @@ function niceCeil(value: number): number {
  */
 export function linearScale(values: number[], pixels: number, tickCount = 4): LinearScale {
   const highest = values.length > 0 ? Math.max(...values) : 0;
-  const max = niceCeil(highest);
-  const step = max / tickCount;
+  const { max, step, count } = fitAxis(highest, tickCount);
 
   const scale = ((value: number) => (max === 0 ? 0 : (value / max) * pixels)) as {
     (value: number): number;
@@ -44,7 +87,9 @@ export function linearScale(values: number[], pixels: number, tickCount = 4): Li
   };
   scale.min = 0;
   scale.max = max;
-  scale.ticks = Array.from({ length: tickCount + 1 }, (_, index) => index * step);
+  scale.ticks = Array.from({ length: count + 1 }, (_, index) =>
+    atStepPrecision(index * step, step),
+  );
   return scale;
 }
 
@@ -107,18 +152,46 @@ export function linePath(points: Array<{ x: number; y: number }>): string {
 }
 
 /**
+ * Per-glyph width for the 10px mono-space axis ticks (`.tick` in Chart.module.css).
+ * Monospace glyphs are uniform width, unlike the sans-serif category label further down, so
+ * this is a plain multiplier rather than an average.
+ */
+const MONO_CHAR_WIDTH_PX = 6;
+
+/** Rough pixel width of a formatted tick label. */
+export function estimateTickWidth(label: string): number {
+  return label.length * MONO_CHAR_WIDTH_PX;
+}
+
+/**
+ * How wide the y-axis gutter has to be for its widest label.
+ *
+ * Both branches hit this independently, which is a fair sign the fixed 46px was too small:
+ * it fitted "20 tok/s" and clipped "150 txt/s" the moment a three-digit measure appeared -
+ * the label lost its leading digit and read as "50 txt/s", which is worse than no label -
+ * and it also could not hold a metric whose unit is spelled out on every tick, like
+ * "100 texts/s". The SVG sets `overflow: visible` so that edge markers are never clipped,
+ * which means nothing clips an overrunning label either: it just bleeds out of the frame.
+ *
+ * One glyph-width constant, not two. The two branches guessed 6.1 and 6.0 for the same
+ * typeface, and a measurement that disagrees with itself is the thing worth removing here.
+ */
+export function gutterFor(labels: string[], min = 46): number {
+  const widest = labels.reduce((most, label) => Math.max(most, estimateTickWidth(label)), 0);
+  return Math.max(min, Math.ceil(widest) + 14);
+}
+
+/**
  * Average glyph width for the 11px sans-serif category label (`.category` in
- * Chart.module.css), as a fraction of the font size. Real text metrics need a canvas; this
- * is close enough to decide when a label needs shortening.
+ * Chart.module.css). Real text metrics need a canvas; this is close enough to decide when a
+ * label needs shortening.
  */
 const AVG_CHAR_WIDTH_PX = 6.2;
 
 /**
  * Shortens a label with an ellipsis so it fits within `maxWidth` px.
  *
- * The chart SVG sets `overflow: visible` on purpose, so a line's edge markers are never
- * clipped — which also means nothing clips an axis label for free. A short GGUF filename
- * never ran into this; a HuggingFace-style embedding model id like
+ * A short GGUF filename never ran into this; a HuggingFace-style embedding model id like
  * "sentence-transformers/all-MiniLM-L6-v2" easily overruns a narrow column's slot.
  */
 export function truncateLabel(label: string, maxWidth: number): string {
@@ -128,20 +201,12 @@ export function truncateLabel(label: string, maxWidth: number): string {
 }
 
 /**
- * Per-glyph width for the 10px mono-space axis ticks (`.tick` in Chart.module.css).
- * Monospace glyphs are uniform width, unlike the sans-serif category label above, so this is
- * a plain multiplier rather than an average.
- */
-const MONO_CHAR_WIDTH_PX = 6;
-
-/**
- * Rough pixel width of a formatted tick label, for sizing the left gutter to fit it.
+ * Which side of its anchor a tooltip can sit on.
  *
- * The gutter used to be a fixed 46px, sized for values like "7.4" or "4.2 s". A metric whose
- * unit is spelled out on every tick - "100 texts/s" rather than "100" - is wide enough to run
- * past that gutter and, because the chart SVG sets `overflow: visible`, bleed out its left
- * edge instead of being clipped.
+ * A tooltip above an anchor near the top of the chart lands outside the frame entirely and
+ * over whatever is above it - a time-series tooltip drifting across the chart above it is
+ * how this was found. Below the threshold there is no room, so it flips.
  */
-export function estimateTickWidth(label: string): number {
-  return label.length * MONO_CHAR_WIDTH_PX;
+export function tooltipFlipsBelow(anchorTop: number): boolean {
+  return anchorTop < 70;
 }

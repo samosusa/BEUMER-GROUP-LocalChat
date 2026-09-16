@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { estimateTickWidth, linePath, linearScale } from './scale';
+import { gutterFor, linePath, linearScale, tooltipFlipsBelow } from './scale';
 import { useElementWidth } from './useElementWidth';
 import styles from './Chart.module.css';
 
@@ -25,9 +25,8 @@ interface TimeSeriesProps {
   height?: number;
 }
 
-const BASE_PAD = { top: 10, right: 12, bottom: 28, left: 46 };
-/** Space kept between the widest tick label and the axis line. */
-const TICK_GAP = 8;
+/** `left` is a floor; the real gutter is measured from the widest tick label. */
+const PAD = { top: 10, right: 12, bottom: 28, left: 46 };
 
 /**
  * One line per series against run time.
@@ -50,25 +49,53 @@ export function TimeSeries({ lines, format, formatTime, caption, height = 220 }:
     (a, b) => a - b,
   );
 
-  const plotHeight = height - BASE_PAD.top - BASE_PAD.bottom;
+  const plotHeight = height - PAD.top - PAD.bottom;
   const y = linearScale(
     visible.flatMap((line) => line.points.map((point) => point.value)),
     plotHeight,
   );
+  const left = gutterFor(y.ticks.map(format), PAD.left);
 
-  // The gutter has to fit the widest tick label - see the matching comment in
-  // `GroupedColumns`.
-  const left = Math.max(
-    BASE_PAD.left,
-    Math.max(...y.ticks.map((tick) => estimateTickWidth(format(tick)))) + TICK_GAP,
-  );
-  const PAD = { ...BASE_PAD, left };
+  /*
+   * End labels, and the room they need.
+   *
+   * Only lines that reach the LAST run are labelled. A line that stops early - a device the
+   * machine did not have until three runs ago - would put its label in the middle of the
+   * plot, on top of whatever else is passing through there, and a label sitting on the wrong
+   * line is worse than a legend lookup.
+   */
+  const lastStamp = stamps[stamps.length - 1];
+  const ends = visible
+    .map((line) => {
+      const last = line.points[line.points.length - 1];
+      return last && last.at === lastStamp ? { key: line.key, value: last.value } : null;
+    })
+    .filter((end): end is { key: string; value: number } => end !== null);
 
-  const plotWidth = Math.max(0, width - PAD.left - PAD.right);
+  const widest = ends.reduce((most, end) => Math.max(most, format(end.value).length), 0);
+  const right = ends.length > 0 ? Math.min(96, Math.max(PAD.right, widest * 6.1 + 10)) : PAD.right;
+
+  const plotWidth = Math.max(0, width - left - right);
   const step = stamps.length > 1 ? plotWidth / (stamps.length - 1) : 0;
   const xFor = (at: number) =>
-    PAD.left + (stamps.length > 1 ? stamps.indexOf(at) * step : plotWidth / 2);
+    left + (stamps.length > 1 ? stamps.indexOf(at) * step : plotWidth / 2);
   const yFor = (value: number) => PAD.top + plotHeight - y(value);
+
+  /*
+   * Where two lines finish close together, one label is dropped rather than nudged. Moving a
+   * label off its line to make room detaches it from the thing it names, and the reader ends
+   * up reading a number against the wrong series - the legend and the tooltip still have it,
+   * so nothing is lost by staying quiet. Deterministic: top-down, keep what clears 12px.
+   */
+  const labelled = new Set<string>();
+  let lastLabelY = Number.NEGATIVE_INFINITY;
+  for (const end of [...ends].sort((a, b) => yFor(a.value) - yFor(b.value))) {
+    const at = yFor(end.value);
+    if (at - lastLabelY >= 12) {
+      labelled.add(end.key);
+      lastLabelY = at;
+    }
+  }
 
   const toggle = (key: string) =>
     setHidden((current) => {
@@ -95,14 +122,14 @@ export function TimeSeries({ lines, format, formatTime, caption, height = 220 }:
             <g key={tick}>
               <line
                 className={styles.grid}
-                x1={PAD.left}
-                x2={PAD.left + plotWidth}
+                x1={left}
+                x2={left + plotWidth}
                 y1={yFor(tick)}
                 y2={yFor(tick)}
               />
               <text
                 className={styles.tick}
-                x={PAD.left - 8}
+                x={left - 8}
                 y={yFor(tick)}
                 textAnchor="end"
                 dominantBaseline="middle"
@@ -114,8 +141,8 @@ export function TimeSeries({ lines, format, formatTime, caption, height = 220 }:
 
           <line
             className={styles.axis}
-            x1={PAD.left}
-            x2={PAD.left + plotWidth}
+            x1={left}
+            x2={left + plotWidth}
             y1={PAD.top + plotHeight}
             y2={PAD.top + plotHeight}
           />
@@ -168,6 +195,20 @@ export function TimeSeries({ lines, format, formatTime, caption, height = 220 }:
             )),
           )}
 
+          {ends.map((end) =>
+            labelled.has(end.key) ? (
+              <text
+                key={`label-${end.key}`}
+                className={styles.endLabel}
+                x={xFor(lastStamp as number) + 8}
+                y={yFor(end.value)}
+                dominantBaseline="middle"
+              >
+                {format(end.value)}
+              </text>
+            ) : null,
+          )}
+
           {stamps.map((at, index) => (
             <rect
               key={at}
@@ -185,7 +226,7 @@ export function TimeSeries({ lines, format, formatTime, caption, height = 220 }:
 
       {hover !== null && stamps[hover] !== undefined && (
         <div
-          className={styles.tooltip}
+          className={cn(styles.tooltip, tooltipFlipsBelow(PAD.top) && styles.tooltipBelow)}
           style={{ left: xFor(stamps[hover] as number), top: PAD.top }}
         >
           <p className={styles.tooltipTitle}>{formatTime(stamps[hover] as number)}</p>

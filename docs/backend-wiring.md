@@ -53,26 +53,29 @@ right and the stub is out of date.**
 
 ## What is wired
 
-| Screen                   | Service endpoint                                 | Notes                                                                                                                             |
-| ------------------------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| Status strip             | `GET /health` + `GET /models/active`             | Second call only to tell "up" from "can answer"                                                                                   |
-| Document list            | `GET /docs`                                      |                                                                                                                                   |
-| Remove a document        | `DELETE /docs/{id}`                              |                                                                                                                                   |
-| Remove all documents     | `DELETE /docs`                                   | Optional `project_id` (an id, or the literal string `null` for the general corpus only); also deletes each document's FAISS index |
-| Add documents            | `POST /ingest` → `GET /status/{job_id}`          | Multipart upload; polls to completion                                                                                             |
-| Chat sidebar and history | `GET /conversations`                             |                                                                                                                                   |
-| Open a chat              | `GET /conversations/{id}`                        |                                                                                                                                   |
-| New chat                 | `POST /conversations`                            | Title auto-generated from the first question; optional `project_id` scopes it                                                     |
-| Rename / delete          | `PATCH` / `DELETE /conversations/{id}`           |                                                                                                                                   |
-| Delete all chats         | `DELETE /conversations`                          | Messages cascade with each conversation                                                                                           |
-| Ask a question           | `POST /conversations/{id}/messages`              | Retrieval is limited to the conversation's project, if it has one                                                                 |
-| Model picker             | `GET /models`, `GET/POST /models/active`         | The swap blocks; expect tens of seconds                                                                                           |
-| Projects                 | `GET/POST /projects`, `GET/PATCH /projects/{id}` | Rename only, no other field — see below                                                                                           |
-| Delete a project         | `DELETE /projects/{id}`                          | Cascades its documents (FAISS indexes included) and conversations                                                                 |
-| Delete all projects      | `DELETE /projects`                               | Same cascade as above, for every project; general-corpus documents/chats are untouched                                            |
-| Project documents        | `GET /docs` filtered client-side by `project_id` | No scoped endpoint on the service                                                                                                 |
-| Project-scoped ingest    | `POST /ingest` with `project_id`                 |                                                                                                                                   |
-| Project-scoped chat      | `POST /conversations` with `project_id`          | Retrieval is then limited to that project                                                                                         |
+| Screen                   | Service endpoint                                                                                           | Notes                                                                                                                             |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Status strip             | `GET /health` + `GET /models/active`                                                                       | Second call only to tell "up" from "can answer"                                                                                   |
+| Document list            | `GET /docs`                                                                                                |                                                                                                                                   |
+| Remove a document        | `DELETE /docs/{id}`                                                                                        |                                                                                                                                   |
+| Remove all documents     | `DELETE /docs`                                                                                             | Optional `project_id` (an id, or the literal string `null` for the general corpus only); also deletes each document's FAISS index |
+| Add documents            | `POST /ingest` → `GET /status/{job_id}`                                                                    | Multipart upload; polls to completion                                                                                             |
+| Chat sidebar and history | `GET /conversations`                                                                                       |                                                                                                                                   |
+| Open a chat              | `GET /conversations/{id}`                                                                                  |                                                                                                                                   |
+| New chat                 | `POST /conversations`                                                                                      | Title auto-generated from the first question; optional `project_id` scopes it                                                     |
+| Rename / delete          | `PATCH` / `DELETE /conversations/{id}`                                                                     |                                                                                                                                   |
+| Delete all chats         | `DELETE /conversations`                                                                                    | Messages cascade with each conversation                                                                                           |
+| Ask a question           | `POST /conversations/{id}/messages`                                                                        | Retrieval is limited to the conversation's project, if it has one                                                                 |
+| Model picker             | `GET /models`, `GET/POST /models/active`                                                                   | The swap blocks; expect tens of seconds                                                                                           |
+| Projects                 | `GET/POST /projects`, `GET/PATCH /projects/{id}`                                                           | Rename only, no other field — see below                                                                                           |
+| Delete a project         | `DELETE /projects/{id}`                                                                                    | Cascades its documents (FAISS indexes included) and conversations                                                                 |
+| Delete all projects      | `DELETE /projects`                                                                                         | Same cascade as above, for every project; general-corpus documents/chats are untouched                                            |
+| Project documents        | `GET /docs` filtered client-side by `project_id`                                                           | No scoped endpoint on the service                                                                                                 |
+| Project-scoped ingest    | `POST /ingest` with `project_id`                                                                           |                                                                                                                                   |
+| Project-scoped chat      | `POST /conversations` with `project_id`                                                                    | Retrieval is then limited to that project                                                                                         |
+| Model benchmark          | `POST /benchmark`, `GET /benchmark/status/{id}`, `GET /benchmark/results[/{id}]`                           | Models x devices x three questions; polls to completion. Unloads the active model first                                           |
+| Embedding benchmark      | `POST /embeddings/benchmark`, `GET /embeddings/benchmark/status/{id}`, `GET /embeddings/benchmark/results` | Models x three text lengths. CPU only                                                                                             |
+| Retrieval evaluation     | `GET /rag-eval/datasets`, `POST /rag-eval`, `GET /rag-eval/status/{id}`, `GET /rag-eval/results[/{id}]`    | Replays a labelled question set through the real index                                                                            |
 
 ## What is not wired, and why
 
@@ -99,27 +102,27 @@ today a scoped conversation is strictly project-only, there is no "project + gen
 per-chat-attachment mode, because the service picks retrieval scope from the conversation's
 own `project_id` and nothing else.
 
-**Retrieval evaluation.** The benchmark that _is_ wired measures models, not retrieval:
-`src/benchmark.py` uses one hardcoded question with its context pasted inline, and never
-touches the index, the corpus or FAISS. It answers "which model can this machine run, and
-how fast", which is what decides the model we ship.
+**Model benchmark and retrieval evaluation are different measurements.** Both are wired
+now, and conflating them in the report is the easiest mistake to make.
 
-It does not answer "does the system find the right passage", and nothing on screen should
-be read as if it did. That measurement — answers carrying a citation, whether the expected
-document was retrieved, latency over a real question set — needs three things the project
-does not yet have:
+The **model benchmark** (`src/benchmark.py`) answers "which model can this machine run, and
+how fast". It never touches the index, the corpus or FAISS: the context is pasted inline, so
+nothing it reports says anything about retrieval quality. It measures every installed model
+on every available device against three questions of rising difficulty, and records the CPU
+and GPU names so runs from different machines can be told apart in the charts.
 
-1. **A question set.** Roughly 30 questions over a frozen corpus, each with the document
-   that should be cited. This is the long pole and it is not code; it can be written now,
-   in parallel with everything else.
-2. **An endpoint** that runs each question through `answer()` and records retrieval time,
-   generation time, whether a citation came back, and whether the expected document was in
-   the top-k.
-3. **Somewhere to put the rows.** `eval_results` was the natural home, but migration 0008
-   repurposed it for benchmark throughput rows, so this needs its own table.
+The **retrieval evaluation** (`src/rag_eval.py`, `data/eval/rag_qa_pairs.json`) answers "does
+the system find the right passage". It replays a labelled question set through the real
+index and records, per question, whether the expected document came back in the citations
+and what the active model made of the answer. Retrieval hit rate is objective. The judge
+verdict is the active model grading its own family's answers, so it is a second signal, not
+ground truth - which is why the screen always shows the expected and the actual answer side
+by side for a human to read.
 
-Keep the two named apart — **model benchmark** and **retrieval evaluation** — or the report
-will conflate them.
+A question about a document that is not indexed is correctly a retrieval miss, and a miss
+has no answer to grade, so the judge is not asked and the question is counted as not judged
+rather than as wrong. Ingest the documents the question set names before reading anything
+into the numbers.
 
 **Most of settings.** Theme, hotkey, launch-on-startup, retrieval parameters and hardware
 have no server-side home and stay in the mock. `activeModelId` and `compute` are the

@@ -543,7 +543,7 @@ export const handlers = [
 
   http.get(route(routes.embeddingBenchmarkHistory()), async () => {
     await delay(LATENCY.fast);
-    return HttpResponse.json({ runs: embeddingBenchmarkHistory() });
+    return HttpResponse.json({ runs: embeddingHistory() });
   }),
 
   http.post(route(routes.embeddingBenchmark()), async ({ request }) => {
@@ -660,41 +660,47 @@ function benchmarkHistory(): ModelBenchmarkRun[] {
   });
 }
 
-function scale(value: number | null, factor: number): number | null {
-  return value === null ? null : Math.round(value * factor * 100) / 100;
-}
-
 /**
- * Six past embedding-benchmark runs, derived the same deterministic way as `benchmarkHistory`:
- * a week apart, each 4% faster than the one before, so the trend chart has something to draw
- * without the numbers changing on every reload.
+ * Five past embedding runs, a week apart, derived from the finished one.
+ *
+ * Same deterministic-drift rule as `benchmarkHistory` above. The newest model only appears
+ * in the last two runs, because a model added to config/embedding_models.json partway
+ * through cannot have results from before it existed - and a chart that pretends otherwise
+ * teaches the reader to distrust it.
  */
-function embeddingBenchmarkHistory(): EmbeddingBenchmarkRun[] {
-  const RUNS = 6;
+function embeddingHistory(): EmbeddingBenchmarkRun[] {
+  const RUNS = 5;
   const DAY = 86_400_000;
   const finished = Date.parse(
     catalogue.embeddingBenchmark.finishedAt ?? catalogue.embeddingBenchmark.startedAt,
   );
+  const newest = catalogue.embeddingBenchmark.rows.at(-1)?.model;
 
   return Array.from({ length: RUNS }, (_, index) => {
     const age = RUNS - 1 - index;
     const at = new Date(finished - age * 7 * DAY).toISOString();
-    const factor = 1 - age * 0.04;
+    const factor = 1 - age * 0.05;
 
     return {
       ...catalogue.embeddingBenchmark,
       id: `embedding-history-${index}`,
       startedAt: at,
       finishedAt: at,
-      rows: catalogue.embeddingBenchmark.rows.map((row) => ({
-        ...row,
-        ranAt: at,
-        textsPerSecond: scale(row.textsPerSecond, factor),
-        embedMs: scale(row.embedMs, 1 / factor),
-        loadMs: scale(row.loadMs, 1 / factor),
-      })),
+      rows: catalogue.embeddingBenchmark.rows
+        .filter((row) => row.model !== newest || age < 2)
+        .map((row) => ({
+          ...row,
+          ranAt: at,
+          textsPerSecond: scale(row.textsPerSecond, factor),
+          embedMs: scale(row.embedMs, 1 / factor),
+          loadMs: scale(row.loadMs, 1 / factor),
+        })),
     };
   });
+}
+
+function scale(value: number | null, factor: number): number | null {
+  return value === null ? null : Math.round(value * factor * 100) / 100;
 }
 
 /**
@@ -797,7 +803,8 @@ function summarizeRagEvalRows(rows: RagEvalRow[]): RagEvalSummary {
     const hits = subset.filter((row) => row.retrievalHit).length;
     const judgeCounts: Record<string, number> = { correct: 0, partial: 0, incorrect: 0, error: 0 };
     for (const row of subset) {
-      if (row.judgeVerdict) judgeCounts[row.judgeVerdict] = (judgeCounts[row.judgeVerdict] ?? 0) + 1;
+      if (row.judgeVerdict)
+        judgeCounts[row.judgeVerdict] = (judgeCounts[row.judgeVerdict] ?? 0) + 1;
     }
     return { total, retrievalHitRate: total ? hits / total : null, judgeCounts };
   };
@@ -806,7 +813,10 @@ function summarizeRagEvalRows(rows: RagEvalRow[]): RagEvalSummary {
   return {
     ...bucket(rows),
     byDifficulty: Object.fromEntries(
-      difficulties.map((difficulty) => [difficulty, bucket(rows.filter((row) => row.difficulty === difficulty))]),
+      difficulties.map((difficulty) => [
+        difficulty,
+        bucket(rows.filter((row) => row.difficulty === difficulty)),
+      ]),
     ),
   };
 }

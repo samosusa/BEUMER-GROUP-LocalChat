@@ -29,7 +29,14 @@ describe('RagEvalCard compare mode', () => {
     const { user } = renderSettingsPage();
 
     await user.click(screen.getByRole('button', { name: /Benchmarks/ }));
-    await user.click(await screen.findByRole('button', { name: 'Compare' }));
+
+    // Wait for the card to finish loading BEFORE touching its toggle. RagEvalCard returns a
+    // different subtree once the run arrives, so a button captured while it was still
+    // loading is detached by the time userEvent clicks it: the click lands on nothing and
+    // the mode never changes. A fast machine resolves the query before the query selector
+    // runs and never sees the gap; a two-core CI runner lands squarely in it.
+    await screen.findByRole('button', { name: 'Run evaluation again' });
+    await user.click(screen.getByRole('button', { name: 'Compare' }));
 
     const runASelect = await screen.findByRole('combobox', { name: 'Run A' });
     const runBSelect = screen.getByRole('combobox', { name: 'Run B' });
@@ -56,7 +63,8 @@ describe('RagEvalCard compare mode', () => {
     const { user } = renderSettingsPage();
 
     await user.click(screen.getByRole('button', { name: /Benchmarks/ }));
-    await user.click(await screen.findByRole('button', { name: 'Compare' }));
+    await screen.findByRole('button', { name: 'Run evaluation again' });
+    await user.click(screen.getByRole('button', { name: 'Compare' }));
     await screen.findByRole('combobox', { name: 'Run A' });
 
     await user.click(screen.getByRole('button', { name: 'Single run' }));
