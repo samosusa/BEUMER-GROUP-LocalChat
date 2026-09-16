@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { gutterFor, linePath, linearScale } from './scale';
+import { gutterFor, linePath, linearScale, tooltipFlipsBelow } from './scale';
 import { useElementWidth } from './useElementWidth';
 import styles from './Chart.module.css';
 
@@ -176,7 +176,7 @@ export function TimeSeries({ lines, format, formatTime, caption, height = 220 }:
 
       {hover !== null && stamps[hover] !== undefined && (
         <div
-          className={styles.tooltip}
+          className={cn(styles.tooltip, tooltipFlipsBelow(PAD.top) && styles.tooltipBelow)}
           style={{ left: xFor(stamps[hover] as number), top: PAD.top }}
         >
           <p className={styles.tooltipTitle}>{formatTime(stamps[hover] as number)}</p>

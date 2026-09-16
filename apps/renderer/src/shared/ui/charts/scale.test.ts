@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { bandScale, columnPath, gutterFor, linearScale, linePath } from './scale';
+import {
+  bandScale,
+  columnPath,
+  gutterFor,
+  linearScale,
+  linePath,
+  tooltipFlipsBelow,
+} from './scale';
 
 describe('linearScale', () => {
   it('rounds the axis maximum to a number a person would have picked', () => {
@@ -114,5 +121,32 @@ describe('gutterFor', () => {
 
   it('sizes on the widest label, not the last one', () => {
     expect(gutterFor(['1 txt/s', '150 txt/s', '5 txt/s'])).toBe(gutterFor(['150 txt/s']));
+  });
+});
+
+describe('niceCeil ladder', () => {
+  /**
+   * Without a 7.5 rung, 5.8 rounds to 10: a scatter of models topping out at 5.4 GB drew an
+   * axis to 9 GB and wasted the right-hand 40% of the width it needed to separate points.
+   */
+  it('does not jump from 5 straight to 10', () => {
+    expect(linearScale([5.8], 100).max).toBe(7.5);
+    expect(linearScale([6.9], 100).max).toBe(7.5);
+  });
+
+  it('still rounds past 7.5 up to the next power of ten', () => {
+    expect(linearScale([7.6], 100).max).toBe(10);
+  });
+});
+
+describe('tooltipFlipsBelow', () => {
+  /** A tooltip above an anchor near the top lands outside the chart and over its neighbour. */
+  it('flips when the anchor is near the top of the chart', () => {
+    expect(tooltipFlipsBelow(8)).toBe(true);
+    expect(tooltipFlipsBelow(10)).toBe(true);
+  });
+
+  it('stays above when there is room', () => {
+    expect(tooltipFlipsBelow(120)).toBe(false);
   });
 });

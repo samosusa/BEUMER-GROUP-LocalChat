@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MAX_COLUMN_WIDTH, bandScale } from './scale';
+import { MAX_COLUMN_WIDTH, bandScale, tooltipFlipsBelow } from './scale';
 import { useElementWidth } from './useElementWidth';
 import styles from './Chart.module.css';
 
@@ -142,7 +142,15 @@ export function SpeedupBars({ rows, baselineLabel, caption }: SpeedupBarsProps) 
       )}
 
       {hover !== null && rows[hover] && (
-        <div className={styles.tooltip} style={{ left: centre, top: PAD.top + band.start(hover) }}>
+        <div
+          className={[
+            styles.tooltip,
+            tooltipFlipsBelow(PAD.top + band.start(hover)) ? styles.tooltipBelow : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          style={{ left: centre, top: PAD.top + band.start(hover) }}
+        >
           <p className={styles.tooltipTitle}>{rows[hover]?.label}</p>
           <p className={styles.tooltipRow}>
             <span className={styles.tooltipKey}>{baselineLabel}</span>

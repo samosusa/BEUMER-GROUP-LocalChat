@@ -8,6 +8,9 @@ import { formatBytes } from '@/shared/lib/format';
 import {
   MEMORY_BANDS,
   METRICS,
+  buildComplexityComparison,
+  hardwareNames,
+  promptsMeasured,
   NO_FILTER,
   RUN_RANGES,
   applyFilter,
@@ -59,7 +62,14 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
   const [device, setDevice] = useState<ComputeMode>('cpu');
   const active = devices.includes(device) ? device : (devices[0] ?? 'cpu');
 
+  const prompts = useMemo(() => promptsMeasured([filteredLatest]), [filteredLatest]);
+  const hardware = useMemo(() => hardwareNames([latest, ...history]), [latest, history]);
+
   const advice = useMemo(() => recommend(filteredLatest), [filteredLatest]);
+  const complexity = useMemo(
+    () => buildComplexityComparison(filteredLatest, metric, active),
+    [filteredLatest, metric, active],
+  );
   const comparison = useMemo(
     () => buildComparison(filteredLatest, metric),
     [filteredLatest, metric],
@@ -95,8 +105,8 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
             <>
               <strong>{advice.fastest.modelName}</strong> is both the fastest and the leanest here —{' '}
               {metricValue(advice.fastest.tokensPerSecond, (value) => `${value} tok/s`)} on{' '}
-              {advice.fastest.compute.toUpperCase()}, {formatBytes(memoryOf(advice.fastest), 1)}{' '}
-              peak.
+              {advice.fastest.deviceName ?? advice.fastest.compute.toUpperCase()},{' '}
+              {formatBytes(memoryOf(advice.fastest), 1)} peak.
             </>
           ) : (
             <>
@@ -171,7 +181,11 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
             {allDevices.map((candidate) => (
               <FilterChip
                 key={candidate}
-                label={candidate.toUpperCase()}
+                label={
+                  hardware.get(candidate)
+                    ? `${candidate.toUpperCase()} · ${hardware.get(candidate)}`
+                    : candidate.toUpperCase()
+                }
                 on={filter.devices.length === 0 || filter.devices.includes(candidate)}
                 onClick={() => toggleDevice(candidate)}
               />
@@ -206,7 +220,14 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
       </div>
 
       <figure className={styles.chartFigure}>
-        <figcaption className={styles.chartTitle}>{metric.label} by model, this run</figcaption>
+        <figcaption className={styles.chartTitle}>
+          <span>{metric.label} by model, this run</span>
+          {prompts.length > 1 && (
+            <span className={styles.chartHint}>
+              {metric.reduce === 'max' ? 'worst' : 'median'} of {prompts.length} questions
+            </span>
+          )}
+        </figcaption>
         {comparison.categories.length > 0 ? (
           <GroupedColumns
             categories={comparison.categories}
@@ -236,6 +257,44 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
             integrated graphics expect a real gain on time to first token and close to none on
             generation speed — the GPU shares the same memory, so there is no extra bandwidth to
             win.
+          </p>
+        </figure>
+      )}
+
+      {/*
+        Only worth drawing when the run measured more than one question. A single-prompt run
+        would show one column per model and say nothing the chart above has not.
+      */}
+      {prompts.length > 1 && complexity.categories.length > 0 && (
+        <figure className={styles.chartFigure}>
+          <figcaption className={styles.chartTitle}>
+            <span>What a harder question costs — {metric.label.toLowerCase()}</span>
+            {devices.length > 1 && (
+              <span className={styles.chartTabs} role="group" aria-label="Device">
+                {devices.map((candidate) => (
+                  <button
+                    key={candidate}
+                    type="button"
+                    className={candidate === active ? styles.chartTabOn : styles.chartTab}
+                    aria-pressed={candidate === active}
+                    onClick={() => setDevice(candidate)}
+                  >
+                    {candidate.toUpperCase()}
+                  </button>
+                ))}
+              </span>
+            )}
+          </figcaption>
+          <GroupedColumns
+            categories={complexity.categories}
+            series={complexity.series}
+            format={metric.format}
+            caption={metric.label}
+          />
+          <p className={styles.chartFootnote}>
+            The run asks the same three questions of every model, rising in difficulty. The gap
+            between a model's columns is what an engineer's real question costs over the easiest
+            possible one — a model that is quick only on the simple question is not quick in use.
           </p>
         </figure>
       )}

@@ -468,6 +468,12 @@ function BenchmarkCard() {
             <tr>
               <th scope="col">Model</th>
               <th scope="col">Device</th>
+              {/*
+                A run measures every model against three questions of rising difficulty, so
+                there are three rows per model and device. Without this column they read as
+                duplicated rows with inexplicably different numbers.
+              */}
+              <th scope="col">Question</th>
               <th scope="col">Load</th>
               <th scope="col">First token</th>
               <th scope="col">Tokens/s</th>
@@ -476,12 +482,21 @@ function BenchmarkCard() {
           </thead>
           <tbody>
             {result.rows.map((row) => (
-              <tr key={`${row.modelId}-${row.compute}`}>
+              // The prompt label belongs in the key: three rows now share a model and a
+              // device, and React was being handed the same key three times.
+              <tr key={`${row.modelId}-${row.compute}-${row.promptLabel ?? 'only'}`}>
                 <th scope="row" className={styles.benchModel}>
                   {row.modelName}
                 </th>
-                <td>
-                  <Mono>{row.compute.toUpperCase()}</Mono>
+                <td title={row.deviceName ?? undefined}>
+                  <Mono>
+                    {row.compute.toUpperCase()}
+                    {row.deviceName ? ` · ${row.deviceName}` : ''}
+                  </Mono>
+                </td>
+                {/* The question itself on hover - a label alone is not checkable. */}
+                <td title={row.question ?? undefined}>
+                  <Mono>{row.promptLabel ?? '—'}</Mono>
                 </td>
                 {row.status === 'ok' ? (
                   <>

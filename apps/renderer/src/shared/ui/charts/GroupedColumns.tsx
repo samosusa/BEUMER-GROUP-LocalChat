@@ -6,6 +6,7 @@ import {
   columnPath,
   gutterFor,
   linearScale,
+  tooltipFlipsBelow,
 } from './scale';
 import { useElementWidth } from './useElementWidth';
 import styles from './Chart.module.css';
@@ -145,7 +146,12 @@ export function GroupedColumns({
       )}
 
       {hover && (
-        <div className={styles.tooltip} style={{ left: hover.x, top: hover.y }}>
+        <div
+          className={[styles.tooltip, tooltipFlipsBelow(hover.y) ? styles.tooltipBelow : '']
+            .filter(Boolean)
+            .join(' ')}
+          style={{ left: hover.x, top: hover.y }}
+        >
           <p className={styles.tooltipTitle}>{categories[hover.index]}</p>
           {series.map((entry) => {
             const value = entry.values[hover.index];

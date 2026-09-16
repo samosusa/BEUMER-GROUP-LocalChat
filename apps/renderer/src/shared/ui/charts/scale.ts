@@ -19,8 +19,23 @@ function niceCeil(value: number): number {
   if (value <= 0) return 1;
   const magnitude = 10 ** Math.floor(Math.log10(value));
   const normalised = value / magnitude;
+  /*
+   * 7.5 is in the ladder deliberately. Without it a maximum of 5.8 rounds all the way to 10,
+   * and a scatter of models topping out at 5.4 GB drew an axis running to 9 GB with the
+   * right-hand 40% empty - the chart wasting the width it needs to separate its points.
+   */
   const step =
-    normalised <= 1 ? 1 : normalised <= 2 ? 2 : normalised <= 2.5 ? 2.5 : normalised <= 5 ? 5 : 10;
+    normalised <= 1
+      ? 1
+      : normalised <= 2
+        ? 2
+        : normalised <= 2.5
+          ? 2.5
+          : normalised <= 5
+            ? 5
+            : normalised <= 7.5
+              ? 7.5
+              : 10;
   return step * magnitude;
 }
 
@@ -117,4 +132,15 @@ export function linePath(points: Array<{ x: number; y: number }>): string {
 export function gutterFor(labels: string[], min = 46): number {
   const widest = labels.reduce((most, label) => Math.max(most, label.length), 0);
   return Math.max(min, Math.ceil(widest * 6.1) + 14);
+}
+
+/**
+ * Which side of its anchor a tooltip can sit on.
+ *
+ * A tooltip above an anchor near the top of the chart lands outside the frame entirely and
+ * over whatever is above it — a time-series tooltip drifting across the chart above it is
+ * how this was found. Below the threshold there is no room, so it flips.
+ */
+export function tooltipFlipsBelow(anchorTop: number): boolean {
+  return anchorTop < 70;
 }

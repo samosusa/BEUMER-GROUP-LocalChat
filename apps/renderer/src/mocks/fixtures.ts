@@ -610,7 +610,77 @@ export const SETTINGS: Settings = {
 };
 
 /**
- * A finished model benchmark: every installed model on every device this machine has.
+ * The three prompts every benchmark run measures, mirroring BENCHMARK_PROMPTS in
+ * src/benchmark.py.
+ *
+ * This is the shape that matters: a run is models x devices x PROMPTS, so ONE model on ONE
+ * device produces THREE rows. A fixture with a single row per combination let charts read
+ * a model's speed off `rows.find(...)` and look correct, while the same code against real
+ * data would silently report the first prompt - always the simple one - as the model's
+ * headline number.
+ */
+const BENCHMARK_PROMPTS = [
+  {
+    label: 'simple',
+    tier: 'simple' as const,
+    score: 4.2,
+    question: 'How often should pull-cords be inspected?',
+    /** Multiplier on the model's baseline cost. A harder question means a longer prompt. */
+    cost: 1,
+  },
+  {
+    label: 'moderate',
+    tier: 'moderate' as const,
+    score: 8.6,
+    question: 'How do I test an emergency stop pull-cord?',
+    cost: 1.45,
+  },
+  {
+    label: 'complex',
+    tier: 'complex' as const,
+    score: 13.1,
+    question:
+      'Why must pull-cords be tested every shift, and what happens if the drive motor does ' +
+      'not cut power in time?',
+    cost: 2.1,
+  },
+];
+
+const BENCHMARK_MODELS = [
+  {
+    id: 'qwen2.5-7b-instruct-q4km.gguf',
+    name: 'qwen2.5-7b-instruct',
+    loadMs: 4_180,
+    ttftMs: 1_920,
+    tokPerSecond: 7.4,
+    totalMs: 21_500,
+    memoryBytes: 5_100_273_664,
+  },
+  {
+    id: 'llama-3.1-8b-instruct-q4km.gguf',
+    name: 'llama-3.1-8b-instruct',
+    loadMs: 5_640,
+    ttftMs: 2_480,
+    tokPerSecond: 5.9,
+    totalMs: 27_300,
+    memoryBytes: 5_798_205_030,
+  },
+  {
+    id: 'phi-3.5-mini-q4km.gguf',
+    name: 'phi-3.5-mini',
+    loadMs: 1_240,
+    ttftMs: 640,
+    tokPerSecond: 19.2,
+    totalMs: 8_100,
+    memoryBytes: 2_469_606_195,
+  },
+];
+
+const CPU_NAME = 'Intel Core Ultra 7 165H';
+
+/**
+ * A finished model benchmark: every installed model on every device this machine has,
+ * across all three prompts.
  *
  * The GPU rows are `skipped` on purpose — the common case is a laptop whose
  * llama-cpp-python was installed without CUDA, and a table that only ever shows the happy
@@ -619,65 +689,40 @@ export const SETTINGS: Settings = {
 export const BENCHMARK: ModelBenchmarkRun = {
   id: '4',
   status: 'completed',
-  progress: '6 of 6',
+  progress: '18 of 18',
   current: null,
   startedAt: daysAgo(2),
   finishedAt: daysAgo(2),
   rows: [
-    {
+    ...BENCHMARK_MODELS.flatMap((model) =>
+      BENCHMARK_PROMPTS.map((prompt) => ({
+        modelId: model.id,
+        modelName: model.name,
+        compute: 'cpu' as const,
+        deviceName: CPU_NAME,
+        status: 'ok' as const,
+        detail: null,
+        // Load time is a property of the model file, not of the question asked.
+        loadMs: model.loadMs,
+        timeToFirstTokenMs: Math.round(model.ttftMs * prompt.cost),
+        generatedTokens: 128,
+        tokensPerSecond: Math.round((model.tokPerSecond / prompt.cost) * 10) / 10,
+        totalMs: Math.round(model.totalMs * prompt.cost),
+        peakMemoryBytes: model.memoryBytes,
+        peakVramBytes: null,
+        promptLabel: prompt.label,
+        question: prompt.question,
+        complexityTier: prompt.tier,
+        complexityScore: prompt.score,
+        ranAt: daysAgo(2),
+      })),
+    ),
+    ...BENCHMARK_PROMPTS.map((prompt) => ({
       modelId: 'qwen2.5-7b-instruct-q4km.gguf',
       modelName: 'qwen2.5-7b-instruct',
-      compute: 'cpu',
-      deviceName: 'Intel Core Ultra 7 165H',
-      status: 'ok',
-      detail: null,
-      loadMs: 4_180,
-      timeToFirstTokenMs: 1_920,
-      generatedTokens: 128,
-      tokensPerSecond: 7.4,
-      totalMs: 21_500,
-      peakMemoryBytes: 5_100_273_664,
-      peakVramBytes: null,
-      ranAt: daysAgo(2),
-    },
-    {
-      modelId: 'llama-3.1-8b-instruct-q4km.gguf',
-      modelName: 'llama-3.1-8b-instruct',
-      compute: 'cpu',
-      deviceName: 'Intel Core Ultra 7 165H',
-      status: 'ok',
-      detail: null,
-      loadMs: 5_640,
-      timeToFirstTokenMs: 2_480,
-      generatedTokens: 128,
-      tokensPerSecond: 5.9,
-      totalMs: 27_300,
-      peakMemoryBytes: 5_798_205_030,
-      peakVramBytes: null,
-      ranAt: daysAgo(2),
-    },
-    {
-      modelId: 'phi-3.5-mini-q4km.gguf',
-      modelName: 'phi-3.5-mini',
-      compute: 'cpu',
-      deviceName: 'Intel Core Ultra 7 165H',
-      status: 'ok',
-      detail: null,
-      loadMs: 1_240,
-      timeToFirstTokenMs: 640,
-      generatedTokens: 128,
-      tokensPerSecond: 19.2,
-      totalMs: 8_100,
-      peakMemoryBytes: 2_469_606_195,
-      peakVramBytes: null,
-      ranAt: daysAgo(2),
-    },
-    {
-      modelId: 'qwen2.5-7b-instruct-q4km.gguf',
-      modelName: 'qwen2.5-7b-instruct',
-      compute: 'gpu',
+      compute: 'gpu' as const,
       deviceName: null,
-      status: 'skipped',
+      status: 'skipped' as const,
       detail: 'This build of llama-cpp-python has no CUDA/GPU offload support installed.',
       loadMs: null,
       timeToFirstTokenMs: null,
@@ -686,8 +731,12 @@ export const BENCHMARK: ModelBenchmarkRun = {
       totalMs: null,
       peakMemoryBytes: null,
       peakVramBytes: null,
+      promptLabel: prompt.label,
+      question: prompt.question,
+      complexityTier: prompt.tier,
+      complexityScore: prompt.score,
       ranAt: daysAgo(2),
-    },
+    })),
   ],
 };
 

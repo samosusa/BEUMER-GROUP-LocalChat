@@ -372,6 +372,19 @@ export const ModelBenchmarkRowSchema = z.object({
   peakMemoryBytes: z.number().nonnegative().nullable(),
   /** GPU rows only. */
   peakVramBytes: z.number().nonnegative().nullable(),
+  /**
+   * Which of the fixed benchmark prompts this row measured.
+   *
+   * A run is models x devices x PROMPTS (see src/benchmark.py), so one model on one device
+   * produces SEVERAL rows, not one. Anything that reads a model's speed off a single row
+   * is reading one question's timing and calling it the model's - and since the prompt set
+   * is ordered simple-first, it would systematically report the easiest case.
+   */
+  promptLabel: z.string().nullable(),
+  /** The question text itself, for the tooltip - a label alone is not checkable. */
+  question: z.string().nullable(),
+  complexityTier: ComplexityTier.nullable(),
+  complexityScore: z.number().nullable(),
   ranAt: isoDateTime,
 });
 export type ModelBenchmarkRow = z.infer<typeof ModelBenchmarkRowSchema>;

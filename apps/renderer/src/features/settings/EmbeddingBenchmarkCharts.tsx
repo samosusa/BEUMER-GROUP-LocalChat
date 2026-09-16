@@ -79,12 +79,30 @@ export function EmbeddingBenchmarkCharts({ latest, history }: EmbeddingBenchmark
               ({advice.fastest.textsPerSecond.toFixed(0)} txt/s on {advice.fastest.textLabel} text)
             </>
           )}
-          {advice.steadiest && (
-            <>
-              {' · '}Holds up best on long documents: <strong>{advice.steadiest.model}</strong> (
-              keeps {Math.round(advice.steadiest.retained * 100)}% of its short-text speed)
-            </>
-          )}
+          {advice.steadiest &&
+            (advice.allCollapse ? (
+              /*
+               * Every model loses most of its speed on long text, so naming a "winner"
+               * dresses a bad result up as a good one. Say what happened instead.
+               */
+              <>
+                {'. '}Every model loses most of its speed on long documents —{' '}
+                <strong>{advice.steadiest.model}</strong> loses least, keeping{' '}
+                {Math.round(advice.steadiest.retained * 100)}% of its short-text speed.
+              </>
+            ) : advice.sameModel ? (
+              <>
+                {', and it holds up best on long documents too, keeping '}
+                {Math.round(advice.steadiest.retained * 100)}% of that speed.
+              </>
+            ) : (
+              <>
+                {'. Holds up best on long documents: '}
+                <strong>{advice.steadiest.model}</strong>, keeping{' '}
+                {Math.round(advice.steadiest.retained * 100)}% of its short-text speed — the one to
+                pick for a long manual.
+              </>
+            ))}
         </p>
       )}
 

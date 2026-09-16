@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { gutterFor, linearScale } from './scale';
+import { gutterFor, linearScale, tooltipFlipsBelow } from './scale';
 import { useElementWidth } from './useElementWidth';
 import styles from './Chart.module.css';
 
@@ -153,10 +153,16 @@ export function Scatter({
                 y1={PAD.top}
                 y2={PAD.top + plotHeight}
               />
+              {/*
+                At the top of the plot these sat exactly where a fast, small model's label
+                goes - "phi-3.5-mini · CPU" printed straight through "4 GB". Down by the
+                baseline they are clear of every point label, and a memory ceiling is a
+                property of the x axis anyway, so that is where it belongs.
+              */}
               <text
                 className={styles.bandLabel}
                 x={px(band.at) - 5}
-                y={PAD.top + 10}
+                y={PAD.top + plotHeight - 5}
                 textAnchor="end"
               >
                 {band.label}
@@ -208,7 +214,14 @@ export function Scatter({
 
       {hover && (
         <div
-          className={styles.tooltip}
+          className={[
+            styles.tooltip,
+            tooltipFlipsBelow(py(points.find((point) => point.key === hover)?.y ?? 0))
+              ? styles.tooltipBelow
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
           style={{
             left: px(points.find((point) => point.key === hover)?.x ?? 0),
             top: py(points.find((point) => point.key === hover)?.y ?? 0) - 6,

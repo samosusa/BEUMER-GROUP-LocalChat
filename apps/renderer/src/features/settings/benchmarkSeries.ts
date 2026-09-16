@@ -6,9 +6,35 @@ import { formatBytes, formatDuration } from '@/shared/lib/format';
  * decisions below can be tested without a DOM.
  */
 
+/**
+ * How several rows for the same model and device collapse into one number.
+ *
+ * A run measures every model on every device against EVERY prompt, so one model on one
+ * device has three rows, not one. Reading the first of them - which `.find()` did, and the
+ * prompt set is ordered simple-first - reported the easiest question's timing as the
+ * model's headline figure, with nothing on screen to say so.
+ *
+ * `median` for rates and durations: three samples, and the middle one is not dragged around
+ * by the complex prompt the way a mean is. `max` for memory, because a peak is a peak - the
+ * machine has to survive the worst case, not the typical one.
+ */
+export type Reducer = 'median' | 'max';
+
+export function reduceValues(values: number[], how: Reducer): number | null {
+  if (values.length === 0) return null;
+  if (how === 'max') return Math.max(...values);
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? (sorted[middle] as number)
+    : ((sorted[middle - 1] as number) + (sorted[middle] as number)) / 2;
+}
+
 export interface Metric {
   key: string;
   label: string;
+  /** How to collapse this measure's several prompt rows into one figure. */
+  reduce: Reducer;
   /**
    * Not decoration. "3.1 s" and "9.4 tok/s" look like the same kind of improvement, and on
    * a load-time chart the best model has the SHORTEST bar. The screen says which way is
@@ -23,6 +49,7 @@ export const METRICS: Metric[] = [
   {
     key: 'tokensPerSecond',
     label: 'Generation speed',
+    reduce: 'median',
     higherIsBetter: true,
     of: (row) => row.tokensPerSecond,
     format: (value) => `${value.toFixed(value < 10 ? 1 : 0)} tok/s`,
@@ -30,6 +57,7 @@ export const METRICS: Metric[] = [
   {
     key: 'timeToFirstToken',
     label: 'Time to first token',
+    reduce: 'median',
     higherIsBetter: false,
     of: (row) => row.timeToFirstTokenMs,
     format: formatDuration,
@@ -37,6 +65,7 @@ export const METRICS: Metric[] = [
   {
     key: 'loadMs',
     label: 'Model load time',
+    reduce: 'median',
     higherIsBetter: false,
     of: (row) => row.loadMs,
     format: formatDuration,
@@ -44,6 +73,7 @@ export const METRICS: Metric[] = [
   {
     key: 'peakMemory',
     label: 'Peak memory',
+    reduce: 'max',
     higherIsBetter: false,
     /** A GPU row's cost is its VRAM; falling back to host memory keeps CPU rows comparable. */
     of: (row) => row.peakVramBytes ?? row.peakMemoryBytes,
@@ -82,6 +112,7 @@ export interface ComparisonSeries {
 export function buildComparison(
   run: ModelBenchmarkRun,
   metric: Metric,
+  tier?: string | null,
 ): { categories: string[]; series: ComparisonSeries[] } {
   const ok = run.rows.filter((row) => row.status === 'ok' && metric.of(row) !== null);
   const categories = [...new Set(ok.map((row) => row.modelName))];
@@ -91,12 +122,36 @@ export function buildComparison(
     key: device,
     label: device.toUpperCase(),
     color: SERIES_COLORS[index % SERIES_COLORS.length] as string,
-    values: categories.map((model) => {
-      const row = ok.find(
-        (candidate) => candidate.modelName === model && candidate.compute === device,
-      );
-      return row ? metric.of(row) : null;
-    }),
+    // Across every prompt, not the first one that matched.
+    values: categories.map((model) => valueFor(run.rows, model, device, metric, tier)),
+  }));
+
+  return { categories, series };
+}
+
+/**
+ * One slot per model, one column per prompt difficulty, for a single device.
+ *
+ * The same shape as the embedding card's text tiers, and for the same reason: the run
+ * already measures three questions of rising difficulty, and how much a model slows down
+ * between the easy one and the hard one is a finding the averaged view hides. A model that
+ * is quick on "how often should pull-cords be inspected?" and slow on the two-clause
+ * question is the wrong model for an engineer who asks real questions.
+ */
+export function buildComplexityComparison(
+  run: ModelBenchmarkRun,
+  metric: Metric,
+  device: ComputeMode,
+): { categories: string[]; series: ComparisonSeries[] } {
+  const ok = run.rows.filter((row) => row.status === 'ok' && row.compute === device);
+  const categories = [...new Set(ok.map((row) => row.modelName))];
+  const prompts = promptsMeasured([run]);
+
+  const series = prompts.map((prompt, index) => ({
+    key: prompt,
+    label: prompt,
+    color: SERIES_COLORS[index % SERIES_COLORS.length] as string,
+    values: categories.map((model) => valueFor(run.rows, model, device, metric, prompt)),
   }));
 
   return { categories, series };
@@ -198,6 +253,61 @@ export function devicesMeasured(history: ModelBenchmarkRun[]): ComputeMode[] {
   return [...seen].sort();
 }
 
+/**
+ * The single figure for one model on one device, across every prompt measured.
+ *
+ * Everything that draws a per-model number goes through here. Nothing should reach for a
+ * row directly: a row is one question, and a chart of one question labelled as the model is
+ * the bug this exists to prevent.
+ */
+export function valueFor(
+  rows: ModelBenchmarkRow[],
+  modelName: string,
+  device: ComputeMode,
+  metric: Metric,
+  tier?: string | null,
+): number | null {
+  const measured = rows.filter(
+    (row) =>
+      row.status === 'ok' &&
+      row.modelName === modelName &&
+      row.compute === device &&
+      (tier == null || row.promptLabel === tier),
+  );
+  const values = measured
+    .map((row) => metric.of(row))
+    .filter((value): value is number => value !== null);
+  return reduceValues(values, metric.reduce);
+}
+
+/** Every prompt a run measured, in the order src/benchmark.py asks them. */
+const PROMPT_ORDER = ['simple', 'moderate', 'complex'];
+
+export function promptsMeasured(runs: ModelBenchmarkRun[]): string[] {
+  const seen = new Set<string>();
+  for (const run of runs) {
+    for (const row of run.rows) {
+      if (row.status === 'ok' && row.promptLabel !== null) seen.add(row.promptLabel);
+    }
+  }
+  return [...seen].sort((a, b) => {
+    const ai = PROMPT_ORDER.indexOf(a);
+    const bi = PROMPT_ORDER.indexOf(b);
+    return (ai === -1 ? PROMPT_ORDER.length : ai) - (bi === -1 ? PROMPT_ORDER.length : bi);
+  });
+}
+
+/** The hardware a run actually ran on, e.g. "Intel Core Ultra 7 165H" or "NVIDIA RTX 4070". */
+export function hardwareNames(runs: ModelBenchmarkRun[]): Map<ComputeMode, string> {
+  const names = new Map<ComputeMode, string>();
+  for (const run of runs) {
+    for (const row of run.rows) {
+      if (row.deviceName && !names.has(row.compute)) names.set(row.compute, row.deviceName);
+    }
+  }
+  return names;
+}
+
 // ---------------------------------------------------------------------------
 // Reading a recommendation out of the numbers
 // ---------------------------------------------------------------------------
@@ -221,32 +331,45 @@ export interface Recommendation {
  */
 export function recommend(run: ModelBenchmarkRun): Recommendation {
   const ok = run.rows.filter((row) => row.status === 'ok');
+  const speed = METRICS.find((metric) => metric.key === 'tokensPerSecond') as Metric;
+  const memory = METRICS.find((metric) => metric.key === 'peakMemory') as Metric;
 
-  const fastest = ok.reduce<ModelBenchmarkRow | null>(
-    (best, row) =>
-      row.tokensPerSecond !== null && row.tokensPerSecond > (best?.tokensPerSecond ?? -1)
-        ? row
-        : best,
-    null,
+  /*
+   * Ranked on the same aggregate the charts draw, not on whichever single row happened to
+   * sort first. Naming a model "fastest" on the strength of its easiest question, while the
+   * chart beside it shows the median, is the kind of quiet disagreement nobody catches.
+   */
+  const pairs = [...new Set(ok.map((row) => `${row.modelName}\u0000${row.compute}`))].map(
+    (key) => key.split('\u0000') as [string, ComputeMode],
   );
 
-  const leanest = ok.reduce<ModelBenchmarkRow | null>((best, row) => {
-    const cost = memoryOf(row);
-    if (cost === null) return best;
-    const bestCost = best === null ? null : memoryOf(best);
-    return bestCost === null || cost < bestCost ? row : best;
-  }, null);
+  let fastest: ModelBenchmarkRow | null = null;
+  let fastestValue = -1;
+  let leanest: ModelBenchmarkRow | null = null;
+  let leanestValue = Number.POSITIVE_INFINITY;
+
+  for (const [modelName, device] of pairs) {
+    const sample = ok.find((row) => row.modelName === modelName && row.compute === device) ?? null;
+    if (sample === null) continue;
+
+    const speedValue = valueFor(ok, modelName, device, speed);
+    if (speedValue !== null && speedValue > fastestValue) {
+      fastestValue = speedValue;
+      fastest = { ...sample, tokensPerSecond: speedValue };
+    }
+
+    const memoryValue = valueFor(ok, modelName, device, memory);
+    if (memoryValue !== null && memoryValue < leanestValue) {
+      leanestValue = memoryValue;
+      leanest = { ...sample, peakMemoryBytes: memoryValue, peakVramBytes: null };
+    }
+  }
 
   return {
     fastest,
     leanest,
     sameModel: fastest !== null && leanest !== null && fastest.modelName === leanest.modelName,
   };
-}
-
-/** A GPU row's real cost is its VRAM; a CPU row's is host memory. */
-function memoryOf(row: ModelBenchmarkRow): number | null {
-  return row.peakVramBytes ?? row.peakMemoryBytes;
 }
 
 // ---------------------------------------------------------------------------
@@ -278,12 +401,8 @@ export function buildSpeedup(run: ModelBenchmarkRun, metric: Metric): Speedup[] 
   const models = [...new Set(ok.map((row) => row.modelName))];
 
   return models.flatMap((modelName) => {
-    const cpu = ok.find((row) => row.modelName === modelName && row.compute === 'cpu');
-    const gpu = ok.find((row) => row.modelName === modelName && row.compute === 'gpu');
-    if (!cpu || !gpu) return [];
-
-    const cpuValue = metric.of(cpu);
-    const gpuValue = metric.of(gpu);
+    const cpuValue = valueFor(run.rows, modelName, 'cpu', metric);
+    const gpuValue = valueFor(run.rows, modelName, 'gpu', metric);
     if (cpuValue === null || gpuValue === null || cpuValue === 0 || gpuValue === 0) return [];
 
     const ratio = metric.higherIsBetter ? gpuValue / cpuValue : cpuValue / gpuValue;
@@ -322,20 +441,29 @@ export interface TradeoffPoint {
  * of the label for that reason.
  */
 export function buildTradeoff(run: ModelBenchmarkRun): TradeoffPoint[] {
-  const models = [...new Set(run.rows.map((row) => row.modelName))];
+  const ok = run.rows.filter((row) => row.status === 'ok');
+  const models = [...new Set(ok.map((row) => row.modelName))];
+  const speed = METRICS.find((metric) => metric.key === 'tokensPerSecond') as Metric;
+  const memory = METRICS.find((metric) => metric.key === 'peakMemory') as Metric;
 
-  return run.rows.flatMap((row) => {
-    if (row.status !== 'ok') return [];
-    const memory = memoryOf(row);
-    if (memory === null || row.tokensPerSecond === null) return [];
+  // One point per model AND device - not per row, which would stack three dots for three
+  // prompts on top of each other and label them all as the model.
+  const pairs = [...new Set(ok.map((row) => `${row.modelName}\u0000${row.compute}`))].map(
+    (key) => key.split('\u0000') as [string, ComputeMode],
+  );
 
-    const hue = models.indexOf(row.modelName) % SERIES_COLORS.length;
+  return pairs.flatMap(([modelName, device]) => {
+    const x = valueFor(ok, modelName, device, memory);
+    const y = valueFor(ok, modelName, device, speed);
+    if (x === null || y === null) return [];
+
+    const hue = models.indexOf(modelName) % SERIES_COLORS.length;
     return [
       {
-        key: `${row.modelName}-${row.compute}`,
-        label: `${row.modelName} · ${row.compute.toUpperCase()}`,
-        x: memory,
-        y: row.tokensPerSecond,
+        key: `${modelName}-${device}`,
+        label: `${modelName} · ${device.toUpperCase()}`,
+        x,
+        y,
         color: SERIES_COLORS[hue] as string,
       },
     ];
