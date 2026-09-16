@@ -75,6 +75,25 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
     [filteredLatest, metric],
   );
   const speedup = useMemo(() => buildSpeedup(filteredLatest, metric), [filteredLatest, metric]);
+
+  /*
+   * Whether this machine's GPU has memory of its own.
+   *
+   * The footnote under the speedup chart used to state, unconditionally, that a GPU gains
+   * almost nothing on generation speed because it shares the CPU's memory. That is true of
+   * integrated graphics and false of a discrete card, and it was printed directly beneath a
+   * chart reading 4.2x - the caption arguing with the figure it was captioning. A GPU row
+   * that reports no VRAM figure IS the unified-memory case: `peak_vram_mb` comes back null
+   * on Apple Silicon and on integrated graphics precisely because there is no separate pool
+   * to measure.
+   */
+  const sharedMemory = useMemo(
+    () =>
+      filteredLatest.rows.some(
+        (row) => row.compute === 'gpu' && row.status === 'ok' && row.peakVramBytes === null,
+      ),
+    [filteredLatest],
+  );
   const tradeoff = useMemo(() => buildTradeoff(filteredLatest), [filteredLatest]);
   const trend = useMemo(
     () => buildTrend(filteredHistory, metric, active),
@@ -253,10 +272,15 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
           </figcaption>
           <SpeedupBars rows={speedup} baselineLabel="CPU" caption={metric.label} />
           <p className={styles.chartFootnote}>
-            Above 1× means the GPU helped, whichever direction the underlying measure runs in. On
-            integrated graphics expect a real gain on time to first token and close to none on
-            generation speed — the GPU shares the same memory, so there is no extra bandwidth to
-            win.
+            Above 1× means the GPU helped, whichever direction the underlying measure runs in.
+            {sharedMemory
+              ? ' This machine\u2019s GPU reports no memory of its own, so it is sharing the ' +
+                'CPU\u2019s. Expect a real gain on time to first token, which is compute bound, ' +
+                'and far less on generation speed, which is bound by memory bandwidth there is ' +
+                'no more of.'
+              : ' A card with its own memory gains on both: time to first token because prompt ' +
+                'processing is compute bound, generation speed because VRAM has more bandwidth ' +
+                'than system memory.'}
           </p>
         </figure>
       )}

@@ -87,6 +87,10 @@ export function Scatter({
   const px = (value: number) => left + xPixels(value);
   const py = (value: number) => PAD.top + plotHeight - y(value);
 
+  /** True when an x tick sits close enough to this band that both would read as one label. */
+  const labelledByAxis = (at: number) =>
+    xPixels.ticks.some((tick) => Math.abs(px(tick) - px(at)) < 24);
+
   /*
    * Two points close together would otherwise print their names on top of each other. The
    * second one flips to the left of its dot, which keeps the label attached to its own mark
@@ -158,15 +162,22 @@ export function Scatter({
                 goes - "phi-3.5-mini · CPU" printed straight through "4 GB". Down by the
                 baseline they are clear of every point label, and a memory ceiling is a
                 property of the x axis anyway, so that is where it belongs.
+
+                Silent where the axis already says it. Once the ticks landed on round
+                numbers a 4 GB band came to rest on the 4 GB tick, and the chart printed
+                "4 GB" twice, a few pixels apart, as though they were two different facts.
+                The line still marks the ceiling; the tick underneath names it.
               */}
-              <text
-                className={styles.bandLabel}
-                x={px(band.at) - 5}
-                y={PAD.top + plotHeight - 5}
-                textAnchor="end"
-              >
-                {band.label}
-              </text>
+              {!labelledByAxis(band.at) && (
+                <text
+                  className={styles.bandLabel}
+                  x={px(band.at) - 5}
+                  y={PAD.top + plotHeight - 5}
+                  textAnchor="end"
+                >
+                  {band.label}
+                </text>
+              )}
             </g>
           ))}
 
