@@ -10,10 +10,34 @@ import {
 
 describe('linearScale', () => {
   it('rounds the axis maximum to a number a person would have picked', () => {
-    expect(linearScale([37.1], 100).max).toBe(50);
-    expect(linearScale([3.7], 100).max).toBe(5);
-    expect(linearScale([1_240], 100).max).toBe(2000);
+    expect(linearScale([37.1], 100).max).toBe(40);
+    expect(linearScale([3.7], 100).max).toBe(4);
+    expect(linearScale([1_240], 100).max).toBe(1250);
     expect(linearScale([21], 100).max).toBe(25);
+  });
+
+  /**
+   * The bug this replaced. The old scale rounded the MAXIMUM and divided: peak memory
+   * topping out at 5.4 GB gave a nice ceiling of 7.5 GB, then stepped by 1.875 and
+   * rendered "0 B, 2 GB, 4 GB, 6 GB, 8 GB" after formatting - labels whose gaps look
+   * unequal on a perfectly linear axis. Every tick must be a multiple of the step.
+   */
+  it('puts every tick on a round number, not just the maximum', () => {
+    for (const values of [[5.4], [147], [19.2], [0.42], [6_900]]) {
+      const scale = linearScale(values, 100);
+      const step = scale.ticks[1] as number;
+      for (const [index, tick] of scale.ticks.entries()) {
+        expect(tick).toBeCloseTo(index * step, 10);
+      }
+      const mantissa = step / 10 ** Math.floor(Math.log10(step));
+      expect([1, 2, 2.5, 5, 10]).toContainEqual(Number(mantissa.toFixed(6)));
+    }
+  });
+
+  /** An axis that stops well above the data wastes the width the marks need. */
+  it('fits the data snugly rather than always using four intervals', () => {
+    expect(linearScale([147], 100).max).toBe(150);
+    expect(linearScale([5.4], 100).max).toBe(6);
   });
 
   /**
@@ -124,18 +148,20 @@ describe('gutterFor', () => {
   });
 });
 
-describe('niceCeil ladder', () => {
+describe('niceStep ladder', () => {
   /**
-   * Without a 7.5 rung, 5.8 rounds to 10: a scatter of models topping out at 5.4 GB drew an
-   * axis to 9 GB and wasted the right-hand 40% of the width it needed to separate points.
+   * The original failure: a scatter topping out at 5.4 GB drew an axis to 9 GB and wasted
+   * the right-hand 40% of the width it needed to separate its points. Stepping by 2 over
+   * three intervals reaches 6 GB and uses 90% of it, with every label a whole GB.
    */
-  it('does not jump from 5 straight to 10', () => {
-    expect(linearScale([5.8], 100).max).toBe(7.5);
-    expect(linearScale([6.9], 100).max).toBe(7.5);
+  it('does not leave a quarter of the axis empty', () => {
+    expect(linearScale([5.8], 100).max).toBe(6);
+    expect(linearScale([7.6], 100).max).toBe(8);
   });
 
-  it('still rounds past 7.5 up to the next power of ten', () => {
-    expect(linearScale([7.6], 100).max).toBe(10);
+  it('keeps ticks free of floating-point dust', () => {
+    expect(linearScale([0.9], 100).ticks).toEqual([0, 0.25, 0.5, 0.75, 1]);
+    expect(linearScale([2.4], 100).ticks).toEqual([0, 0.5, 1, 1.5, 2, 2.5]);
   });
 });
 

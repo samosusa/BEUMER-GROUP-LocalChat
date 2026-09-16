@@ -171,6 +171,12 @@ export interface TrendLine {
  * by an order of magnitude, and sharing one axis flattens every CPU line into a smear along
  * the bottom. Two devices means two looks at the chart, which is the honest version - the
  * alternative is a second y-axis, which misstates every comparison it appears to invite.
+ *
+ * One run contributes ONE point per model. Since a run started measuring every prompt, a
+ * model has three rows in it, and pushing each row as its own point put three values on the
+ * same x: the line then zig-zagged between them and every segment a reader traced was the
+ * cost of question difficulty wearing the shape of a trend over time. Same reduction as the
+ * bar charts use, so a point here and a column there are the same number.
  */
 export function buildTrend(
   history: ModelBenchmarkRun[],
@@ -182,13 +188,23 @@ export function buildTrend(
   for (const run of history) {
     const at = Date.parse(run.finishedAt ?? run.startedAt);
     if (Number.isNaN(at)) continue;
+
+    const samples = new Map<string, number[]>();
     for (const row of run.rows) {
       if (row.status !== 'ok' || row.compute !== device) continue;
       const value = metric.of(row);
       if (value === null) continue;
-      const points = byModel.get(row.modelName) ?? [];
+      const values = samples.get(row.modelName) ?? [];
+      values.push(value);
+      samples.set(row.modelName, values);
+    }
+
+    for (const [modelName, values] of samples) {
+      const value = reduceValues(values, metric.reduce);
+      if (value === null) continue;
+      const points = byModel.get(modelName) ?? [];
       points.push({ at, value });
-      byModel.set(row.modelName, points);
+      byModel.set(modelName, points);
     }
   }
 
@@ -510,9 +526,18 @@ export function applyFilter(run: ModelBenchmarkRun, filter: RunFilter): ModelBen
   };
 }
 
-/** Every model name that appears in the history, for the model filter's option list. */
+/**
+ * Every model name that appears in the history, for the model filter's option list.
+ *
+ * Newest run first, then first appearance - NOT alphabetical. The chips sit directly above
+ * charts whose slots follow the latest run's order, and sorting them by name put the chips
+ * in one order and the columns under them in another, so picking a chip meant hunting for
+ * the column it belonged to. A filter should be read against the thing it filters.
+ */
 export function modelsMeasured(history: ModelBenchmarkRun[]): string[] {
   const seen = new Set<string>();
-  for (const run of history) for (const row of run.rows) seen.add(row.modelName);
-  return [...seen].sort();
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    for (const row of (history[index] as ModelBenchmarkRun).rows) seen.add(row.modelName);
+  }
+  return [...seen];
 }

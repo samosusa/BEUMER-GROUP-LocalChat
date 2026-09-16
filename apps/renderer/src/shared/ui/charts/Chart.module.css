@@ -33,6 +33,22 @@
   font-size: 11px;
 }
 
+/*
+ * The value on a column's cap, and the value at a line's end.
+ *
+ * A text token, never the series colour. The mark beside the label already carries the
+ * identity; colouring the text as well makes the lighter hues - amber, aqua - illegible
+ * against the surface, and reading is the one thing a label has to do.
+ */
+.capLabel,
+.endLabel {
+  fill: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
 .line {
   fill: none;
   stroke-width: 2;

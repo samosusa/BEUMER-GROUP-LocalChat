@@ -514,6 +514,19 @@
 
 .evalSummaryRow {
   display: flex;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+/*
+ * One figure leads. Seven numbers at one size is seven numbers with no ranking, and the
+ * eye picks whichever is leftmost - which only happened to be the right one. The rate is
+ * the finding; the difficulty split and the judge tally are its breakdown, so they group
+ * behind it at body size.
+ */
+.evalStatGroup {
+  display: flex;
   gap: var(--space-5);
   flex-wrap: wrap;
 }
@@ -587,6 +600,24 @@
 .evalStatValue {
   font-size: var(--text-heading, 1.1rem);
   color: var(--text-body);
+}
+
+.evalStatHero .evalStatValue {
+  font-size: var(--text-hero);
+  line-height: 1.1;
+  color: var(--text-primary);
+  /*
+   * Proportional figures, deliberately. tabular-nums gives every digit the width of a 0,
+   * which at display size makes a number like 83% look gappy. Tabular belongs in the table
+   * below, where columns of digits have to line up.
+   */
+  font-variant-numeric: proportional-nums;
+}
+
+.evalStatDetail {
+  font-size: var(--text-micro);
+  color: var(--text-label);
+  font-variant-numeric: tabular-nums;
 }
 
 .evalRows {

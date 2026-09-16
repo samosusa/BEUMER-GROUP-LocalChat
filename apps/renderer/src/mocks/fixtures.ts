@@ -646,6 +646,24 @@ const BENCHMARK_PROMPTS = [
   },
 ];
 
+/**
+ * Each model twice: what it does on the CPU, and what the same model does on this machine's
+ * GPU.
+ *
+ * `gpu: null` means the run could not happen, and `gpuDetail` says why in the words the
+ * service would use. Exactly one model is in that state, and for a reason the rest of the
+ * screen already claims: the Compute card advertises a 6.0 GB card, and llama-3.1-8b's
+ * weights plus its context do not fit in one. A skipped row whose reason contradicts the
+ * hardware panel above it is worse than no skipped row at all - it was 'no CUDA build
+ * installed' while the same page showed 28 of 28 layers offloaded, so the page argued with
+ * itself and neither half could be trusted.
+ *
+ * The GPU figures are what a 6 GB workstation card does to a llama.cpp workload: generation
+ * gains roughly 3-4x because it is memory-bandwidth bound and VRAM has more of it, while
+ * time to first token gains far more, because prompt processing is compute bound and that
+ * is where a GPU is genuinely in a different class. A fixture that scaled both by one
+ * constant would have hidden the most interesting thing the benchmark measures.
+ */
 const BENCHMARK_MODELS = [
   {
     id: 'qwen2.5-7b-instruct-q4km.gguf',
@@ -655,6 +673,16 @@ const BENCHMARK_MODELS = [
     tokPerSecond: 7.4,
     totalMs: 21_500,
     memoryBytes: 5_100_273_664,
+    gpu: {
+      loadMs: 4_620,
+      ttftMs: 380,
+      tokPerSecond: 31.1,
+      totalMs: 5_900,
+      // Matches SETTINGS.hardware.gpuMemoryUsedBytes: this is the model the card is holding.
+      vramBytes: 5_583_457_484,
+      memoryBytes: 1_042_284_544,
+    },
+    gpuDetail: null,
   },
   {
     id: 'llama-3.1-8b-instruct-q4km.gguf',
@@ -664,6 +692,10 @@ const BENCHMARK_MODELS = [
     tokPerSecond: 5.9,
     totalMs: 27_300,
     memoryBytes: 5_798_205_030,
+    gpu: null,
+    gpuDetail:
+      'Needs about 6.4 GB of VRAM (5.0 GB of weights plus its context) and this card has ' +
+      '6.0 GB. Measured on the CPU instead.',
   },
   {
     id: 'phi-3.5-mini-q4km.gguf',
@@ -673,18 +705,29 @@ const BENCHMARK_MODELS = [
     tokPerSecond: 19.2,
     totalMs: 8_100,
     memoryBytes: 2_469_606_195,
+    gpu: {
+      loadMs: 1_480,
+      ttftMs: 150,
+      tokPerSecond: 61.8,
+      totalMs: 2_700,
+      vramBytes: 3_113_851_289,
+      memoryBytes: 712_179_712,
+    },
+    gpuDetail: null,
   },
 ];
 
 const CPU_NAME = 'Intel Core Ultra 7 165H';
+const GPU_NAME = 'RTX A2000';
 
 /**
  * A finished model benchmark: every installed model on every device this machine has,
  * across all three prompts.
  *
- * The GPU rows are `skipped` on purpose — the common case is a laptop whose
- * llama-cpp-python was installed without CUDA, and a table that only ever shows the happy
- * path hides how the screen reads when half the runs cannot happen.
+ * One model's GPU rows are `skipped` on purpose. A table that only shows the happy path
+ * hides how the screen reads when a run cannot happen - and a fixture where EVERY GPU row
+ * is skipped hides more than that, because then the speedup chart has nothing to draw and
+ * nobody finds out whether it works until the day it is demonstrated.
  */
 export const BENCHMARK: ModelBenchmarkRun = {
   id: '4',
@@ -717,26 +760,53 @@ export const BENCHMARK: ModelBenchmarkRun = {
         ranAt: daysAgo(2),
       })),
     ),
-    ...BENCHMARK_PROMPTS.map((prompt) => ({
-      modelId: 'qwen2.5-7b-instruct-q4km.gguf',
-      modelName: 'qwen2.5-7b-instruct',
-      compute: 'gpu' as const,
-      deviceName: null,
-      status: 'skipped' as const,
-      detail: 'This build of llama-cpp-python has no CUDA/GPU offload support installed.',
-      loadMs: null,
-      timeToFirstTokenMs: null,
-      generatedTokens: null,
-      tokensPerSecond: null,
-      totalMs: null,
-      peakMemoryBytes: null,
-      peakVramBytes: null,
-      promptLabel: prompt.label,
-      question: prompt.question,
-      complexityTier: prompt.tier,
-      complexityScore: prompt.score,
-      ranAt: daysAgo(2),
-    })),
+    ...BENCHMARK_MODELS.flatMap((model) =>
+      BENCHMARK_PROMPTS.map((prompt) =>
+        model.gpu === null
+          ? {
+              modelId: model.id,
+              modelName: model.name,
+              compute: 'gpu' as const,
+              // The card is known even though the run did not happen: nvidia-smi answered,
+              // the model simply did not fit. Only a missing CUDA build leaves this null.
+              deviceName: GPU_NAME,
+              status: 'skipped' as const,
+              detail: model.gpuDetail,
+              loadMs: null,
+              timeToFirstTokenMs: null,
+              generatedTokens: null,
+              tokensPerSecond: null,
+              totalMs: null,
+              peakMemoryBytes: null,
+              peakVramBytes: null,
+              promptLabel: prompt.label,
+              question: prompt.question,
+              complexityTier: prompt.tier,
+              complexityScore: prompt.score,
+              ranAt: daysAgo(2),
+            }
+          : {
+              modelId: model.id,
+              modelName: model.name,
+              compute: 'gpu' as const,
+              deviceName: GPU_NAME,
+              status: 'ok' as const,
+              detail: null,
+              loadMs: model.gpu.loadMs,
+              timeToFirstTokenMs: Math.round(model.gpu.ttftMs * prompt.cost),
+              generatedTokens: 128,
+              tokensPerSecond: Math.round((model.gpu.tokPerSecond / prompt.cost) * 10) / 10,
+              totalMs: Math.round(model.gpu.totalMs * prompt.cost),
+              peakMemoryBytes: model.gpu.memoryBytes,
+              peakVramBytes: model.gpu.vramBytes,
+              promptLabel: prompt.label,
+              question: prompt.question,
+              complexityTier: prompt.tier,
+              complexityScore: prompt.score,
+              ranAt: daysAgo(2),
+            },
+      ),
+    ),
   ],
 };
 

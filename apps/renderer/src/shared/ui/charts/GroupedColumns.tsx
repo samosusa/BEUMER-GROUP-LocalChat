@@ -49,7 +49,15 @@ export function GroupedColumns({
   const { ref, width } = useElementWidth<HTMLDivElement>();
   const [hover, setHover] = useState<{ index: number; x: number; y: number } | null>(null);
 
-  const plotHeight = height - PAD.top - PAD.bottom;
+  /*
+   * Value labels ride the caps only when there is ONE series. With three columns to a slot
+   * each column gets a third of the width, no number fits, and a chart with a label on
+   * every mark stops being readable anyway - the axis and the tooltip carry those. Direct
+   * labels work because they are sparing.
+   */
+  const labelled = series.length === 1;
+  const padTop = labelled ? 20 : PAD.top;
+  const plotHeight = height - padTop - PAD.bottom;
 
   const measured = series.flatMap((entry) =>
     entry.values.filter((value): value is number => value !== null),
@@ -78,13 +86,13 @@ export function GroupedColumns({
                 className={styles.grid}
                 x1={left}
                 x2={left + plotWidth}
-                y1={PAD.top + plotHeight - y(tick)}
-                y2={PAD.top + plotHeight - y(tick)}
+                y1={padTop + plotHeight - y(tick)}
+                y2={padTop + plotHeight - y(tick)}
               />
               <text
                 className={styles.tick}
                 x={left - 8}
-                y={PAD.top + plotHeight - y(tick)}
+                y={padTop + plotHeight - y(tick)}
                 textAnchor="end"
                 dominantBaseline="middle"
               >
@@ -97,8 +105,8 @@ export function GroupedColumns({
             className={styles.axis}
             x1={left}
             x2={left + plotWidth}
-            y1={PAD.top + plotHeight}
-            y2={PAD.top + plotHeight}
+            y1={padTop + plotHeight}
+            y2={padTop + plotHeight}
           />
 
           {categories.map((category, index) => (
@@ -112,12 +120,32 @@ export function GroupedColumns({
                   band.start(index) +
                   seriesIndex * perColumn +
                   (perColumn - columnWidth) / 2;
+                /*
+                 * Measured, not hoped for: a label wider than its slot would either overlap
+                 * its neighbour or be clipped by the frame, and a cropped number is worse
+                 * than no number. 6.1px per character matches the constant `gutterFor` uses
+                 * to size the tick gutter, so both estimates agree about this typeface.
+                 */
+                const capLabel = labelled ? format(value) : null;
+                const fits = capLabel !== null && capLabel.length * 6.1 <= band.inner;
+
                 return (
-                  <path
-                    key={entry.key}
-                    d={columnPath(x, PAD.top + plotHeight - barHeight, columnWidth, barHeight)}
-                    fill={`var(${entry.color})`}
-                  />
+                  <g key={entry.key}>
+                    <path
+                      d={columnPath(x, padTop + plotHeight - barHeight, columnWidth, barHeight)}
+                      fill={`var(${entry.color})`}
+                    />
+                    {fits && (
+                      <text
+                        className={styles.capLabel}
+                        x={x + columnWidth / 2}
+                        y={padTop + plotHeight - barHeight - 6}
+                        textAnchor="middle"
+                      >
+                        {capLabel}
+                      </text>
+                    )}
+                  </g>
                 );
               })}
 
@@ -134,10 +162,10 @@ export function GroupedColumns({
               <rect
                 className={styles.hit}
                 x={left + index * band.slot}
-                y={PAD.top}
+                y={padTop}
                 width={band.slot}
                 height={plotHeight}
-                onMouseEnter={() => setHover({ index, x: left + band.centre(index), y: PAD.top })}
+                onMouseEnter={() => setHover({ index, x: left + band.centre(index), y: padTop })}
                 onMouseLeave={() => setHover(null)}
               />
             </g>

@@ -481,7 +481,7 @@ function BenchmarkCard() {
             </tr>
           </thead>
           <tbody>
-            {result.rows.map((row) => (
+            {collapseUnmeasured(result.rows).map(({ row, questions }) => (
               // The prompt label belongs in the key: three rows now share a model and a
               // device, and React was being handed the same key three times.
               <tr key={`${row.modelId}-${row.compute}-${row.promptLabel ?? 'only'}`}>
@@ -495,8 +495,8 @@ function BenchmarkCard() {
                   </Mono>
                 </td>
                 {/* The question itself on hover - a label alone is not checkable. */}
-                <td title={row.question ?? undefined}>
-                  <Mono>{row.promptLabel ?? '—'}</Mono>
+                <td title={questions === 1 ? (row.question ?? undefined) : undefined}>
+                  <Mono>{questions > 1 ? `all ${questions}` : (row.promptLabel ?? '—')}</Mono>
                 </td>
                 {row.status === 'ok' ? (
                   <>
@@ -822,8 +822,69 @@ function EmbeddingBenchmarkCard() {
 
 const RAG_EVAL_DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
 
+/**
+ * Collapses a model+device's identical unmeasured rows into one.
+ *
+ * A run asks three questions, so a combination that could not run at all produced three
+ * rows carrying the same sentence - "needs about 6.4 GB of VRAM..." printed three times
+ * under each other, which reads as three separate problems. Nothing was measured, so the
+ * question axis has no meaning for these rows; one row saying so, with the count, is the
+ * whole fact. Measured rows are never collapsed: their numbers differ by question, and
+ * that difference is the point of the column.
+ */
+function collapseUnmeasured(
+  rows: ModelBenchmarkRow[],
+): Array<{ row: ModelBenchmarkRow; questions: number }> {
+  const out: Array<{ row: ModelBenchmarkRow; questions: number }> = [];
+  const firstAt = new Map<string, number>();
+
+  for (const row of rows) {
+    if (row.status === 'ok') {
+      out.push({ row, questions: 1 });
+      continue;
+    }
+    const key = `${row.modelId}\u0000${row.compute}\u0000${row.status}\u0000${row.detail ?? ''}`;
+    const at = firstAt.get(key);
+    if (at === undefined) {
+      firstAt.set(key, out.length);
+      out.push({ row, questions: 1 });
+    } else {
+      (out[at] as { questions: number }).questions += 1;
+    }
+  }
+
+  return out;
+}
+
 function formatHitRate(rate: number | null): string {
   return rate === null ? '—' : `${Math.round(rate * 100)}%`;
+}
+
+/**
+ * "5 of 6" under a percentage.
+ *
+ * A bare 83% invites the reader to supply their own denominator, and the footnote below the
+ * card says the question set holds 45 - so the obvious reading of the headline figure was
+ * "83% of 45", when it described six questions. A rate without its denominator is a claim
+ * about a sample size it does not disclose.
+ */
+function formatHitCount(bucket: { total: number; retrievalHitRate: number | null }): string | null {
+  if (bucket.retrievalHitRate === null || bucket.total === 0) return null;
+  return `${Math.round(bucket.retrievalHitRate * bucket.total)} of ${bucket.total}`;
+}
+
+/**
+ * Questions the judge never returned a verdict on.
+ *
+ * Correct + partial + incorrect came to five across six questions and nothing said where the
+ * sixth went. It was the retrieval miss: with no document found there is no answer to grade,
+ * so the judge is not asked. That is reasonable behaviour and an unexplained gap in a row of
+ * totals, which is why it now gets counted out loud instead of being left as arithmetic for
+ * the reader to fail.
+ */
+function unjudgedCount(bucket: { total: number; judgeCounts: Record<string, number> }): number {
+  const judged = Object.values(bucket.judgeCounts).reduce((sum, count) => sum + count, 0);
+  return Math.max(0, bucket.total - judged);
 }
 
 /**
@@ -963,29 +1024,51 @@ function RagEvalCard() {
 
       {summary && (
         <div className={styles.evalSummaryRow}>
-          <div className={styles.evalStat}>
+          <div className={`${styles.evalStat} ${styles.evalStatHero}`}>
             <span className={styles.evalStatLabel}>Retrieval hit rate</span>
             <span className={styles.evalStatValue}>{formatHitRate(summary.retrievalHitRate)}</span>
+            <span className={styles.evalStatDetail}>
+              {formatHitCount(summary) ?? 'no questions'}
+            </span>
           </div>
-          {RAG_EVAL_DIFFICULTIES.map((difficulty) => (
-            <div className={styles.evalStat} key={difficulty}>
-              <span className={styles.evalStatLabel}>{difficulty}</span>
-              <span className={styles.evalStatValue}>
-                {formatHitRate(summary.byDifficulty[difficulty]?.retrievalHitRate ?? null)}
-              </span>
+
+          <div className={styles.evalStatGroup}>
+            {RAG_EVAL_DIFFICULTIES.map((difficulty) => {
+              const bucket = summary.byDifficulty[difficulty];
+              return (
+                <div className={styles.evalStat} key={difficulty}>
+                  <span className={styles.evalStatLabel}>{difficulty}</span>
+                  <span className={styles.evalStatValue}>
+                    {formatHitRate(bucket?.retrievalHitRate ?? null)}
+                  </span>
+                  <span className={styles.evalStatDetail}>
+                    {(bucket && formatHitCount(bucket)) ?? '—'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className={styles.evalStatGroup}>
+            <div className={styles.evalStat}>
+              <span className={styles.evalStatLabel}>Judge correct</span>
+              <span className={styles.evalStatValue}>{summary.judgeCounts.correct ?? 0}</span>
             </div>
-          ))}
-          <div className={styles.evalStat}>
-            <span className={styles.evalStatLabel}>Judge correct</span>
-            <span className={styles.evalStatValue}>{summary.judgeCounts.correct ?? 0}</span>
-          </div>
-          <div className={styles.evalStat}>
-            <span className={styles.evalStatLabel}>Judge partial</span>
-            <span className={styles.evalStatValue}>{summary.judgeCounts.partial ?? 0}</span>
-          </div>
-          <div className={styles.evalStat}>
-            <span className={styles.evalStatLabel}>Judge incorrect</span>
-            <span className={styles.evalStatValue}>{summary.judgeCounts.incorrect ?? 0}</span>
+            <div className={styles.evalStat}>
+              <span className={styles.evalStatLabel}>Judge partial</span>
+              <span className={styles.evalStatValue}>{summary.judgeCounts.partial ?? 0}</span>
+            </div>
+            <div className={styles.evalStat}>
+              <span className={styles.evalStatLabel}>Judge incorrect</span>
+              <span className={styles.evalStatValue}>{summary.judgeCounts.incorrect ?? 0}</span>
+            </div>
+            {unjudgedCount(summary) > 0 && (
+              <div className={styles.evalStat}>
+                <span className={styles.evalStatLabel}>Not judged</span>
+                <span className={styles.evalStatValue}>{unjudgedCount(summary)}</span>
+                <span className={styles.evalStatDetail}>nothing retrieved to grade</span>
+              </div>
+            )}
           </div>
         </div>
       )}

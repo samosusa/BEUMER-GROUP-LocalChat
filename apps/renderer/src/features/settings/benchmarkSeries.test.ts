@@ -142,6 +142,58 @@ describe('buildTrend', () => {
   });
 
   /**
+   * The sawtooth. A run measures every prompt, so a model has three rows in it; pushing each
+   * as its own point put three values on one x and the line zig-zagged between them. Every
+   * segment a reader traced was question difficulty drawn in the shape of a time trend.
+   */
+  it('gives one point per run, not one per question', () => {
+    const history = [
+      run('2026-08-01T10:00:00.000Z', [
+        row({ modelName: 'qwen', promptLabel: 'simple', tokensPerSecond: 19 }),
+        row({ modelName: 'qwen', promptLabel: 'moderate', tokensPerSecond: 13 }),
+        row({ modelName: 'qwen', promptLabel: 'complex', tokensPerSecond: 9 }),
+      ]),
+    ];
+
+    const qwen = buildTrend(history, SPEED, 'cpu').lines.find((line) => line.key === 'qwen')!;
+
+    expect(qwen.points).toHaveLength(1);
+    expect(qwen.points[0]!.value).toBe(13);
+  });
+
+  /** A point on this chart and a column on the bar chart must be the same number. */
+  it('reduces each run the way the metric asks - peak memory takes the worst case', () => {
+    const history = [
+      run('2026-08-01T10:00:00.000Z', [
+        row({ modelName: 'qwen', promptLabel: 'simple', peakMemoryBytes: 4_000_000_000 }),
+        row({ modelName: 'qwen', promptLabel: 'moderate', peakMemoryBytes: 4_800_000_000 }),
+        row({ modelName: 'qwen', promptLabel: 'complex', peakMemoryBytes: 4_400_000_000 }),
+      ]),
+    ];
+
+    const qwen = buildTrend(history, MEMORY, 'cpu').lines.find((line) => line.key === 'qwen')!;
+
+    expect(qwen.points[0]!.value).toBe(4_800_000_000);
+  });
+
+  /** Ranking is by runs measured, so three rows in one run must not count as three runs. */
+  it('ranks models by how many runs they appear in, not how many rows', () => {
+    const history = [
+      run('2026-08-01T10:00:00.000Z', [
+        row({ modelName: 'noisy', promptLabel: 'simple' }),
+        row({ modelName: 'noisy', promptLabel: 'moderate' }),
+        row({ modelName: 'noisy', promptLabel: 'complex' }),
+      ]),
+      run('2026-08-08T10:00:00.000Z', [row({ modelName: 'steady', promptLabel: 'simple' })]),
+      run('2026-08-15T10:00:00.000Z', [row({ modelName: 'steady', promptLabel: 'simple' })]),
+    ];
+
+    const { lines } = buildTrend(history, SPEED, 'cpu');
+
+    expect(lines[0]!.key).toBe('steady');
+  });
+
+  /**
    * The same model on CPU and on GPU differs by an order of magnitude. Sharing one axis
    * flattens every CPU line into a smear along the bottom, and the alternative - a second
    * y-axis - misstates every comparison it invites. So one device at a time.
@@ -368,8 +420,18 @@ describe('modelsMeasured', () => {
       modelsMeasured([
         run('2026-08-01T10:00:00.000Z', [row({ modelName: 'b' })]),
         run('2026-08-08T10:00:00.000Z', [row({ modelName: 'a', status: 'failed' })]),
-      ]),
+      ]).toSorted(),
     ).toEqual(['a', 'b']);
+  });
+
+  /** The chips sit above charts ordered by the latest run. Alphabetical put them out of step. */
+  it('follows the newest run\u2019s order, not the alphabet', () => {
+    expect(
+      modelsMeasured([
+        run('2026-08-01T10:00:00.000Z', [row({ modelName: 'zeta' })]),
+        run('2026-08-08T10:00:00.000Z', [row({ modelName: 'qwen' }), row({ modelName: 'alpha' })]),
+      ]),
+    ).toEqual(['qwen', 'alpha', 'zeta']);
   });
 });
 

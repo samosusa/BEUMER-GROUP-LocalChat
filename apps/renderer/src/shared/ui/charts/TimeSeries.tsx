@@ -55,11 +55,47 @@ export function TimeSeries({ lines, format, formatTime, caption, height = 220 }:
     plotHeight,
   );
   const left = gutterFor(y.ticks.map(format), PAD.left);
-  const plotWidth = Math.max(0, width - left - PAD.right);
+
+  /*
+   * End labels, and the room they need.
+   *
+   * Only lines that reach the LAST run are labelled. A line that stops early - a device the
+   * machine did not have until three runs ago - would put its label in the middle of the
+   * plot, on top of whatever else is passing through there, and a label sitting on the wrong
+   * line is worse than a legend lookup.
+   */
+  const lastStamp = stamps[stamps.length - 1];
+  const ends = visible
+    .map((line) => {
+      const last = line.points[line.points.length - 1];
+      return last && last.at === lastStamp ? { key: line.key, value: last.value } : null;
+    })
+    .filter((end): end is { key: string; value: number } => end !== null);
+
+  const widest = ends.reduce((most, end) => Math.max(most, format(end.value).length), 0);
+  const right = ends.length > 0 ? Math.min(96, Math.max(PAD.right, widest * 6.1 + 10)) : PAD.right;
+
+  const plotWidth = Math.max(0, width - left - right);
   const step = stamps.length > 1 ? plotWidth / (stamps.length - 1) : 0;
   const xFor = (at: number) =>
     left + (stamps.length > 1 ? stamps.indexOf(at) * step : plotWidth / 2);
   const yFor = (value: number) => PAD.top + plotHeight - y(value);
+
+  /*
+   * Where two lines finish close together, one label is dropped rather than nudged. Moving a
+   * label off its line to make room detaches it from the thing it names, and the reader ends
+   * up reading a number against the wrong series - the legend and the tooltip still have it,
+   * so nothing is lost by staying quiet. Deterministic: top-down, keep what clears 12px.
+   */
+  const labelled = new Set<string>();
+  let lastLabelY = Number.NEGATIVE_INFINITY;
+  for (const end of [...ends].sort((a, b) => yFor(a.value) - yFor(b.value))) {
+    const at = yFor(end.value);
+    if (at - lastLabelY >= 12) {
+      labelled.add(end.key);
+      lastLabelY = at;
+    }
+  }
 
   const toggle = (key: string) =>
     setHidden((current) => {
@@ -157,6 +193,20 @@ export function TimeSeries({ lines, format, formatTime, caption, height = 220 }:
                 fill={`var(${line.color})`}
               />
             )),
+          )}
+
+          {ends.map((end) =>
+            labelled.has(end.key) ? (
+              <text
+                key={`label-${end.key}`}
+                className={styles.endLabel}
+                x={xFor(lastStamp as number) + 8}
+                y={yFor(end.value)}
+                dominantBaseline="middle"
+              >
+                {format(end.value)}
+              </text>
+            ) : null,
           )}
 
           {stamps.map((at, index) => (

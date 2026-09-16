@@ -12,31 +12,60 @@ export interface LinearScale {
 }
 
 /**
- * Rounds an axis maximum up to a value a person would have chosen: 1, 2, 2.5 or 5 times
- * a power of ten. Ticks then land on numbers worth reading rather than on 3.7143.
+ * Rounds a tick step up to one a person would have chosen: 1, 2, 2.5 or 5 times a power
+ * of ten.
+ *
+ * The step is what gets rounded, not the axis maximum. Rounding the maximum and then
+ * dividing it by the tick count is the obvious move and it is wrong: a nice ceiling of
+ * 7 GB over four intervals steps by 1.75, and the axis renders "0 B, 2 GB, 3 GB, 5 GB,
+ * 7 GB" - five labels whose gaps look unequal, on an axis that is perfectly linear. A
+ * reader who trusts the labels misjudges every point on it. Nice steps give nice labels
+ * and a nice maximum for free, because the maximum is just the last step.
  */
-function niceCeil(value: number): number {
+function niceStep(value: number): number {
   if (value <= 0) return 1;
   const magnitude = 10 ** Math.floor(Math.log10(value));
   const normalised = value / magnitude;
-  /*
-   * 7.5 is in the ladder deliberately. Without it a maximum of 5.8 rounds all the way to 10,
-   * and a scatter of models topping out at 5.4 GB drew an axis running to 9 GB with the
-   * right-hand 40% empty - the chart wasting the width it needs to separate its points.
-   */
   const step =
-    normalised <= 1
-      ? 1
-      : normalised <= 2
-        ? 2
-        : normalised <= 2.5
-          ? 2.5
-          : normalised <= 5
-            ? 5
-            : normalised <= 7.5
-              ? 7.5
-              : 10;
+    normalised <= 1 ? 1 : normalised <= 2 ? 2 : normalised <= 2.5 ? 2.5 : normalised <= 5 ? 5 : 10;
   return step * magnitude;
+}
+
+/**
+ * Tick counts to try, in order of preference.
+ *
+ * Fixing the count at four wastes axis width whenever the data sits just above a step
+ * boundary - 147 txt/s over four intervals of 50 runs the axis to 200 and leaves the top
+ * quarter empty. Trying three and five as well lets the scale pick the tightest fit that
+ * still lands on round numbers: the same data over three intervals reaches exactly 150.
+ * Four stays first so it wins ties and remains the shape most charts get.
+ */
+const TICK_COUNTS = [4, 3, 5];
+
+/** Trims the float noise that i * 0.2 accumulates, to the precision the step implies. */
+function atStepPrecision(value: number, step: number): number {
+  const decimals = Math.min(10, Math.max(0, -Math.floor(Math.log10(step)) + 1));
+  return Number(value.toFixed(decimals));
+}
+
+/**
+ * The tightest axis that covers `highest`, lands every tick on a round number, and uses
+ * a tick count close to the one asked for.
+ */
+function fitAxis(highest: number, preferred: number): { max: number; step: number; count: number } {
+  // Nothing to cover: a 0..1 axis with one interval, rather than three ticks of nothing.
+  if (!(highest > 0)) return { max: 1, step: 1, count: 1 };
+
+  const counts = [preferred, ...TICK_COUNTS.filter((count) => count !== preferred)];
+  let best: { max: number; step: number; count: number } | null = null;
+
+  for (const count of counts) {
+    const step = niceStep(highest / count);
+    const max = atStepPrecision(step * count, step);
+    if (best === null || max < best.max) best = { max, step, count };
+  }
+
+  return best as { max: number; step: number; count: number };
 }
 
 /**
@@ -48,8 +77,7 @@ function niceCeil(value: number): number {
  */
 export function linearScale(values: number[], pixels: number, tickCount = 4): LinearScale {
   const highest = values.length > 0 ? Math.max(...values) : 0;
-  const max = niceCeil(highest);
-  const step = max / tickCount;
+  const { max, step, count } = fitAxis(highest, tickCount);
 
   const scale = ((value: number) => (max === 0 ? 0 : (value / max) * pixels)) as {
     (value: number): number;
@@ -59,7 +87,9 @@ export function linearScale(values: number[], pixels: number, tickCount = 4): Li
   };
   scale.min = 0;
   scale.max = max;
-  scale.ticks = Array.from({ length: tickCount + 1 }, (_, index) => index * step);
+  scale.ticks = Array.from({ length: count + 1 }, (_, index) =>
+    atStepPrecision(index * step, step),
+  );
   return scale;
 }
 
