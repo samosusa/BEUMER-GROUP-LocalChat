@@ -212,8 +212,8 @@ export function SettingsPage() {
               <EmbeddingModelCard />
             </div>
 
-            <div className={styles.rail}>
-              {settings.data && (
+            {settings.data && (
+              <div className={styles.rail}>
                 <section className={styles.card}>
                   <SectionLabel>Network</SectionLabel>
                   <Toggle
@@ -227,8 +227,8 @@ export function SettingsPage() {
                     {formatCount(settings.data.outboundRequestsThisSession)}
                   </Mono>
                 </section>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (

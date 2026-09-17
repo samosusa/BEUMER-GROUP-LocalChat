@@ -74,6 +74,15 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
     () => buildComparison(filteredLatest, metric),
     [filteredLatest, metric],
   );
+  // CPU and GPU generation speed differ by an order of magnitude (see buildTrend's own
+  // comment below) - sharing one linear axis between both series draws CPU as a sliver a
+  // couple of pixels tall next to a GPU column that fills the frame. One device at a time,
+  // same as the trend chart, keeps every bar readable; SpeedupBars is where CPU and GPU
+  // actually get compared, as a ratio rather than two mismatched absolute scales.
+  const comparisonSeries = useMemo(
+    () => comparison.series.filter((entry) => entry.key === active),
+    [comparison, active],
+  );
   const speedup = useMemo(() => buildSpeedup(filteredLatest, metric), [filteredLatest, metric]);
 
   /*
@@ -98,6 +107,16 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
   const trend = useMemo(
     () => buildTrend(filteredHistory, metric, active),
     [filteredHistory, metric, active],
+  );
+  /*
+   * A line needs two runs to trend. When only one run has results for the active device, every
+   * line collapses to a single dot in the middle of the plot with its value label floating
+   * beside it - not a trend, just clutter standing in for one. Same empty treatment as zero
+   * lines, so the reader gets a reason instead of a chart with nothing to show them.
+   */
+  const trendRuns = useMemo(
+    () => new Set(trend.lines.flatMap((line) => line.points.map((point) => point.at))).size,
+    [trend],
   );
 
   const toggleModel = (name: string) =>
@@ -241,16 +260,33 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
       <figure className={styles.chartFigure}>
         <figcaption className={styles.chartTitle}>
           <span>{metric.label} by model, this run</span>
-          {prompts.length > 1 && (
-            <span className={styles.chartHint}>
-              {metric.reduce === 'max' ? 'worst' : 'median'} of {prompts.length} questions
-            </span>
-          )}
+          <span className={styles.chartTitleActions}>
+            {prompts.length > 1 && (
+              <span className={styles.chartHint}>
+                {metric.reduce === 'max' ? 'worst' : 'median'} of {prompts.length} questions
+              </span>
+            )}
+            {devices.length > 1 && (
+              <span className={styles.chartTabs} role="group" aria-label="Device">
+                {devices.map((candidate) => (
+                  <button
+                    key={candidate}
+                    type="button"
+                    className={candidate === active ? styles.chartTabOn : styles.chartTab}
+                    aria-pressed={candidate === active}
+                    onClick={() => setDevice(candidate)}
+                  >
+                    {candidate.toUpperCase()}
+                  </button>
+                ))}
+              </span>
+            )}
+          </span>
         </figcaption>
-        {comparison.categories.length > 0 ? (
+        {comparisonSeries.length > 0 && comparison.categories.length > 0 ? (
           <GroupedColumns
             categories={comparison.categories}
-            series={comparison.series}
+            series={comparisonSeries}
             format={metric.format}
             caption={metric.label}
           />
@@ -362,7 +398,7 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
             </span>
           )}
         </figcaption>
-        {trend.lines.length > 0 ? (
+        {trend.lines.length > 0 && trendRuns > 1 ? (
           <>
             <TimeSeries
               lines={trend.lines}
@@ -378,9 +414,11 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
           </>
         ) : (
           <p className={styles.chartEmpty}>
-            {filteredHistory.length < 2
-              ? 'Run the benchmark again to compare against this one.'
-              : `No ${active.toUpperCase()} results in these runs.`}
+            {trend.lines.length === 0
+              ? filteredHistory.length < 2
+                ? 'Run the benchmark again to compare against this one.'
+                : `No ${active.toUpperCase()} results in these runs.`
+              : `Only one ${active.toUpperCase()} run has results so far — run the benchmark again to see a trend.`}
           </p>
         )}
       </figure>

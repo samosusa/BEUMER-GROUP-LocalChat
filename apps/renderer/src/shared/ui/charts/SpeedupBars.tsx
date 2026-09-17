@@ -113,7 +113,15 @@ export function SpeedupBars({ rows, baselineLabel, caption }: SpeedupBarsProps) 
                   width={barWidth}
                   height={barHeight}
                   rx={2}
-                  fill={faster ? 'var(--chart-above)' : 'var(--chart-below)'}
+                  /*
+                   * Blue for the baseline device, orange for the compared one - the same two
+                   * hues the scatter and grouped-column charts use for CPU and GPU. A bar
+                   * leaning right says "the compared device won", so it takes the compared
+                   * device's colour; leaning left says the baseline won, so it takes the
+                   * baseline's. One colour language across every chart on this screen, instead
+                   * of this chart alone reaching for a separate good/bad red-and-blue pair.
+                   */
+                  fill={faster ? 'var(--series-2)' : 'var(--series-1)'}
                 />
                 {/* The number rides the bar: with one bar per row there is no clutter risk,
                     and a ratio is meaningless without its value. */}

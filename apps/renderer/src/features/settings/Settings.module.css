@@ -112,6 +112,17 @@
   padding: var(--space-8) var(--space-10);
 }
 
+.content > * {
+  /* The header and the columns block share one width and one centered position, rather
+     than each sizing independently - otherwise the title ends up flush left while the
+     cards float centered underneath it, which reads as more broken than not centering
+     anything at all. margin: auto (not align-items on the parent) does the centering,
+     since auto margins on a flex item win regardless of the parent's alignment. */
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
 .columns {
   display: flex;
   gap: var(--space-7);
@@ -580,6 +591,12 @@
   font-size: var(--text-row);
   color: var(--text-secondary);
   margin-bottom: var(--space-4);
+}
+
+.chartTitleActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
 }
 
 .chartTabs {

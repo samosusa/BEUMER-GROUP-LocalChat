@@ -34,6 +34,19 @@ interface GroupedColumnsProps {
 /** `left` is a floor; the real gutter is measured from the widest tick label. */
 const PAD = { top: 8, right: 8, bottom: 28, left: 46 };
 
+/** A bar's hit target reaches a little past its painted pixels, never the whole slot. */
+const HIT_PAD = 4;
+
+/**
+ * The shortest a non-zero column is ever drawn.
+ *
+ * A run spanning a 0.5B model against a 32B one can put every slow model's bar under a
+ * pixel tall against the fastest one's scale - a real value rendered as nothing, and
+ * nothing to hover either. Flooring the height keeps every measured bar visible and
+ * hoverable without changing what the axis or the tooltip report.
+ */
+const MIN_BAR_PX = 2;
+
 /**
  * Grouped columns: one slot per category, one column per series inside it.
  *
@@ -45,7 +58,7 @@ export function GroupedColumns({
   series,
   format,
   caption,
-  height = 220,
+  height = 280,
 }: GroupedColumnsProps) {
   const { ref, width } = useElementWidth<HTMLDivElement>();
   const [hover, setHover] = useState<{ index: number; x: number; y: number } | null>(null);
@@ -117,7 +130,8 @@ export function GroupedColumns({
               {series.map((entry, seriesIndex) => {
                 const value = entry.values[index];
                 if (value === null || value === undefined) return null;
-                const barHeight = y(value);
+                const barHeight = value > 0 ? Math.max(y(value), MIN_BAR_PX) : y(value);
+                const barTop = padTop + plotHeight - barHeight;
                 const x =
                   left +
                   band.start(index) +
@@ -132,22 +146,38 @@ export function GroupedColumns({
                 const capLabel = labelled ? format(value) : null;
                 const fits = capLabel !== null && capLabel.length * 6.1 <= band.inner;
 
+                // Padded a little past the painted pixels, then clamped to the plot: the
+                // hit target tracks the bar itself, never the empty space above a short one.
+                const hitTop = Math.max(padTop, barTop - HIT_PAD);
+                const hitBottom = Math.min(padTop + plotHeight, barTop + barHeight + HIT_PAD);
+
                 return (
                   <g key={entry.key}>
                     <path
-                      d={columnPath(x, padTop + plotHeight - barHeight, columnWidth, barHeight)}
+                      d={columnPath(x, barTop, columnWidth, barHeight)}
                       fill={`var(${entry.color})`}
                     />
                     {fits && (
                       <text
                         className={styles.capLabel}
                         x={x + columnWidth / 2}
-                        y={padTop + plotHeight - barHeight - 6}
+                        y={barTop - 6}
                         textAnchor="middle"
                       >
                         {capLabel}
                       </text>
                     )}
+                    <rect
+                      className={styles.hit}
+                      x={x - HIT_PAD}
+                      y={hitTop}
+                      width={columnWidth + HIT_PAD * 2}
+                      height={hitBottom - hitTop}
+                      onMouseEnter={() =>
+                        setHover({ index, x: left + band.centre(index), y: padTop })
+                      }
+                      onMouseLeave={() => setHover(null)}
+                    />
                   </g>
                 );
               })}
@@ -161,17 +191,6 @@ export function GroupedColumns({
                 {truncateLabel(category, band.slot - 8)}
                 <title>{category}</title>
               </text>
-
-              {/* Hit target spans the whole slot: columns are thin and hard to hover. */}
-              <rect
-                className={styles.hit}
-                x={left + index * band.slot}
-                y={padTop}
-                width={band.slot}
-                height={plotHeight}
-                onMouseEnter={() => setHover({ index, x: left + band.centre(index), y: padTop })}
-                onMouseLeave={() => setHover(null)}
-              />
             </g>
           ))}
         </svg>

@@ -34,6 +34,29 @@ interface ScatterProps {
 const PAD = { top: 14, right: 16, bottom: 42, left: 54 };
 
 /**
+ * The undominated points: for none of them does another point sit both cheaper in memory
+ * and at least as fast. Sorting by memory and tracking the best speed seen so far finds
+ * them in one pass - a point clears the bar only by beating every cheaper point's speed.
+ *
+ * This is the only set of points that get a permanent label. A run with a handful of models
+ * can label every dot and stay readable; a run with dozens cannot; a chart whose labelling
+ * rule changes with the data is one more thing to get wrong. Labelling the frontier instead
+ * scales to either case and, unlike "every dot", always draws the reader's eye to the thing
+ * the footnote below is actually about - the corner worth being in.
+ */
+function paretoFrontier(points: ScatterPoint[]): ReadonlySet<string> {
+  const frontier = new Set<string>();
+  let bestY = Number.NEGATIVE_INFINITY;
+  for (const point of [...points].sort((a, b) => a.x - b.x)) {
+    if (point.y > bestY) {
+      frontier.add(point.key);
+      bestY = point.y;
+    }
+  }
+  return frontier;
+}
+
+/**
  * Two measures at once, because "best" here is not one number.
  *
  * A bar chart ranks on a single axis, so it can say which model is fastest and which is
@@ -41,8 +64,10 @@ const PAD = { top: 14, right: 16, bottom: 42, left: 54 };
  * against each other, and the useful answer lives in the trade-off: fast AND small. Plotted
  * together, that is a corner of the chart rather than a row of a table.
  *
- * Every point is directly labelled. With one dot per model there are only a handful, and a
- * scatter whose identities live in a legend makes the reader do lookup work for no reason.
+ * Only the frontier is directly labelled (see `paretoFrontier`) - everything else is a dot,
+ * identified on hover or in the table below. Labelling every point was fine for a handful of
+ * models; past a dozen or two the labels stack into an unreadable block, which is exactly
+ * what a direct label exists to avoid.
  */
 export function Scatter({
   points,
@@ -69,6 +94,7 @@ export function Scatter({
    */
   const dataMax = Math.max(...points.map((point) => point.x), 0);
   const shown = bands.filter((band) => band.at <= dataMax * 1.15);
+  const frontier = paretoFrontier(points);
 
   const y = linearScale(
     points.map((point) => point.y),
@@ -193,31 +219,36 @@ export function Scatter({
             {xLabel} →
           </text>
 
-          {points.map((point) => (
-            <g key={point.key}>
-              <circle
-                className={styles.marker}
-                cx={px(point.x)}
-                cy={py(point.y)}
-                r={hover === point.key ? 7 : 5}
-                fill={`var(${point.color})`}
-              />
-              <PointLabel
-                anchor={labelSide(px(point.x), py(point.y))}
-                x={px(point.x)}
-                y={py(point.y)}
-                label={point.label}
-              />
-              <circle
-                className={styles.hit}
-                cx={px(point.x)}
-                cy={py(point.y)}
-                r={14}
-                onMouseEnter={() => setHover(point.key)}
-                onMouseLeave={() => setHover(null)}
-              />
-            </g>
-          ))}
+          {points.map((point) => {
+            const onFrontier = frontier.has(point.key);
+            return (
+              <g key={point.key}>
+                <circle
+                  className={styles.marker}
+                  cx={px(point.x)}
+                  cy={py(point.y)}
+                  r={hover === point.key ? 7 : onFrontier ? 6 : 4}
+                  fill={`var(${point.color})`}
+                />
+                {onFrontier && (
+                  <PointLabel
+                    anchor={labelSide(px(point.x), py(point.y))}
+                    x={px(point.x)}
+                    y={py(point.y)}
+                    label={point.label}
+                  />
+                )}
+                <circle
+                  className={styles.hit}
+                  cx={px(point.x)}
+                  cy={py(point.y)}
+                  r={14}
+                  onMouseEnter={() => setHover(point.key)}
+                  onMouseLeave={() => setHover(null)}
+                />
+              </g>
+            );
+          })}
         </svg>
       )}
 

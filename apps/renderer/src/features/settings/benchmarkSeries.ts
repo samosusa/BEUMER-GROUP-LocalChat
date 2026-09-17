@@ -93,10 +93,13 @@ export interface ComparisonSeries {
 }
 
 /**
- * The latest run as columns: one slot per model, one column per device.
+ * The latest run as columns: one slot per model, one series per device.
  *
- * Series are device, not model, so the two columns a reader compares side by side are the
- * same model on CPU and on GPU - which is the decision this screen exists to support.
+ * Series are device, not model, so this returns every device measured - but BenchmarkCharts
+ * renders only the active one at a time (device tabs, same as buildTrend below), because CPU
+ * and GPU generation speed differ by an order of magnitude: sharing one axis draws CPU as a
+ * sliver next to a GPU column that fills the frame. Absolute side-by-side comparison across
+ * devices happens in SpeedupBars instead, as a ratio, which is the honest way to show it.
  *
  * A model that ran on one device and not the other keeps its slot with a null in it. The
  * gap is information ("we never got this on the GPU"); dropping the model would hide it.
@@ -411,12 +414,17 @@ export interface TradeoffPoint {
  * Rows are per model AND device, so a model benchmarked on both appears twice - correctly,
  * because the GPU run has a different memory cost and a different speed. The device is part
  * of the label for that reason.
+ *
+ * Colored by device, not model, and sorted the same way `buildComparison` sorts its series -
+ * alphabetically, so CPU always lands on `--series-1` (blue) and GPU on `--series-2` (orange),
+ * matching the bar chart above this one. A scatter that colored by model instead would teach
+ * the reader a second, contradicting color language two charts apart.
  */
 export function buildTradeoff(run: ModelBenchmarkRun): TradeoffPoint[] {
   const ok = run.rows.filter((row) => row.status === 'ok');
-  const models = [...new Set(ok.map((row) => row.modelName))];
   const speed = METRICS.find((metric) => metric.key === 'tokensPerSecond') as Metric;
   const memory = METRICS.find((metric) => metric.key === 'peakMemory') as Metric;
+  const devices = [...new Set(ok.map((row) => row.compute))].sort();
 
   // One point per model AND device - not per row, which would stack three dots for three
   // prompts on top of each other and label them all as the model.
@@ -429,14 +437,13 @@ export function buildTradeoff(run: ModelBenchmarkRun): TradeoffPoint[] {
     const y = valueFor(ok, modelName, device, speed);
     if (x === null || y === null) return [];
 
-    const hue = models.indexOf(modelName) % SERIES_COLORS.length;
     return [
       {
         key: `${modelName}-${device}`,
         label: `${modelName} · ${device.toUpperCase()}`,
         x,
         y,
-        color: SERIES_COLORS[hue] as string,
+        color: SERIES_COLORS[devices.indexOf(device) % SERIES_COLORS.length] as string,
       },
     ];
   });

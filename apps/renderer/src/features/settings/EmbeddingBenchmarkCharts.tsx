@@ -67,6 +67,16 @@ export function EmbeddingBenchmarkCharts({ latest, history }: EmbeddingBenchmark
     () => buildEmbeddingTrend(shown, metric, activeTier),
     [shown, metric, activeTier],
   );
+  /*
+   * A line needs two runs to trend. When only one run has results for the active tier, every
+   * line collapses to a single dot in the middle of the plot with its value label floating
+   * beside it - not a trend, just clutter standing in for one. Same empty treatment as zero
+   * lines, so the reader gets a reason instead of a chart with nothing to show them.
+   */
+  const trendRuns = useMemo(
+    () => new Set(trend.lines.flatMap((line) => line.points.map((point) => point.at))).size,
+    [trend],
+  );
 
   return (
     <div className={styles.charts}>
@@ -207,7 +217,7 @@ export function EmbeddingBenchmarkCharts({ latest, history }: EmbeddingBenchmark
             </span>
           )}
         </figcaption>
-        {trend.lines.length > 0 ? (
+        {trend.lines.length > 0 && trendRuns > 1 ? (
           <>
             <TimeSeries
               lines={trend.lines}
@@ -223,9 +233,11 @@ export function EmbeddingBenchmarkCharts({ latest, history }: EmbeddingBenchmark
           </>
         ) : (
           <p className={styles.chartEmpty}>
-            {shown.length < 2
-              ? 'Run the benchmark again to compare against this one.'
-              : `No ${activeTier} results in these runs.`}
+            {trend.lines.length === 0
+              ? shown.length < 2
+                ? 'Run the benchmark again to compare against this one.'
+                : `No ${activeTier} results in these runs.`
+              : `Only one ${activeTier} run has results so far — run the benchmark again to see a trend.`}
           </p>
         )}
       </figure>

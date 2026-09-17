@@ -371,14 +371,18 @@ describe('buildTradeoff', () => {
     expect(points.map((point) => point.label)).toContain('qwen · GPU');
   });
 
-  it('keeps one model on one hue across its devices', () => {
+  it('colors by device, not model, matching the bar chart above it', () => {
     const points = buildTradeoff(
       run('2026-09-01T10:00:00.000Z', [
         row({ modelName: 'qwen', compute: 'cpu' }),
         row({ modelName: 'qwen', compute: 'gpu', peakVramBytes: 6_000 }),
+        row({ modelName: 'llama', compute: 'cpu' }),
       ]),
     );
-    expect(points[0]?.color).toBe(points[1]?.color);
+    const byLabel = (label: string) => points.find((point) => point.label === label);
+    expect(byLabel('qwen · CPU')?.color).toBe('--series-1');
+    expect(byLabel('qwen · GPU')?.color).toBe('--series-2');
+    expect(byLabel('llama · CPU')?.color).toBe(byLabel('qwen · CPU')?.color);
   });
 });
 
