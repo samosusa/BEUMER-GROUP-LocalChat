@@ -14,7 +14,7 @@ def _fake_answer(monkeypatch, result: dict):
     monkeypatch.setattr(
         conversations_api,
         "answer",
-        lambda question, db, project_id=None, include_general=False: result,
+        lambda question, db, project_id=None, include_general=False, history=None: result,
     )
 
 
@@ -181,7 +181,7 @@ def test_post_message_scopes_retrieval_to_the_conversations_project(monkeypatch)
 
     captured_project_ids = []
 
-    def fake_answer(question, db, project_id=None, include_general=False):
+    def fake_answer(question, db, project_id=None, include_general=False, history=None):
         captured_project_ids.append(project_id)
         return {"answer": "answer", "citations": [], "not_found": False}
 
@@ -207,7 +207,7 @@ def test_post_message_scope_general_overrides_the_conversations_project(monkeypa
 
     captured_project_ids = []
 
-    def fake_answer(question, db, project_id=None, include_general=False):
+    def fake_answer(question, db, project_id=None, include_general=False, history=None):
         captured_project_ids.append(project_id)
         return {"answer": "answer", "citations": [], "not_found": False}
 
@@ -235,7 +235,7 @@ def test_post_message_scope_both_keeps_project_and_adds_general(monkeypatch):
 
     captured = []
 
-    def fake_answer(question, db, project_id=None, include_general=False):
+    def fake_answer(question, db, project_id=None, include_general=False, history=None):
         captured.append((project_id, include_general))
         return {"answer": "answer", "citations": [], "not_found": False}
 
@@ -261,7 +261,7 @@ def test_post_message_scope_both_without_a_project_is_plain_general(monkeypatch)
 
     captured = []
 
-    def fake_answer(question, db, project_id=None, include_general=False):
+    def fake_answer(question, db, project_id=None, include_general=False, history=None):
         captured.append((project_id, include_general))
         return {"answer": "answer", "citations": [], "not_found": False}
 
@@ -295,3 +295,68 @@ def test_delete_conversation_cascades_messages(monkeypatch):
     with SessionLocal() as db:
         assert db.get(Conversation, created["id"]) is None
         assert db.query(Message).filter_by(conversation_id=created["id"]).count() == 0
+
+
+def test_post_message_passes_prior_turn_as_history_to_answer(monkeypatch):
+    """The Samo Susa scenario: "Is Samo Susa 20 years old?" followed by "What are his
+    hobbies?" must reach rag_service.answer() with the first Q/A pair as history, so it
+    can widen retrieval and resolve "his" - not as two turns with no link between them."""
+    import src.api.conversations as conversations_api
+
+    captured_history = []
+
+    def fake_answer(question, db, project_id=None, include_general=False, history=None):
+        captured_history.append(history)
+        if question == "Is Samo Susa 20 years old?":
+            return {"answer": "Yes, Samo Susa is 20 years old.", "citations": [], "not_found": False}
+        return {"answer": "His hobbies are hiking and chess.", "citations": [], "not_found": False}
+
+    monkeypatch.setattr(conversations_api, "answer", fake_answer)
+
+    created = client.post("/conversations", json={}).json()
+
+    try:
+        first = client.post(
+            f"/conversations/{created['id']}/messages", json={"q": "Is Samo Susa 20 years old?"}
+        )
+        assert first.status_code == 201
+
+        second = client.post(f"/conversations/{created['id']}/messages", json={"q": "What are his hobbies?"})
+        assert second.status_code == 201
+
+        assert captured_history[0] == []
+        assert captured_history[1] == [("Is Samo Susa 20 years old?", "Yes, Samo Susa is 20 years old.")]
+    finally:
+        client.delete(f"/conversations/{created['id']}")
+
+
+def test_post_message_use_history_false_opts_out_of_conversation_context(monkeypatch):
+    """A turn that deliberately changes subject can skip history so a stale entity from an
+    earlier question doesn't leak into this turn's retrieval or generation."""
+    import src.api.conversations as conversations_api
+
+    captured_history = []
+
+    def fake_answer(question, db, project_id=None, include_general=False, history=None):
+        captured_history.append(history)
+        return {"answer": "answer", "citations": [], "not_found": False}
+
+    monkeypatch.setattr(conversations_api, "answer", fake_answer)
+
+    created = client.post("/conversations", json={}).json()
+
+    try:
+        first = client.post(
+            f"/conversations/{created['id']}/messages", json={"q": "Is Samo Susa 20 years old?"}
+        )
+        assert first.status_code == 201
+
+        second = client.post(
+            f"/conversations/{created['id']}/messages",
+            json={"q": "What are the conveyor speed limits?", "use_history": False},
+        )
+        assert second.status_code == 201
+
+        assert captured_history == [[], []]
+    finally:
+        client.delete(f"/conversations/{created['id']}")

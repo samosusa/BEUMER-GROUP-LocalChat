@@ -34,7 +34,7 @@ def test_upload_chunks_and_stores_vectors(tmp_path: Path, monkeypatch):
     response = client.post(
         "/ingest",
         data={"title": "Sample guide"},
-        files={"file": ("guide.txt", b"The conveyor speed is 2 meters per second.", "text/plain")},
+        files={"file": ("guide.txt", b"The conveyor speed is 2 meters per second. (upload fixture)", "text/plain")},
     )
 
     assert response.status_code == 202
@@ -133,6 +133,66 @@ def test_ingest_with_also_general_flags_document_for_the_general_corpus(monkeypa
         assert document is not None
         assert document.project_id == project["id"]
         assert document.also_general is True
+
+
+def test_duplicate_content_is_rejected_and_temp_dir_is_cleaned_up(monkeypatch):
+    import src.api.ingest as ingest_api
+
+    def fake_process_upload(
+        job_id: int, title: str, path: str, project_id: int | None = None, also_general: bool = False
+    ) -> None:
+        from src.ingest.pipeline import run_pipeline
+
+        with SessionLocal() as db:
+            run_pipeline(
+                db,
+                job_id,
+                title,
+                path,
+                embedder=lambda texts: [[1.0, 0.0] for _ in texts],
+                project_id=project_id,
+                also_general=also_general,
+            )
+        Path(path).unlink(missing_ok=True)
+
+    monkeypatch.setattr(ingest_api, "process_upload", fake_process_upload)
+
+    created_dirs: list[Path] = []
+    real_mkdtemp = ingest_api.tempfile.mkdtemp
+
+    def tracking_mkdtemp(*args, **kwargs):
+        path = Path(real_mkdtemp(*args, **kwargs))
+        created_dirs.append(path)
+        return str(path)
+
+    monkeypatch.setattr(ingest_api.tempfile, "mkdtemp", tracking_mkdtemp)
+
+    client = TestClient(app)
+    content = b"Identical content uploaded twice."
+    # Scoped to its own project so this document never lands in the general corpus - other
+    # tests' unscoped /query assertions retrieve from that shared corpus and don't expect an
+    # extra competing document with a tied similarity score to show up there.
+    project_id = client.post("/projects", json={"name": "Duplicate content test"}).json()["id"]
+
+    first = client.post(
+        "/ingest",
+        data={"title": "First upload", "project_id": project_id},
+        files={"file": ("first.txt", content, "text/plain")},
+    )
+    assert first.status_code == 202
+    assert client.get(f"/status/{first.json()['job_id']}").json()["status"] == "completed"
+
+    second = client.post(
+        "/ingest",
+        data={"title": "Second upload, same bytes", "project_id": project_id},
+        files={"file": ("second.txt", content, "text/plain")},
+    )
+    assert second.status_code == 409
+    assert second.json()["code"] == "ERR_DUPLICATE_DOCUMENT"
+
+    # The second request's own temp dir (not the first's, which fake_process_upload already
+    # cleaned up) must not be left behind after the duplicate is rejected.
+    assert not created_dirs[-1].exists()
 
 
 def test_ingest_rejects_unknown_project():

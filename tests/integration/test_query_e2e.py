@@ -42,7 +42,7 @@ def test_query_retrieves_and_cites_ingested_document(monkeypatch):
     ingest_response = client.post(
         "/ingest",
         data={"title": title},
-        files={"file": ("guide.txt", b"The conveyor speed is 2 meters per second.", "text/plain")},
+        files={"file": ("guide.txt", b"The conveyor speed is 2 meters per second. (query fixture)", "text/plain")},
     )
     assert ingest_response.status_code == 202
 
@@ -52,9 +52,9 @@ def test_query_retrieves_and_cites_ingested_document(monkeypatch):
     assert result["answer"]
     assert result["not_found"] is False
     assert result["citations"]
-    # Not necessarily citations[0]: other tests ingest identically-worded content into
-    # this same shared dev database with the same fake embedder, so ties on score are
-    # possible and their order isn't (and shouldn't be) a guarantee this test relies on.
+    # Not necessarily citations[0]: other tests ingest very similar content into this same
+    # shared dev database with the same fake embedder, so ties on score are possible and
+    # their order isn't (and shouldn't be) a guarantee this test relies on.
     assert any(citation["title"] == title for citation in result["citations"])
 
     unrelated_response = client.post("/query", json={"q": "Unrelated content question"})

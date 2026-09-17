@@ -16,6 +16,7 @@ from src.ingest.chunker import chunk_file
 from src.ingest.loader import SUPPORTED_SUFFIXES
 from src.ingest.pipeline import run_pipeline
 from src.models.ingestion_job import IngestionJob
+from src.utils import ensure_unique_checksum, file_checksum
 from src.validation import ROOT, validate_against_schema
 
 
@@ -129,6 +130,7 @@ async def ingest_document(
     temp_path = upload_dir / _safe_upload_name(file.filename or "upload")
     try:
         temp_path.write_bytes(await file.read())
+        ensure_unique_checksum(db, file_checksum(temp_path))
         _ensure_parseable(str(temp_path), file.filename or "unknown")
         job = _create_queued_job(db)
         background_tasks.add_task(

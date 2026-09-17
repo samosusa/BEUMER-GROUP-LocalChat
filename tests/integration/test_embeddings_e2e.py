@@ -89,7 +89,7 @@ def test_set_active_model_switches_and_reindexes_existing_documents(monkeypatch)
     ingest_response = client.post(
         "/ingest",
         data={"title": title},
-        files={"file": ("guide.txt", b"The conveyor speed is 2 meters per second.", "text/plain")},
+        files={"file": ("guide.txt", b"The conveyor speed is 2 meters per second. (reindex fixture)", "text/plain")},
     )
     assert ingest_response.status_code == 202
     assert client.get(f"/status/{ingest_response.json()['job_id']}").json()["status"] == "completed"

@@ -12,7 +12,7 @@ from src.db import get_db
 from src.errors import AppError
 from src.ingest.vector_store import FaissVectorStore
 from src.models.document import Document
-from src.utils import file_checksum
+from src.utils import ensure_unique_checksum, file_checksum
 
 router = APIRouter()
 
@@ -51,16 +51,6 @@ def _validate_title(title: str) -> None:
         )
 
 
-def _ensure_unique_checksum(db: Session, checksum: str) -> None:
-    if db.query(Document).filter_by(checksum=checksum).first() is not None:
-        raise AppError(
-            "ERR_DUPLICATE_DOCUMENT",
-            "A document with this file content already exists",
-            {"checksum": checksum},
-            status_code=409,
-        )
-
-
 @router.post("/docs", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 def create_document(payload: DocumentCreate, db: Session = Depends(get_db)) -> Document:
     _validate_title(payload.title)
@@ -69,7 +59,7 @@ def create_document(payload: DocumentCreate, db: Session = Depends(get_db)) -> D
         raise AppError("ERR_FILE_NOT_FOUND", "Document file does not exist", {"path": payload.path})
 
     checksum = file_checksum(path)
-    _ensure_unique_checksum(db, checksum)
+    ensure_unique_checksum(db, checksum)
     if payload.project_id is not None:
         get_project_or_404(db, payload.project_id)
 

@@ -82,7 +82,7 @@ def test_delete_document_cascades_chunks_and_vector_index(tmp_path: Path, monkey
     response = client.post(
         "/ingest",
         data={"title": "Cascade delete guide"},
-        files={"file": ("cascade.txt", b"The conveyor speed is 2 meters per second.", "text/plain")},
+        files={"file": ("cascade.txt", b"The conveyor speed is 2 meters per second. (cascade fixture)", "text/plain")},
     )
     assert response.status_code == 202
     job_id = response.json()["job_id"]

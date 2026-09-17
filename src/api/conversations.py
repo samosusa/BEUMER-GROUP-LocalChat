@@ -12,7 +12,7 @@ from src.db import get_db
 from src.errors import AppError
 from src.models.conversation import Conversation
 from src.models.message import Message
-from src.rag_service import answer
+from src.rag_service import HISTORY_TURNS, History, answer
 from src.validation import ROOT, validate_against_schema
 
 router = APIRouter()
@@ -36,6 +36,10 @@ class MessageCreate(BaseModel):
     # 'both' searches the conversation's project plus that project-less corpus; anything else
     # keeps the conversation's own project scope.
     scope: str | None = None
+    # Per-turn opt-out of the recent-history context (see _recent_history below). Defaults
+    # to on; set False when a question deliberately changes subject and pulling in the
+    # prior turn's entities/pronoun-resolution instructions would do more harm than good.
+    use_history: bool = True
 
 
 class ConversationResponse(BaseModel):
@@ -81,6 +85,31 @@ def _validate_title(title: str) -> None:
         raise AppError(
             "ERR_VALIDATION", "Request validation failed", {"title": "must be at most 200 characters"}
         )
+
+
+def _recent_history(db: Session, conversation_id: int) -> History:
+    """The last HISTORY_TURNS user/assistant pairs already stored for this conversation,
+    oldest first - fetched before the new question is added, so it never includes the
+    turn currently being answered. Pulls HISTORY_TURNS*2 rows (user+assistant alternate)
+    and pairs them up rather than trusting strict alternation, in case a turn ever ends up
+    orphaned (e.g. a row written but its partner failed)."""
+    rows = (
+        db.query(Message)
+        .filter_by(conversation_id=conversation_id)
+        .order_by(Message.id.desc())
+        .limit(HISTORY_TURNS * 2)
+        .all()
+    )
+    rows.reverse()
+    pairs: History = []
+    pending_question: str | None = None
+    for row in rows:
+        if row.role == "user":
+            pending_question = row.text
+        elif row.role == "assistant" and pending_question is not None:
+            pairs.append((pending_question, row.text))
+            pending_question = None
+    return pairs
 
 
 def _get_conversation_or_404(db: Session, conversation_id: int) -> Conversation:
@@ -174,12 +203,13 @@ def post_message(conversation_id: int, payload: MessageCreate, db: Session = Dep
     validate_against_schema({"q": payload.q}, ROOT / "schemas" / "query.json")
     conversation = _get_conversation_or_404(db, conversation_id)
     question = payload.q.strip()
+    history = _recent_history(db, conversation_id) if payload.use_history else []
 
     db.add(Message(conversation_id=conversation.id, role="user", text=question, created_at=_now()))
 
     project_id = None if payload.scope == "general" else conversation.project_id
     include_general = payload.scope == "both" and conversation.project_id is not None
-    result = answer(question, db, project_id=project_id, include_general=include_general)
+    result = answer(question, db, project_id=project_id, include_general=include_general, history=history)
 
     complexity = result.get("complexity") or {}
     assistant_message = Message(
