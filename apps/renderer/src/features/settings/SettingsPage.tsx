@@ -347,6 +347,10 @@ function ComputeCard({
   );
 }
 
+/** Rows per page of the benchmark detail table below - enough to see a full machine's worth
+ *  of models at a glance without the page itself growing into one long scroll. */
+const BENCH_PAGE_SIZE = 20;
+
 /**
  * The model benchmark.
  *
@@ -368,6 +372,21 @@ function BenchmarkCard() {
 
   /** Empty means every installed model, which is what the service does with `models: null`. */
   const [only, setOnly] = useState('');
+
+  // The detail table below used to be one long page-scroll - fine for a handful of models,
+  // unreadable once several machines' worth of history is seeded in (each model/device pair
+  // is its own row). Paged instead, at a size that comfortably fits without the page itself
+  // scrolling.
+  const [page, setPage] = useState(0);
+  // Resets to page 1 when a new run replaces `result`, rather than leaving the reader on
+  // whatever page number they'd scrolled to for the previous one. Adjusting state during
+  // render (React's documented pattern for this) instead of in an effect, which would commit
+  // the stale page first and only correct it a render later.
+  const [pagedResultId, setPagedResultId] = useState(result?.id);
+  if (result?.id !== pagedResultId) {
+    setPagedResultId(result?.id);
+    setPage(0);
+  }
 
   // Which devices to run this pass, engineer-chosen rather than always-both: a run loads
   // every installed model on every checked device in sequence, so narrowing to one device is
@@ -463,10 +482,27 @@ function BenchmarkCard() {
     );
   }
 
-  const measured = result.rows.filter((row) => row.status === 'ok');
+  /*
+   * The detail table (and the "fastest" highlight in it) covers every run in history, not
+   * just the newest one - seeding or merging in another machine's benchmark adds a whole
+   * separate BenchmarkJob, and a table that only showed the latest job would silently drop
+   * every other machine's rows the moment a newer run of your own came in. `history.data`
+   * already includes the latest completed job's own rows (see the query key in
+   * `useBenchmarkHistory`), so this is not double-counting it alongside `result`.
+   */
+  const allRows = (history.data ?? [result]).flatMap((run) => run.rows);
+  const measured = allRows.filter((row) => row.status === 'ok');
   const fastest = measured.reduce<ModelBenchmarkRow | undefined>(
     (best, row) => ((row.tokensPerSecond ?? 0) > (best?.tokensPerSecond ?? 0) ? row : best),
     undefined,
+  );
+
+  const collapsed = collapseUnmeasured(allRows);
+  const totalPages = Math.max(1, Math.ceil(collapsed.length / BENCH_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const pageRows = collapsed.slice(
+    safePage * BENCH_PAGE_SIZE,
+    safePage * BENCH_PAGE_SIZE + BENCH_PAGE_SIZE,
   );
 
   return (
@@ -524,7 +560,7 @@ function BenchmarkCard() {
             </tr>
           </thead>
           <tbody>
-            {collapseUnmeasured(result.rows).map(({ row, questions }) => (
+            {pageRows.map(({ row, questions }) => (
               // The prompt label belongs in the key: three rows now share a model and a
               // device, and React was being handed the same key three times.
               <tr key={`${row.modelId}-${row.compute}-${row.promptLabel ?? 'only'}`}>
@@ -578,6 +614,10 @@ function BenchmarkCard() {
         </table>
       </div>
 
+      {totalPages > 1 && (
+        <BenchPagination page={safePage} totalPages={totalPages} onChange={setPage} />
+      )}
+
       {picker}
 
       <Button
@@ -601,6 +641,54 @@ function formatPeakMemory(memoryBytes: number | null, vramBytes: number | null):
   if (vramBytes !== null) return `${formatBytes(vramBytes)} VRAM`;
   if (memoryBytes !== null) return formatBytes(memoryBytes);
   return '—';
+}
+
+/**
+ * Page numbers for a benchmark detail table, reusing the same segmented-control look as the
+ * chart device tabs elsewhere on this screen rather than inventing a second button style.
+ *
+ * Every page gets its own button rather than windowing down to "1 … 4 5 6 … 12": a benchmark
+ * run is models × devices, which tops out at a couple of hundred rows and a handful of pages
+ * even with several machines seeded in - nowhere near the count windowing exists for.
+ */
+function BenchPagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+}) {
+  return (
+    <div className={styles.benchPagination} role="group" aria-label="Page">
+      <IconButton
+        icon="chevronLeft"
+        label="Previous page"
+        disabled={page === 0}
+        onClick={() => onChange(page - 1)}
+      />
+      <span className={styles.chartTabs}>
+        {Array.from({ length: totalPages }, (_, index) => (
+          <button
+            key={index}
+            type="button"
+            className={index === page ? styles.chartTabOn : styles.chartTab}
+            aria-current={index === page || undefined}
+            onClick={() => onChange(index)}
+          >
+            {index + 1}
+          </button>
+        ))}
+      </span>
+      <IconButton
+        icon="chevronRight"
+        label="Next page"
+        disabled={page === totalPages - 1}
+        onClick={() => onChange(page + 1)}
+      />
+    </div>
+  );
 }
 
 /**

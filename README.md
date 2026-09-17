@@ -237,6 +237,55 @@ Model-switching and benchmarking are research/evaluation tooling for comparing l
 not part of the deployed staff-facing assistant surface - they're deliberately
 functional-over-polished.
 
+### Danish and English model selection
+
+Embedding models can be language-sensitive. A model may represent English text very well but
+produce weaker similarity results for Danish. The same applies to answer-generation models:
+their understanding and writing quality can differ between languages.
+
+Embedding models suitable for Danish and English include:
+
+- `intfloat/multilingual-e5-base` or `intfloat/multilingual-e5-large`: strong multilingual
+  retrieval. Use the `query: ` prefix for questions and `passage: ` for documents.
+- `BAAI/bge-m3`: multilingual, including Danish, and a good choice for corpora containing
+  multiple languages.
+- `sentence-transformers/paraphrase-multilingual-mpnet-base-v2`: good general multilingual
+  semantic similarity.
+- `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`: smaller and faster, usually
+  with a lower quality ceiling than larger models.
+
+The currently configured models, including `BAAI/bge-small-en-v1.5`, `intfloat/e5-base-v2`,
+and `sentence-transformers/all-MiniLM-L6-v2`, are primarily English-oriented. They may work
+with Danish, but they are not the safest choices for Danish retrieval. The embedding model
+configuration lives in `config/embedding_models.json`; changing the active model requires
+re-embedding the existing corpus before retrieval results can be trusted.
+
+LLMs suitable for Danish and English include:
+
+- **Qwen2.5 Instruct**: strong general multilingual capability, including Danish, and a
+  practical choice for local inference.
+- **Aya Expanse**: specifically designed for multilingual use and useful when Danish quality
+  matters more than using the smallest model possible.
+- **Gemma 2 or Gemma 3**: good English and reasonable multilingual capability, including Danish.
+- **Llama 3.1/3.2 Instruct**: strong English and usable Danish, although Danish quality varies
+  with model size.
+- **EuroLLM**: focused on European languages and worth testing for Danish-heavy applications.
+
+Model size matters: a 7B or 8B model will generally handle Danish better than a tiny 1B or 3B
+model, while quantization and hardware affect speed and memory use. A practical starting point
+for this application is:
+
+```text
+Embedding: intfloat/multilingual-e5-base
+LLM: Qwen2.5-7B-Instruct
+```
+
+Evaluate Danish and English questions separately. Speed benchmarks only measure performance;
+they do not prove that retrieval or answers are accurate. The RAG evaluation should report
+separate Danish and English results for retrieval hit rate, answer correctness, and citation
+accuracy. The repository already includes a Danish cross-lingual dataset at
+`data/eval/rag_qa_pairs_da.md`.
+
 ## Demo workflow
 
 `npm run demo` runs an isolated end-to-end simulation and prints each stage clearly: health

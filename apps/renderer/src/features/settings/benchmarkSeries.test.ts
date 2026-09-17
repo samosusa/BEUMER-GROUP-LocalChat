@@ -3,6 +3,7 @@ import type { ModelBenchmarkRow, ModelBenchmarkRun } from '@localchat/contracts'
 import {
   METRICS,
   buildComplexityComparison,
+  hardwareMeasured,
   hardwareNames,
   promptsMeasured,
   reduceValues,
@@ -13,9 +14,8 @@ import {
   buildTradeoff,
   modelsMeasured,
   recommend,
-  MAX_LINES,
   buildComparison,
-  buildTrend,
+  buildHardwareComparison,
   devicesMeasured,
   recentRuns,
 } from './benchmarkSeries';
@@ -121,114 +121,53 @@ describe('buildComparison', () => {
   });
 });
 
-describe('buildTrend', () => {
+describe('buildHardwareComparison', () => {
+  /** Two machines, same model, one physical device on each side. */
   const history = [
     run('2026-08-01T10:00:00.000Z', [
-      row({ modelName: 'qwen', compute: 'cpu', tokensPerSecond: 6 }),
-      row({ modelName: 'llama', compute: 'cpu', tokensPerSecond: 4 }),
+      row({
+        modelName: 'qwen',
+        compute: 'cpu',
+        deviceName: 'Intel Core Ultra 7',
+        tokensPerSecond: 7,
+      }),
+      row({
+        modelName: 'qwen',
+        compute: 'gpu',
+        deviceName: 'NVIDIA RTX 4070',
+        tokensPerSecond: 60,
+      }),
     ]),
     run('2026-08-08T10:00:00.000Z', [
-      row({ modelName: 'qwen', compute: 'cpu', tokensPerSecond: 7 }),
-      row({ modelName: 'qwen', compute: 'gpu', tokensPerSecond: 40 }),
+      row({ modelName: 'qwen', compute: 'cpu', deviceName: 'Apple M3 Max', tokensPerSecond: 40 }),
+      row({ modelName: 'llama', compute: 'cpu', deviceName: 'Intel Core Ultra 7' }),
     ]),
   ];
 
-  it('gives one line per model, oldest point first', () => {
-    const { lines } = buildTrend(history, SPEED, 'cpu');
-    const qwen = lines.find((line) => line.key === 'qwen')!;
-
-    expect(qwen.points.map((point) => point.value)).toEqual([6, 7]);
-    expect(qwen.points[0]!.at).toBeLessThan(qwen.points[1]!.at);
-  });
-
-  /**
-   * The sawtooth. A run measures every prompt, so a model has three rows in it; pushing each
-   * as its own point put three values on one x and the line zig-zagged between them. Every
-   * segment a reader traced was question difficulty drawn in the shape of a time trend.
-   */
-  it('gives one point per run, not one per question', () => {
-    const history = [
-      run('2026-08-01T10:00:00.000Z', [
-        row({ modelName: 'qwen', promptLabel: 'simple', tokensPerSecond: 19 }),
-        row({ modelName: 'qwen', promptLabel: 'moderate', tokensPerSecond: 13 }),
-        row({ modelName: 'qwen', promptLabel: 'complex', tokensPerSecond: 9 }),
-      ]),
-    ];
-
-    const qwen = buildTrend(history, SPEED, 'cpu').lines.find((line) => line.key === 'qwen')!;
-
-    expect(qwen.points).toHaveLength(1);
-    expect(qwen.points[0]!.value).toBe(13);
-  });
-
-  /** A point on this chart and a column on the bar chart must be the same number. */
-  it('reduces each run the way the metric asks - peak memory takes the worst case', () => {
-    const history = [
-      run('2026-08-01T10:00:00.000Z', [
-        row({ modelName: 'qwen', promptLabel: 'simple', peakMemoryBytes: 4_000_000_000 }),
-        row({ modelName: 'qwen', promptLabel: 'moderate', peakMemoryBytes: 4_800_000_000 }),
-        row({ modelName: 'qwen', promptLabel: 'complex', peakMemoryBytes: 4_400_000_000 }),
-      ]),
-    ];
-
-    const qwen = buildTrend(history, MEMORY, 'cpu').lines.find((line) => line.key === 'qwen')!;
-
-    expect(qwen.points[0]!.value).toBe(4_800_000_000);
-  });
-
-  /** Ranking is by runs measured, so three rows in one run must not count as three runs. */
-  it('ranks models by how many runs they appear in, not how many rows', () => {
-    const history = [
-      run('2026-08-01T10:00:00.000Z', [
-        row({ modelName: 'noisy', promptLabel: 'simple' }),
-        row({ modelName: 'noisy', promptLabel: 'moderate' }),
-        row({ modelName: 'noisy', promptLabel: 'complex' }),
-      ]),
-      run('2026-08-08T10:00:00.000Z', [row({ modelName: 'steady', promptLabel: 'simple' })]),
-      run('2026-08-15T10:00:00.000Z', [row({ modelName: 'steady', promptLabel: 'simple' })]),
-    ];
-
-    const { lines } = buildTrend(history, SPEED, 'cpu');
-
-    expect(lines[0]!.key).toBe('steady');
-  });
-
-  /**
-   * The same model on CPU and on GPU differs by an order of magnitude. Sharing one axis
-   * flattens every CPU line into a smear along the bottom, and the alternative - a second
-   * y-axis - misstates every comparison it invites. So one device at a time.
-   */
-  it('never mixes devices onto one axis', () => {
-    const cpu = buildTrend(history, SPEED, 'cpu');
-    const gpu = buildTrend(history, SPEED, 'gpu');
-
-    expect(cpu.lines.flatMap((line) => line.points.map((point) => point.value))).not.toContain(40);
-    expect(gpu.lines).toHaveLength(1);
-    expect(gpu.lines[0]!.points).toHaveLength(1);
-  });
-
-  it('ranks the most-measured models into the reliable hues', () => {
-    const { lines } = buildTrend(history, SPEED, 'cpu');
-    expect(lines[0]!.key).toBe('qwen');
-    expect(lines[0]!.color).toBe('--series-1');
-  });
-
-  it('caps the series and reports how many it left out', () => {
-    const many = run(
-      '2026-08-01T10:00:00.000Z',
-      Array.from({ length: MAX_LINES + 3 }, (_, index) =>
-        row({ modelName: `model-${index}`, compute: 'cpu' }),
-      ),
+  it('puts one column per hardware name, across every run in history', () => {
+    const built = buildHardwareComparison(history, SPEED, 'qwen');
+    expect(built.categories.sort()).toEqual(
+      ['Intel Core Ultra 7', 'NVIDIA RTX 4070', 'Apple M3 Max'].sort(),
     );
-
-    const { lines, omitted } = buildTrend([many], SPEED, 'cpu');
-    expect(lines).toHaveLength(MAX_LINES);
-    expect(omitted).toBe(3);
   });
 
-  it('is empty rather than broken when nothing ran on that device', () => {
-    expect(buildTrend(history, SPEED, 'gpu').lines.length).toBeGreaterThan(0);
-    expect(buildTrend([], SPEED, 'cpu').lines).toEqual([]);
+  it('scopes to the requested model, leaving other models out entirely', () => {
+    const built = buildHardwareComparison(history, SPEED, 'qwen');
+    expect(built.categories).not.toContain('llama');
+  });
+
+  it('keeps CPU and GPU as separate series, coloured the same as everywhere else', () => {
+    const built = buildHardwareComparison(history, SPEED, 'qwen');
+    const cpu = built.series.find((series) => series.key === 'cpu')!;
+    const gpu = built.series.find((series) => series.key === 'gpu')!;
+    expect(cpu.color).toBe('--series-1');
+    expect(gpu.color).toBe('--series-2');
+    expect(gpu.values[built.categories.indexOf('NVIDIA RTX 4070')]).toBe(60);
+    expect(cpu.values[built.categories.indexOf('NVIDIA RTX 4070')]).toBeNull();
+  });
+
+  it('is empty rather than broken when nothing has measured that model', () => {
+    expect(buildHardwareComparison(history, SPEED, 'nothing-like-this').categories).toEqual([]);
   });
 });
 
@@ -416,6 +355,31 @@ describe('applyFilter', () => {
       ),
     ).toBe(true);
   });
+
+  it('narrows by hardware', () => {
+    const twoMachines = run('2026-09-01T10:00:00.000Z', [
+      row({ modelName: 'qwen', compute: 'cpu', deviceName: 'Intel Core Ultra 7 165H' }),
+      row({ modelName: 'llama', compute: 'cpu', deviceName: 'Apple M3 Max' }),
+    ]);
+    const only = applyFilter(twoMachines, {
+      ...NO_FILTER,
+      hardware: ['cpu\u0000Apple M3 Max'],
+    });
+    expect(only.rows.map((r) => r.modelName)).toEqual(['llama']);
+  });
+
+  /** "Apple M3 Max" is the CPU name on one machine and the GPU name on another. */
+  it('filters a device and hardware pair together, not the hardware name alone', () => {
+    const sameNameBothDevices = run('2026-09-01T10:00:00.000Z', [
+      row({ modelName: 'on-cpu', compute: 'cpu', deviceName: 'Apple M3 Max' }),
+      row({ modelName: 'on-gpu', compute: 'gpu', deviceName: 'Apple M3 Max' }),
+    ]);
+    const only = applyFilter(sameNameBothDevices, {
+      ...NO_FILTER,
+      hardware: ['gpu\u0000Apple M3 Max'],
+    });
+    expect(only.rows.map((r) => r.modelName)).toEqual(['on-gpu']);
+  });
 });
 
 describe('modelsMeasured', () => {
@@ -575,5 +539,48 @@ describe('hardwareNames', () => {
   it('has no entry for a device that never reported a name', () => {
     const anonymous = run('2026-09-01T10:00:00.000Z', [row({ compute: 'gpu', deviceName: null })]);
     expect(hardwareNames([anonymous]).has('gpu')).toBe(false);
+  });
+
+  /** Two machines' CPUs both landing in history: neither name is more "the" CPU than the other. */
+  it('drops the label once two machines report different hardware for the same device', () => {
+    const merged = run('2026-09-01T10:00:00.000Z', [
+      row({ compute: 'cpu', deviceName: 'Intel Core Ultra 7 165H' }),
+      row({ compute: 'cpu', deviceName: 'Apple M3 Max' }),
+    ]);
+    expect(hardwareNames([merged]).has('cpu')).toBe(false);
+  });
+});
+
+describe('hardwareMeasured', () => {
+  it('lists every distinct device-and-hardware pair with a completed row', () => {
+    const merged = run('2026-09-01T10:00:00.000Z', [
+      row({ compute: 'cpu', deviceName: 'Intel Core Ultra 7 165H' }),
+      row({ compute: 'cpu', deviceName: 'Apple M3 Max' }),
+      row({ compute: 'gpu', deviceName: 'NVIDIA GeForce RTX 4070' }),
+    ]);
+    expect(hardwareMeasured([merged])).toEqual([
+      { compute: 'cpu', deviceName: 'Apple M3 Max' },
+      { compute: 'cpu', deviceName: 'Intel Core Ultra 7 165H' },
+      { compute: 'gpu', deviceName: 'NVIDIA GeForce RTX 4070' },
+    ]);
+  });
+
+  /** "Apple M3 Max" as both a CPU and a GPU name - the composite key keeps them apart. */
+  it('keeps a hardware name that appears under both compute modes as two separate options', () => {
+    const merged = run('2026-09-01T10:00:00.000Z', [
+      row({ compute: 'cpu', deviceName: 'Apple M3 Max' }),
+      row({ compute: 'gpu', deviceName: 'Apple M3 Max' }),
+    ]);
+    expect(hardwareMeasured([merged])).toEqual([
+      { compute: 'cpu', deviceName: 'Apple M3 Max' },
+      { compute: 'gpu', deviceName: 'Apple M3 Max' },
+    ]);
+  });
+
+  it('ignores rows that did not complete', () => {
+    const failed = run('2026-09-01T10:00:00.000Z', [
+      row({ compute: 'cpu', deviceName: 'Intel Core Ultra 7 165H', status: 'failed' }),
+    ]);
+    expect(hardwareMeasured([failed])).toEqual([]);
   });
 });

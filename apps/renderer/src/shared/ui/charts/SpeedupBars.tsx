@@ -22,6 +22,11 @@ interface SpeedupBarsProps {
 
 const PAD = { top: 8, right: 56, bottom: 26, left: 140 };
 const ROW_HEIGHT = 34;
+/** Room either side of the baseline keeps for its own "CPU (1×)" label, even when every bar
+ *  leans the same way and that side would otherwise collapse to nothing. */
+const MIN_SIDE = 48;
+/** Candidate gridlines, as powers of two either side of the baseline. */
+const TICK_CANDIDATES = [0.25, 0.5, 1, 2, 4, 8, 16];
 
 /**
  * How much better or worse something is than a baseline, as a ratio.
@@ -48,17 +53,40 @@ export function SpeedupBars({ rows, baselineLabel, caption }: SpeedupBarsProps) 
   const band = bandScale(rows.length, rows.length * ROW_HEIGHT, 0.34);
   const barHeight = Math.min(MAX_COLUMN_WIDTH, band.inner);
 
-  // The widest deviation in either direction sets the half-width, so the chart is symmetric
-  // about the baseline and never crops a bar.
-  const widest = Math.max(
-    0.3,
-    ...rows.map((row) => Math.abs(Math.log2(row.ratio > 0 ? row.ratio : 0.01))),
+  /*
+   * How far right (faster) and how far left (slower) the data actually reaches, in log2
+   * units - measured separately rather than as one symmetric "widest deviation", because a
+   * fixed 50/50 split around the baseline wastes an entire half of the chart the moment
+   * every row leans the same way. A GPU nearly always helps, so "every bar faster" is the
+   * common case, not an edge case: splitting the width proportionally to each side's actual
+   * span means a one-sided result gets to use nearly the full width instead of being
+   * squeezed into half of it, while still keeping the SAME pixels-per-doubling on both sides
+   * (leftWidth/leftSpan equals rightWidth/rightSpan below), so a 2x still looks like a 2x
+   * whichever direction it falls.
+   */
+  const rightSpan = Math.max(0, ...rows.map((row) => (row.ratio >= 1 ? Math.log2(row.ratio) : 0)));
+  const leftSpan = Math.max(
+    0,
+    ...rows.map((row) => (row.ratio > 0 && row.ratio < 1 ? -Math.log2(row.ratio) : 0)),
   );
-  const half = plotWidth / 2;
-  const centre = PAD.left + half;
-  const offset = (ratio: number) => (Math.log2(ratio > 0 ? ratio : 0.01) / widest) * (half - 4);
+  const totalSpan = Math.max(rightSpan + leftSpan, 0.001);
+  const leftWidth = Math.min(
+    Math.max(leftSpan > 0 ? (leftSpan / totalSpan) * plotWidth : 0, MIN_SIDE),
+    Math.max(plotWidth - MIN_SIDE, 0),
+  );
+  const rightWidth = plotWidth - leftWidth;
+  const centre = PAD.left + leftWidth;
+  const offset = (ratio: number) => {
+    const log = Math.log2(ratio > 0 ? ratio : 0.01);
+    if (log >= 0) return rightSpan > 0 ? (log / rightSpan) * (rightWidth - 4) : 0;
+    return leftSpan > 0 ? (log / leftSpan) * (leftWidth - 4) : 0;
+  };
 
-  const ticks = [0.5, 1, 2].filter((tick) => Math.abs(Math.log2(tick)) <= widest);
+  const ticks = TICK_CANDIDATES.filter((tick) => {
+    if (tick === 1) return true;
+    const log = Math.log2(tick);
+    return log > 0 ? log <= rightSpan : -log <= leftSpan;
+  });
 
   return (
     <div className={styles.frame} ref={ref}>

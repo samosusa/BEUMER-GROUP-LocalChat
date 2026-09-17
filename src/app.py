@@ -29,6 +29,8 @@ from src.api.models import router as models_router
 from src.api.projects import router as projects_router
 from src.api.query import router as query_router
 from src.api.rag_eval import router as rag_eval_router
+from src.benchmark_seed import seed_from_csv
+from src.db import SessionLocal
 from src.errors import (
     AppError,
     app_error_handler,
@@ -69,6 +71,12 @@ def preload_llm() -> None:
     except FileNotFoundError:
         # Development and retrieval-only tests may not have downloaded the local GGUF yet.
         pass
+
+
+@app.on_event("startup")
+def seed_benchmarks() -> None:
+    with SessionLocal() as db:
+        seed_from_csv(db)
 
 
 @app.get("/health")

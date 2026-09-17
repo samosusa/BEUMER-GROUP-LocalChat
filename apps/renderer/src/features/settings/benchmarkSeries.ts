@@ -96,10 +96,10 @@ export interface ComparisonSeries {
  * The latest run as columns: one slot per model, one series per device.
  *
  * Series are device, not model, so this returns every device measured - but BenchmarkCharts
- * renders only the active one at a time (device tabs, same as buildTrend below), because CPU
- * and GPU generation speed differ by an order of magnitude: sharing one axis draws CPU as a
- * sliver next to a GPU column that fills the frame. Absolute side-by-side comparison across
- * devices happens in SpeedupBars instead, as a ratio, which is the honest way to show it.
+ * renders only the active one at a time (device tabs), because CPU and GPU generation speed
+ * differ by an order of magnitude: sharing one axis draws CPU as a sliver next to a GPU
+ * column that fills the frame. Absolute side-by-side comparison across devices happens in
+ * SpeedupBars instead, as a ratio, which is the honest way to show it.
  *
  * A model that ran on one device and not the other keeps its slot with a null in it. The
  * gap is information ("we never got this on the GPU"); dropping the model would hide it.
@@ -120,6 +120,56 @@ export function buildComparison(
     // Across every prompt, not the first one that matched.
     values: categories.map((model) => valueFor(run.rows, model, device, metric, tier)),
   }));
+
+  return { categories, series };
+}
+
+/**
+ * Every CPU and GPU that has measured one chosen model, side by side.
+ *
+ * The mirror image of `buildComparison` above: that fixes the run and varies the model per
+ * device; this fixes the model and varies the hardware. Once benchmark history spans more
+ * than one machine, "how does my CPU compare with my GPU" is only half the question - the
+ * other half is "which of every machine's CPUs and GPUs should actually run this model", and
+ * that answer lives across runs, not inside a single one. So this reads the whole history
+ * rather than one run, and reduces multiple measurements of the same hardware the same way
+ * every other chart here does (median for rates, worst case for memory) rather than just
+ * taking whichever one happened to run last.
+ */
+export function buildHardwareComparison(
+  history: ModelBenchmarkRun[],
+  metric: Metric,
+  modelName: string,
+): { categories: string[]; series: ComparisonSeries[] } {
+  const ok = history
+    .flatMap((run) => run.rows)
+    .filter(
+      (row) =>
+        row.status === 'ok' &&
+        row.modelName === modelName &&
+        row.deviceName !== null &&
+        metric.of(row) !== null,
+    );
+  const categories = [...new Set(ok.map((row) => row.deviceName as string))].sort();
+  const devices: ComputeMode[] = ['cpu', 'gpu'];
+
+  const series = devices.flatMap((device) => {
+    const onDevice = ok.filter((row) => row.compute === device);
+    if (onDevice.length === 0) return [];
+    return [
+      {
+        key: device,
+        label: device.toUpperCase(),
+        color: SERIES_COLORS[device === 'cpu' ? 0 : 1] as string,
+        values: categories.map((name) => {
+          const values = onDevice
+            .filter((row) => row.deviceName === name)
+            .map((row) => metric.of(row) as number);
+          return values.length > 0 ? reduceValues(values, metric.reduce) : null;
+        }),
+      },
+    ];
+  });
 
   return { categories, series };
 }
@@ -152,71 +202,12 @@ export function buildComplexityComparison(
   return { categories, series };
 }
 
+/** Shared with `embeddingSeries.ts`'s own trend builder - same shape, different axis. */
 export interface TrendLine {
   key: string;
   label: string;
   color: string;
   points: Array<{ at: number; value: number }>;
-}
-
-/**
- * One line per model across runs, for a single device.
- *
- * Filtered to one device rather than drawing both: the same model on CPU and on GPU differs
- * by an order of magnitude, and sharing one axis flattens every CPU line into a smear along
- * the bottom. Two devices means two looks at the chart, which is the honest version - the
- * alternative is a second y-axis, which misstates every comparison it appears to invite.
- *
- * One run contributes ONE point per model. Since a run started measuring every prompt, a
- * model has three rows in it, and pushing each row as its own point put three values on the
- * same x: the line then zig-zagged between them and every segment a reader traced was the
- * cost of question difficulty wearing the shape of a trend over time. Same reduction as the
- * bar charts use, so a point here and a column there are the same number.
- */
-export function buildTrend(
-  history: ModelBenchmarkRun[],
-  metric: Metric,
-  device: ComputeMode,
-): { lines: TrendLine[]; omitted: number } {
-  const byModel = new Map<string, Array<{ at: number; value: number }>>();
-
-  for (const run of history) {
-    const at = Date.parse(run.finishedAt ?? run.startedAt);
-    if (Number.isNaN(at)) continue;
-
-    const samples = new Map<string, number[]>();
-    for (const row of run.rows) {
-      if (row.status !== 'ok' || row.compute !== device) continue;
-      const value = metric.of(row);
-      if (value === null) continue;
-      const values = samples.get(row.modelName) ?? [];
-      values.push(value);
-      samples.set(row.modelName, values);
-    }
-
-    for (const [modelName, values] of samples) {
-      const value = reduceValues(values, metric.reduce);
-      if (value === null) continue;
-      const points = byModel.get(modelName) ?? [];
-      points.push({ at, value });
-      byModel.set(modelName, points);
-    }
-  }
-
-  // Most-measured models first: a model with six runs has a trend worth a reliable hue; one
-  // with a single point does not.
-  const ranked = [...byModel.entries()].sort(
-    (a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]),
-  );
-
-  const lines = ranked.slice(0, MAX_LINES).map(([modelName, points], index) => ({
-    key: modelName,
-    label: modelName,
-    color: SERIES_COLORS[index] as string,
-    points: [...points].sort((a, b) => a.at - b.at),
-  }));
-
-  return { lines, omitted: Math.max(0, ranked.length - MAX_LINES) };
 }
 
 /** Every device that produced a usable row, so the chart only offers tabs that have data. */
@@ -272,15 +263,59 @@ export function promptsMeasured(runs: ModelBenchmarkRun[]): string[] {
   });
 }
 
-/** The hardware a run actually ran on, e.g. "Intel Core Ultra 7 165H" or "NVIDIA RTX 4070". */
+/**
+ * The hardware a run actually ran on, e.g. "Intel Core Ultra 7 165H" or "NVIDIA RTX 4070" -
+ * one name per device, for the CPU/GPU tab label.
+ *
+ * Only set when every row for that compute mode agrees on a single name. History seeded or
+ * merged from more than one machine can have two different GPUs both reporting as "gpu" -
+ * picking whichever name happened to be seen first would label the tab with an arbitrary
+ * one of the two and silently misname the other machine's rows. `hardwareMeasured` below is
+ * the filter that lets a reader pick a specific machine's hardware once there's more than one.
+ */
 export function hardwareNames(runs: ModelBenchmarkRun[]): Map<ComputeMode, string> {
-  const names = new Map<ComputeMode, string>();
+  const seen = new Map<ComputeMode, Set<string>>();
   for (const run of runs) {
     for (const row of run.rows) {
-      if (row.deviceName && !names.has(row.compute)) names.set(row.compute, row.deviceName);
+      if (!row.deviceName) continue;
+      const names = seen.get(row.compute) ?? new Set<string>();
+      names.add(row.deviceName);
+      seen.set(row.compute, names);
     }
   }
+
+  const names = new Map<ComputeMode, string>();
+  for (const [compute, distinct] of seen) {
+    if (distinct.size === 1) names.set(compute, [...distinct][0] as string);
+  }
   return names;
+}
+
+export interface HardwareOption {
+  compute: ComputeMode;
+  deviceName: string;
+}
+
+/**
+ * Every distinct (device, hardware) pair with a completed row, for the hardware filter chips.
+ *
+ * `BenchmarkCharts` only renders that filter when this has more than one entry: most readers
+ * have a single machine's CPU and GPU, where it would just repeat what the CPU/GPU tabs
+ * already say. It earns its place once two machines' rows share a compute mode and
+ * `hardwareNames` above can no longer pick one name for the tab.
+ */
+export function hardwareMeasured(history: ModelBenchmarkRun[]): HardwareOption[] {
+  const seen = new Map<string, HardwareOption>();
+  for (const run of history) {
+    for (const row of run.rows) {
+      if (row.status !== 'ok' || !row.deviceName) continue;
+      const key = `${row.compute}\u0000${row.deviceName}`;
+      if (!seen.has(key)) seen.set(key, { compute: row.compute, deviceName: row.deviceName });
+    }
+  }
+  return [...seen.values()].sort(
+    (a, b) => a.compute.localeCompare(b.compute) || a.deviceName.localeCompare(b.deviceName),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -465,11 +500,23 @@ export interface RunFilter {
   devices: ComputeMode[];
   /** Empty means every model. */
   models: string[];
+  /**
+   * Empty means every machine's hardware. Entries are `${compute}\u0000${deviceName}`, the
+   * same composite key `buildComparison` and `buildTradeoff` use - a plain device name would
+   * conflate a CPU and a GPU that happen to report the same name (this dataset has "Apple M3
+   * Max" as both).
+   */
+  hardware: string[];
   /** Rows that could not run - kept out of the charts by default, never out of the table. */
   includeUnmeasured: boolean;
 }
 
-export const NO_FILTER: RunFilter = { devices: [], models: [], includeUnmeasured: false };
+export const NO_FILTER: RunFilter = {
+  devices: [],
+  models: [],
+  hardware: [],
+  includeUnmeasured: false,
+};
 
 /**
  * Narrows a run to what the filter admits.
@@ -484,6 +531,11 @@ export function applyFilter(run: ModelBenchmarkRun, filter: RunFilter): ModelBen
       if (!filter.includeUnmeasured && row.status !== 'ok') return false;
       if (filter.devices.length > 0 && !filter.devices.includes(row.compute)) return false;
       if (filter.models.length > 0 && !filter.models.includes(row.modelName)) return false;
+      if (
+        filter.hardware.length > 0 &&
+        !filter.hardware.includes(`${row.compute}\u0000${row.deviceName}`)
+      )
+        return false;
       return true;
     }),
   };

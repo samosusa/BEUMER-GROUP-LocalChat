@@ -397,6 +397,14 @@
   text-align: left;
 }
 
+.benchPagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
 /* A combination that could not run states why, in place of the figures it has none of. */
 .benchSkipped {
   text-align: left;

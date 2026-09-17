@@ -1,0 +1,5 @@
+source_file,machine,model,device,device_name,samples,load_s,ttft_s,gen_tokens,tok_s,tok_s_min,tok_s_max,total_s,peak_mem_mb,peak_vram_mb
+benchmark-patrik.csv,patrik-macbook,Llama-3.2-1B-Instruct-Q5_K_M.gguf,cpu,Apple M3 Max,3,1.17,1.47,127.0,36.8,31.5,39.8,6.15,5082.1,
+benchmark-patrik.csv,patrik-macbook,Llama-3.2-1B-Instruct-Q5_K_M.gguf,gpu,Apple M3 Max,3,0.35,0.23,127.0,208.1,75.6,76.9,2.27,2938.0,
+results_nomachine.csv,,gemma-2-27b-it-Q5_K_M.gguf,cpu,Intel(R) Core(TM) i7-9700K CPU @ 3.60GHz,,18.01,8.24,61,1.1,,,79.62,19709.0,
+results_nomachine.csv,,gemma-2-27b-it-Q5_K_M.gguf,gpu,NVIDIA GeForce RTX 2070,,,,,,,,,,
