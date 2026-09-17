@@ -31,19 +31,22 @@ import { describeError } from '@/shared/api/http';
 import { BenchmarkCharts } from './BenchmarkCharts';
 import { EmbeddingBenchmarkCharts } from './EmbeddingBenchmarkCharts';
 import { RagEvalCompare, RagEvalResultBody } from './RagEvalCompare';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { Toggle } from '@/shared/ui/Controls';
 import { Icon, type IconName } from '@/shared/ui/Icon';
 import { Mono, ProgressBar, SectionLabel } from '@/shared/ui/Indicators';
 import { PageHeader } from '@/shared/ui/PageHeader';
 import { formatBytes, formatCount, formatDuration, formatRelative } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/cn';
+import { useUiStore } from '@/shared/store/uiStore';
 import styles from './Settings.module.css';
 
 type SettingsTab = 'model' | 'benchmarks';
 
 export function SettingsPage() {
   const [tab, setTab] = useState<SettingsTab>('model');
+  const navCollapsed = useUiStore((state) => state.settingsNavCollapsed);
+  const toggleNav = useUiStore((state) => state.toggleSettingsNav);
   const settings = useSettings();
   const activeModelState = useActiveModel();
   const models = useModels();
@@ -66,28 +69,43 @@ export function SettingsPage() {
 
   return (
     <div className={styles.page}>
-      <nav className={styles.nav} aria-label="Settings sections">
-        <h1 className={styles.navTitle}>Settings</h1>
+      <nav
+        className={cn(styles.nav, navCollapsed && styles.navCollapsed)}
+        aria-label="Settings sections"
+      >
+        <div className={styles.navHeader}>
+          {!navCollapsed && <h1 className={styles.navTitle}>Settings</h1>}
+          <IconButton
+            icon={navCollapsed ? 'chevronRight' : 'chevronLeft'}
+            label={navCollapsed ? 'Expand settings navigation' : 'Collapse settings navigation'}
+            className={styles.navToggle}
+            onClick={toggleNav}
+          />
+        </div>
         <button
           type="button"
           className={cn(styles.navItem, tab === 'model' && styles.navItemActive)}
           aria-current={tab === 'model' ? 'page' : undefined}
+          aria-label={navCollapsed ? 'Model & hardware' : undefined}
+          title={navCollapsed ? 'Model & hardware' : undefined}
           onClick={() => setTab('model')}
         >
           <Icon name="cpu" size={16} />
-          Model &amp; hardware
+          {!navCollapsed && 'Model & hardware'}
         </button>
         <button
           type="button"
           className={cn(styles.navItem, tab === 'benchmarks' && styles.navItemActive)}
           aria-current={tab === 'benchmarks' ? 'page' : undefined}
+          aria-label={navCollapsed ? 'Benchmarks' : undefined}
+          title={navCollapsed ? 'Benchmarks' : undefined}
           onClick={() => setTab('benchmarks')}
         >
           <Icon name="chart" size={16} />
-          Benchmarks
+          {!navCollapsed && 'Benchmarks'}
         </button>
         <span className={styles.navSpacer} />
-        <Mono className={styles.navVersion}>LocalChat 0.4.1</Mono>
+        {!navCollapsed && <Mono className={styles.navVersion}>LocalChat 0.4.1</Mono>}
       </nav>
 
       {tab === 'model' ? (

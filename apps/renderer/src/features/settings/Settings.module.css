@@ -15,10 +15,47 @@
   padding: var(--space-7) var(--space-5);
   border-right: 1px solid var(--border-subtle);
   background: var(--surface-sunken);
+  transition: width var(--duration-base) var(--ease-out);
+}
+
+/* Independent of the main sidebar's own collapse (Sidebar.module.css): narrows to an
+   icon-only rail so the charts and tables beside it get more room, without losing which
+   section is active - the active item's accent border-left still reads at this width. */
+.navCollapsed {
+  width: 56px;
+  padding-left: var(--space-3);
+  padding-right: var(--space-3);
+  overflow: hidden;
+}
+
+.navCollapsed .navItem {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.navHeader {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-4) var(--space-6);
+}
+
+.navCollapsed .navHeader {
+  padding-left: 0;
+  padding-right: 0;
+  justify-content: center;
+}
+
+.navToggle {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.navCollapsed .navToggle {
+  margin-left: 0;
 }
 
 .navTitle {
-  padding: 0 var(--space-4) var(--space-6);
   font-size: 1.0625rem;
   font-weight: var(--weight-semibold);
   letter-spacing: -0.01em;

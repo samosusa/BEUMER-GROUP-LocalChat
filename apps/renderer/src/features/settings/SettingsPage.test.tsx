@@ -3,10 +3,17 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { server } from '@/mocks/server';
+import { useUiStore } from '@/shared/store/uiStore';
 import { SettingsPage } from './SettingsPage';
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  server.resetHandlers();
+  // The collapse preference is a persisted zustand store (module-level, outlives each
+  // test), so a test that collapses the nav and doesn't explicitly expand it again would
+  // otherwise leak that into every test after it in this file.
+  useUiStore.setState({ settingsNavCollapsed: false });
+});
 afterAll(() => server.close());
 
 function renderSettingsPage() {
@@ -71,5 +78,26 @@ describe('RagEvalCard compare mode', () => {
 
     expect(await screen.findByRole('button', { name: /Run evaluation/ })).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Run A' })).not.toBeInTheDocument();
+  });
+});
+
+describe('Settings navigation', () => {
+  it('collapses to an icon-only rail and expands back, keeping the active tab reachable', async () => {
+    const { user } = renderSettingsPage();
+
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Collapse settings navigation' }));
+
+    expect(screen.queryByRole('heading', { name: 'Settings' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Benchmarks' }));
+    expect(screen.getByRole('heading', { name: 'Benchmarks' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Expand settings navigation' }));
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    // The tab selected while collapsed must still be the active one once expanded again.
+    expect(screen.getByRole('button', { name: /Benchmarks/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 });

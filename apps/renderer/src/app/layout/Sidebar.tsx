@@ -17,6 +17,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { Mono, SectionLabel } from '@/shared/ui/Indicators';
 import { formatBytes, historyBucket } from '@/shared/lib/format';
 import { cn } from '@/shared/lib/cn';
+import { useUiStore } from '@/shared/store/uiStore';
 import styles from './Sidebar.module.css';
 
 const BUCKET_LABELS = {
@@ -30,6 +31,8 @@ export function Sidebar() {
   const navigate = useNavigate();
   const { chatId } = useParams();
   const [search, setSearch] = useState('');
+  const collapsed = useUiStore((state) => state.sidebarCollapsed);
+  const toggleSidebar = useUiStore((state) => state.toggleSidebar);
 
   const health = useHealth();
   const settings = useSettings();
@@ -69,6 +72,28 @@ export function Sidebar() {
     });
   }
 
+  if (collapsed) {
+    return (
+      <nav className={cn(styles.sidebar, styles.sidebarCollapsed)} aria-label="Chats and projects">
+        <div className={styles.railTop}>
+          <span className={styles.mark} aria-hidden="true">
+            <Icon name="chat" size={15} strokeWidth={2.4} />
+          </span>
+          <IconButton icon="plus" label="New chat" onClick={() => navigate('/chat')} />
+          <IconButton
+            icon="folder"
+            label="Documents & Projects"
+            onClick={() => navigate('/projects')}
+          />
+        </div>
+        <div className={styles.railBottom}>
+          <IconButton icon="settings" label="Settings" onClick={() => navigate('/settings')} />
+          <IconButton icon="chevronRight" label="Expand sidebar" onClick={toggleSidebar} />
+        </div>
+      </nav>
+    );
+  }
+
   return (
     <nav className={styles.sidebar} aria-label="Chats and projects">
       <header className={styles.header}>
@@ -82,6 +107,12 @@ export function Sidebar() {
               v{health.data?.version ?? window.localchat?.appVersion ?? '0.4.1'}
             </Mono>
           </span>
+          <IconButton
+            icon="chevronLeft"
+            label="Collapse sidebar"
+            className={styles.collapseToggle}
+            onClick={toggleSidebar}
+          />
         </div>
 
         <OfflineBadge offline={health.data?.offline ?? settings.data?.strictOffline ?? true} />
@@ -194,10 +225,6 @@ export function Sidebar() {
         </NavLink>
 
         <div className={styles.user}>
-          <span className={styles.avatar} aria-hidden="true">
-            MP
-          </span>
-          <span className={styles.userName}>S. Susa</span>
           <IconButton
             icon="settings"
             label="Settings"

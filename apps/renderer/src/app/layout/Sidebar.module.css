@@ -6,6 +6,37 @@
   background: var(--surface-sunken);
   border-right: 1px solid var(--border-subtle);
   min-height: 0;
+  transition: width var(--duration-base) var(--ease-out);
+}
+
+/* ----- collapsed rail -------------------------------------------------------
+   A narrow icon-only strip rather than hiding the sidebar entirely: the actions that
+   matter most while collapsed - new chat, projects, settings, expanding back - stay
+   one click away instead of forcing an expand just to navigate anywhere. Chat search
+   and the chat list itself are the trade-off; they need the full-width row to read. */
+
+.sidebarCollapsed {
+  width: 56px;
+  overflow: hidden;
+}
+
+.railTop,
+.railBottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-6) 0;
+}
+
+.railTop {
+  flex: 1;
+}
+
+.railBottom {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-5);
+  padding-bottom: var(--space-5);
 }
 
 /* ----- header ------------------------------------------------------------ */
@@ -32,6 +63,11 @@
   display: flex;
   align-items: center;
   gap: var(--space-4);
+}
+
+.collapseToggle {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .mark {
@@ -312,29 +348,6 @@
 .user {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  justify-content: flex-end;
   padding: 0 var(--space-1);
-}
-
-.avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--surface-user-bubble);
-  color: var(--accent-text);
-  font-size: var(--text-micro);
-  font-weight: var(--weight-semibold);
-}
-
-.userName {
-  flex: 1;
-  font-size: var(--text-meta);
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
