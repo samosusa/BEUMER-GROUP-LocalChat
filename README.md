@@ -111,6 +111,10 @@ make sure Docker has enough RAM allocated (Docker Desktop → Settings → Resou
 This is a review/local target, not the shipping artefact — see the note at the top of
 `docker-compose.yml`.
 
+For CUDA vs Vulkan prerequisites — what each backend needs on the host, what permissions are
+required, and what Docker can and can't automate — see
+[docs/gpu-setup.md](docs/gpu-setup.md).
+
 ## Ingestion
 
 Upload a supported PDF, Word (.docx), Markdown, or TXT document with:
