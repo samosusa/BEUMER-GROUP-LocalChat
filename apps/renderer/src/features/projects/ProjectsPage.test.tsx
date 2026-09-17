@@ -29,6 +29,40 @@ function renderProjectsPage() {
 }
 
 describe('ProjectsPage', () => {
+  // Order matters: the mock store (src/mocks/db.ts) is a module-level singleton with no
+  // reset between tests in this file, so each test below is ordered to not need data an
+  // earlier one already deleted - the cancel case first (mutates nothing), then the single
+  // delete, then the fully-destructive "delete every project" case last.
+
+  it('cancelling a single-project delete leaves the project in place', async () => {
+    const { user } = renderProjectsPage();
+
+    await screen.findByText('CPH T3 — LS-4000E');
+
+    await user.click(screen.getByRole('button', { name: 'Delete "CPH T3 — LS-4000E"' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.getByText('CPH T3 — LS-4000E')).toBeInTheDocument();
+  });
+
+  it('deletes a single project once confirmed, leaving the others', async () => {
+    const { user } = renderProjectsPage();
+
+    await screen.findByText('CPH T3 — LS-4000E');
+    const countLabel = await screen.findByText(/\d+ projects/);
+    const countBefore = Number(countLabel.textContent?.match(/\d+/)?.[0]);
+
+    await user.click(screen.getByRole('button', { name: 'Delete "CPH T3 — LS-4000E"' }));
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('CPH T3 — LS-4000E')).not.toBeInTheDocument();
+    });
+    expect(screen.getByText(`${countBefore - 1} projects`)).toBeInTheDocument();
+    // The other seeded projects must survive a single-card delete.
+    expect(screen.getByText('paletpac Retrofit — Aalborg')).toBeInTheDocument();
+  });
+
   it('deletes every project once confirmed', async () => {
     const { user } = renderProjectsPage();
 

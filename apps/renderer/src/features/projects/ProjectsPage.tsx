@@ -4,10 +4,11 @@ import type { Project } from '@localchat/contracts';
 import {
   useCreateProject,
   useDeleteAllProjects,
+  useDeleteProject,
   useIngestDocuments,
   useProjects,
 } from '@/shared/api/queries';
-import { Button } from '@/shared/ui/Button';
+import { Button, IconButton } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
 import { Mono, ProgressBar, SectionLabel, StatusDot } from '@/shared/ui/Indicators';
 import { DangerAction } from '@/shared/ui/DangerAction';
@@ -21,9 +22,18 @@ export function ProjectsPage() {
   const navigate = useNavigate();
   const projects = useProjects();
   const createProject = useCreateProject();
+  const deleteProject = useDeleteProject();
   const deleteAllProjects = useDeleteAllProjects();
   const ingest = useIngestDocuments();
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Which single card is asking for confirmation before its own irreversible delete - only
+  // one at a time, mirroring the chat list's inline confirm (Sidebar.tsx).
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
+  function handleDeleteProject(project: Project) {
+    setConfirmingId(null);
+    deleteProject.mutate(project.id);
+  }
 
   return (
     <div className={styles.page}>
@@ -67,7 +77,12 @@ export function ProjectsPage() {
               <ProjectCard
                 key={project.id}
                 project={project}
+                confirming={confirmingId === project.id}
+                deletePending={deleteProject.isPending}
                 onOpen={() => navigate(`/projects/${project.id}`)}
+                onRequestDelete={() => setConfirmingId(project.id)}
+                onCancelDelete={() => setConfirmingId(null)}
+                onConfirmDelete={() => handleDeleteProject(project)}
               />
             ))}
 
@@ -109,59 +124,111 @@ export function ProjectsPage() {
   );
 }
 
-function ProjectCard({ project, onOpen }: { project: Project; onOpen: () => void }) {
+interface ProjectCardProps {
+  project: Project;
+  confirming: boolean;
+  deletePending: boolean;
+  onOpen: () => void;
+  onRequestDelete: () => void;
+  onCancelDelete: () => void;
+  onConfirmDelete: () => void;
+}
+
+function ProjectCard({
+  project,
+  confirming,
+  deletePending,
+  onOpen,
+  onRequestDelete,
+  onCancelDelete,
+  onConfirmDelete,
+}: ProjectCardProps) {
   const indexing = project.indexState === 'indexing' && project.indexProgress !== null;
 
+  if (confirming) {
+    return (
+      <div className={styles.projectCardConfirm}>
+        <span className={styles.confirmText}>
+          Delete <strong>{project.name}</strong>? Its documents and chats go with it — this
+          can&rsquo;t be undone.
+        </span>
+        <span className={styles.confirmActions}>
+          <button type="button" className={styles.confirmCancel} onClick={onCancelDelete}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className={styles.confirmDelete}
+            disabled={deletePending}
+            onClick={onConfirmDelete}
+          >
+            Delete
+          </button>
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <button type="button" className={styles.projectCard} onClick={onOpen}>
-      <span className={styles.cardHead}>
-        <span className={styles.cardIcon}>
-          <Icon name="folder" size={17} />
-        </span>
-        <span className={styles.cardTitleGroup}>
-          <span className={styles.cardTitle}>{project.name}</span>
-          <Mono className={styles.cardStatus}>
-            {indexing
-              ? `indexing ${Math.round((project.indexProgress ?? 0) * 100)}%`
-              : project.lastOpenedAt
-                ? `opened ${formatRelative(project.lastOpenedAt)}`
-                : 'not opened yet'}
-          </Mono>
-        </span>
-      </span>
-
-      <span className={styles.cardDescription}>{project.description}</span>
-
-      <span className={styles.cardFooter}>
-        {indexing ? (
-          <>
-            <ProgressBar value={project.indexProgress ?? 0} thickness={3} label="Indexing" />
-            <span className={styles.cardMetaRow}>
-              <Mono className={styles.cardMeta}>{formatCount(project.documentCount)} docs</Mono>
-              <span className={styles.spacer} />
-              <Mono className={styles.cardEta}>
-                {project.indexEtaSeconds !== null ? formatEta(project.indexEtaSeconds) : ''}
-              </Mono>
-            </span>
-          </>
-        ) : (
-          <span className={styles.cardMetaRow}>
-            <span className={styles.cardMetaItem}>
-              <Icon name="document" size={13} />
-              <Mono className={styles.cardMeta}>{formatCount(project.documentCount)} docs</Mono>
-            </span>
-            <span className={styles.cardMetaItem}>
-              <Icon name="chat" size={13} />
-              <Mono className={styles.cardMeta}>{formatCount(project.chatCount)} chats</Mono>
-            </span>
-            <span className={styles.spacer} />
-            <StatusDot
-              tone={project.indexState === 'ready' ? 'success' : 'warning'}
-              label={project.indexState === 'ready' ? 'indexed' : project.indexState}
-            />
+    <div className={styles.projectCard}>
+      <button type="button" className={styles.projectCardOpen} onClick={onOpen}>
+        <span className={styles.cardHead}>
+          <span className={styles.cardIcon}>
+            <Icon name="folder" size={17} />
           </span>
-        )}
-      </span>
-    </button>
+          <span className={styles.cardTitleGroup}>
+            <span className={styles.cardTitle}>{project.name}</span>
+            <Mono className={styles.cardStatus}>
+              {indexing
+                ? `indexing ${Math.round((project.indexProgress ?? 0) * 100)}%`
+                : project.lastOpenedAt
+                  ? `opened ${formatRelative(project.lastOpenedAt)}`
+                  : 'not opened yet'}
+            </Mono>
+          </span>
+        </span>
+
+        <span className={styles.cardDescription}>{project.description}</span>
+
+        <span className={styles.cardFooter}>
+          {indexing ? (
+            <>
+              <ProgressBar value={project.indexProgress ?? 0} thickness={3} label="Indexing" />
+              <span className={styles.cardMetaRow}>
+                <Mono className={styles.cardMeta}>{formatCount(project.documentCount)} docs</Mono>
+                <span className={styles.spacer} />
+                <Mono className={styles.cardEta}>
+                  {project.indexEtaSeconds !== null ? formatEta(project.indexEtaSeconds) : ''}
+                </Mono>
+              </span>
+            </>
+          ) : (
+            <span className={styles.cardMetaRow}>
+              <span className={styles.cardMetaItem}>
+                <Icon name="document" size={13} />
+                <Mono className={styles.cardMeta}>{formatCount(project.documentCount)} docs</Mono>
+              </span>
+              <span className={styles.cardMetaItem}>
+                <Icon name="chat" size={13} />
+                <Mono className={styles.cardMeta}>{formatCount(project.chatCount)} chats</Mono>
+              </span>
+              <span className={styles.spacer} />
+              <StatusDot
+                tone={project.indexState === 'ready' ? 'success' : 'warning'}
+                label={project.indexState === 'ready' ? 'indexed' : project.indexState}
+              />
+            </span>
+          )}
+        </span>
+      </button>
+
+      <IconButton
+        icon="trash"
+        label={`Delete "${project.name}"`}
+        size={13}
+        className={styles.cardDelete}
+        onClick={onRequestDelete}
+      />
+    </div>
   );
 }

@@ -119,9 +119,14 @@
 }
 
 .projectCard {
+  position: relative;
+}
+
+.projectCardOpen {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  width: 100%;
   min-height: 200px;
   padding: var(--space-7);
   border: 1px solid var(--border-subtle);
@@ -133,9 +138,83 @@
     background var(--duration-fast) var(--ease-out);
 }
 
-.projectCard:hover {
+.projectCardOpen:hover {
   border-color: var(--border-strong);
   background: var(--surface-hover);
+}
+
+/* ----- project deletion -----------------------------------------------------
+   Mirrors the chat list's inline trash-then-confirm pattern (Sidebar.module.css):
+   the trash icon overlays the card instead of sitting in its flex flow, so
+   nothing reflows on hover, and confirming replaces the whole card in place -
+   deleting a project cascades to its documents and chats and cannot be undone. */
+
+.cardDelete {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  color: var(--text-label);
+  background: var(--surface-card);
+  opacity: 0;
+}
+
+.projectCard:hover .cardDelete,
+.projectCard:focus-within .cardDelete {
+  opacity: 1;
+}
+
+.projectCardConfirm {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 200px;
+  padding: var(--space-7);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-xl);
+  background: var(--warning-surface);
+}
+
+.confirmText {
+  font-size: var(--text-row);
+  line-height: var(--leading-normal);
+  color: var(--text-body);
+}
+
+.confirmActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.confirmCancel,
+.confirmDelete {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--text-meta);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.confirmCancel {
+  color: var(--text-label);
+}
+
+.confirmDelete {
+  color: var(--danger-text);
+  font-weight: 600;
+}
+
+.confirmCancel:hover,
+.confirmDelete:hover {
+  text-decoration: underline;
+}
+
+.confirmCancel:focus-visible,
+.confirmDelete:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 
 .cardHead {
