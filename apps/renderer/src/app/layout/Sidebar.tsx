@@ -104,7 +104,7 @@ export function Sidebar() {
           <span className={styles.brandText}>
             <span className={styles.brandName}>BEUMER LocalChat</span>
             <Mono className={styles.brandVersion}>
-              v{health.data?.version ?? window.localchat?.appVersion ?? '0.4.1'}
+              {health.data?.version ?? window.localchat?.appVersion ?? '0.4.1'}
             </Mono>
           </span>
           <IconButton
