@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from src.app import app
 from src.db import SessionLocal
+from src.llm_adapter import llm_adapter
 
 client = TestClient(app)
 
@@ -96,9 +97,15 @@ def test_rag_eval_runs_against_ingested_documents_and_stores_results(monkeypatch
     body = results_response.json()
     assert body["status"] == "completed"
     assert len(body["results"]) == 1
-    # No GGUF is loaded in this test process, so there is no active answer model to record;
-    # the embedding adapter always has one, since it loads a default at construction time.
-    assert body["answer_model"] is None
+    # The job records whichever answer model was active when it started - that is the
+    # contract. Which model that is depends on the process it runs in: LLMAdapter is a
+    # module-level singleton, and an earlier test module that lets _fit_to_context call the
+    # real context_size() leaves a GGUF loaded in it. Asserting a bare None here instead
+    # made this test pass only on a machine with an empty data/models/, and fail on one
+    # where somebody had actually downloaded the models.
+    active_answer_model = llm_adapter.active
+    assert body["answer_model"] == (active_answer_model["model"] if active_answer_model else None)
+    # The embedding adapter always has one, since it loads a default at construction time.
     assert body["embedding_model"]
 
     row = body["results"][0]
@@ -117,7 +124,9 @@ def test_rag_eval_runs_against_ingested_documents_and_stores_results(monkeypatch
     runs = runs_response.json()
     assert any(run["rag_eval_job_id"] == job_id for run in runs)
     this_run = next(run for run in runs if run["rag_eval_job_id"] == job_id)
-    assert this_run["answer_model"] is None
+    # Same reasoning as above: the run listing must agree with the results payload about
+    # which model was active, whatever that model happens to be in this process.
+    assert this_run["answer_model"] == body["answer_model"]
     assert this_run["embedding_model"] == body["embedding_model"]
 
 
