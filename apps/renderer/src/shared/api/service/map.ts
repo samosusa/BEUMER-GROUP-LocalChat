@@ -270,6 +270,8 @@ export function messageFromService(
     modelId: null,
     complexityTier: dto.complexity_tier,
     complexityScore: dto.complexity_score,
+    searchQuery: dto.search_query ?? null,
+    searchRewritten: dto.search_rewritten ?? null,
   };
 }
 
@@ -295,6 +297,8 @@ export function messageFromAnswer(
     modelId: null,
     complexityTier: answer.complexity?.tier ?? null,
     complexityScore: answer.complexity?.score ?? null,
+    searchQuery: null,
+    searchRewritten: null,
   };
 }
 
