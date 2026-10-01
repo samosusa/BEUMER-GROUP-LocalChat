@@ -50,6 +50,8 @@ BENCHMARK_PROMPTS = (
     },
 )
 MAX_TOKENS = 128
+# Below this, t_eval covers so few steps that tok/s is noise or a divide-by-zero.
+MIN_MEASURABLE_TOKENS = 8
 N_CTX = 4096
 TEMPERATURE = 0.1
 TOP_P = 0.9
@@ -296,12 +298,29 @@ def run_one(model_path: Path, device: str, prompt_spec: dict) -> BenchmarkRow:
         perf = llama_cpp_module.llama_perf_context(llm._ctx.ctx)
         gen_s = perf.t_eval_ms / 1000
 
-        row.status = "ok"
         row.ttft_s = (first_token_t or t_end) - t_start
         row.gen_tokens = perf.n_eval
-        row.tok_s = (perf.n_eval / gen_s) if gen_s else None
         row.total_s = row.load_s + (t_end - t_start)
         row.peak_mem_mb = round(proc.memory_info().rss / (1024 * 1024), 1)
+
+        # A run that emitted a token or two timed nothing: t_eval is zero or covers a single
+        # step, so tok/s is either None or meaningless. Calling that "ok" is how a model
+        # that refused to answer ends up in a throughput chart as a blank bar. It is an
+        # error, and the detail has to say what to try, because the usual cause is the model
+        # emitting end-of-sequence immediately on this raw-completion prompt rather than
+        # anything being broken.
+        if perf.n_eval < MIN_MEASURABLE_TOKENS or not gen_s:
+            row.status = "error"
+            row.detail = (
+                f"generated only {perf.n_eval} token(s) in {perf.t_eval_ms:.1f}ms - too "
+                "little to measure throughput. The model most likely stopped at once on the "
+                "raw-completion prompt this benchmark uses; it may need its own chat "
+                "template to produce an answer."
+            )
+            return row
+
+        row.status = "ok"
+        row.tok_s = perf.n_eval / gen_s
         if device == "gpu":
             now_vram = _gpu_vram_used_mb()
             if now_vram is not None and idle_vram_mb is not None:
