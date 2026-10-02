@@ -426,6 +426,8 @@ export const MESSAGES: Record<string, Message[]> = {
       modelId: null,
       complexityTier: null,
       complexityScore: null,
+      searchQuery: null,
+      searchRewritten: null,
     },
     {
       id: 'msg-throughput-a',
@@ -500,6 +502,8 @@ export const MESSAGES: Record<string, Message[]> = {
       modelId: 'qwen2.5-7b-instruct-q4km',
       complexityTier: 'complex',
       complexityScore: 0.5,
+      searchQuery: null,
+      searchRewritten: null,
     },
   ],
 
@@ -521,6 +525,8 @@ export const MESSAGES: Record<string, Message[]> = {
       modelId: null,
       complexityTier: null,
       complexityScore: null,
+      searchQuery: null,
+      searchRewritten: null,
     },
     {
       id: 'msg-anchor-a',
@@ -551,6 +557,8 @@ export const MESSAGES: Record<string, Message[]> = {
       modelId: 'qwen2.5-7b-instruct-q4km',
       complexityTier: 'simple',
       complexityScore: 0.1,
+      searchQuery: null,
+      searchRewritten: null,
     },
   ],
 };

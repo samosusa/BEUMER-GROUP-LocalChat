@@ -198,9 +198,8 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
     }));
 
   const hardwareChoice = (compute: ComputeMode): string =>
-    filter.hardware
-      .find((key) => key.startsWith(`${compute}\u0000`))
-      ?.slice(compute.length + 1) ?? '';
+    filter.hardware.find((key) => key.startsWith(`${compute}\u0000`))?.slice(compute.length + 1) ??
+    '';
 
   return (
     <div className={styles.charts}>
@@ -389,7 +388,9 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
       {allModels.length > 1 && (
         <figure className={styles.chartFigure}>
           <figcaption className={styles.chartTitle}>
-            <span>Every CPU and GPU on {hardwareModel} — {metric.label.toLowerCase()}</span>
+            <span>
+              Every CPU and GPU on {hardwareModel} — {metric.label.toLowerCase()}
+            </span>
             <select
               className={styles.benchSelect}
               value={hardwareModel}
@@ -415,9 +416,9 @@ export function BenchmarkCharts({ latest, history }: BenchmarkChartsProps) {
             </p>
           )}
           <p className={styles.chartFootnote}>
-            Every machine in history that has run this model, CPU and GPU side by side - not
-            scoped to the CPU/GPU picked above, so a machine you are not currently looking at
-            still shows up here if it measured this model too.
+            Every machine in history that has run this model, CPU and GPU side by side - not scoped
+            to the CPU/GPU picked above, so a machine you are not currently looking at still shows
+            up here if it measured this model too.
           </p>
         </figure>
       )}

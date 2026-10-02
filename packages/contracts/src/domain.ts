@@ -238,6 +238,15 @@ export const MessageSchema = z.object({
   /** How hard the user's question was judged to be; set on assistant turns only. */
   complexityTier: ComplexityTier.nullable(),
   complexityScore: z.number().nullable(),
+  /**
+   * What retrieval actually searched for, when a follow-up was rewritten into a
+   * standalone question before it reached the index. Null when the user's own wording
+   * was searched unchanged, which is the common case — so a non-null value is itself the
+   * signal that a rewrite happened, and the reason a wrong answer can be attributed to
+   * retrieval rather than guessed at.
+   */
+  searchQuery: z.string().nullable(),
+  searchRewritten: z.boolean().nullable(),
 });
 export type Message = z.infer<typeof MessageSchema>;
 

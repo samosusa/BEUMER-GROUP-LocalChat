@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from src import llm_adapter
 from src.complexity import TIER_PARAMS, measure_complexity
+from src.conversation_context import ResolvedQuery, resolve_search_query
 from src.retriever import RetrievedChunk, retrieve_chunks
 
 MIN_SIMILARITY = 0.35
@@ -20,19 +21,6 @@ CONTEXT_SAFETY_MARGIN = 32
 HISTORY_TURNS = 3
 
 History = list[tuple[str, str]]
-
-
-def _expand_retrieval_query(question: str, history: History) -> str:
-    """Follow-up questions like "what are his hobbies?" carry no entity of their own -
-    embedded alone, the query has nothing to anchor the FAISS search to the right document
-    out of many similar ones. Prefixing the recent user questions restores that anchor
-    (e.g. "Samo Susa") without a separate LLM coreference-resolution call. Only prior
-    *questions* are used here (not answers) - the goal is carrying forward the subject
-    being asked about, not pulling in prose that would dilute the embedding."""
-    if not history:
-        return question
-    prior_questions = [asked for asked, _ in history]
-    return "\n".join([*prior_questions, question])
 
 
 def _format_history(history: History) -> str:
@@ -120,16 +108,43 @@ def answer(
     # top_k/max_tokens default to None so a per-query difficulty score - not a single
     # fixed pair - picks retrieval depth and generation budget; an explicit caller-supplied
     # value (e.g. from a future admin override) always wins over the heuristic.
-    complexity = measure_complexity(question)
+    recent_history = (history or [])[-HISTORY_TURNS:]
+
+    # Retrieval gets a standalone rewrite; generation still gets the user's own words plus
+    # the dialogue (see build_prompt). One string cannot serve both - that is what
+    # src/conversation_context.py exists to explain and fix.
+    resolved = resolve_search_query(question, recent_history)
+    search_query = resolved.search_query
+
+    # Complexity is scored on what is actually being asked, not on how little of it the
+    # user had to type. "And why?" is a one-word question and a complex one; scoring the
+    # raw text would hand it the retrieval depth of a single-fact lookup.
+    complexity = measure_complexity(search_query)
     tier_params = TIER_PARAMS[complexity.tier]
     resolved_top_k = top_k if top_k is not None else tier_params["top_k"]
     resolved_max_tokens = max_tokens if max_tokens is not None else tier_params["max_tokens"]
-    recent_history = (history or [])[-HISTORY_TURNS:]
 
-    retrieval_query = _expand_retrieval_query(question, recent_history)
     retrieved = retrieve_chunks(
-        retrieval_query, db, top_k=resolved_top_k, project_id=project_id, include_general=include_general
+        search_query, db, top_k=resolved_top_k, project_id=project_id, include_general=include_general
     )
+
+    # A rewrite is a guess about what the user meant. When the guess retrieves nothing
+    # usable, the literal question is still better evidence of intent than a rewrite this
+    # corpus does not recognise - so try it before giving up, and record which one won.
+    if resolved.rewritten and (not retrieved or retrieved[0].score < MIN_SIMILARITY):
+        literal = retrieve_chunks(
+            question, db, top_k=resolved_top_k, project_id=project_id, include_general=include_general
+        )
+        if literal and (not retrieved or literal[0].score > retrieved[0].score):
+            retrieved = literal
+            search_query = question
+            resolved = ResolvedQuery(question, False, "rewrite retrieved nothing; used the original")
+
+    # Carried into the response so a wrong answer can be attributed to retrieval or to
+    # generation. Without it, a follow-up that searched for the wrong thing is
+    # indistinguishable from one where the documentation simply did not have the answer.
+    search_info = {"query": search_query, "rewritten": resolved.rewritten, "reason": resolved.reason}
+
     if not retrieved or retrieved[0].score < MIN_SIMILARITY:
         return {
             "answer": None,
@@ -137,6 +152,7 @@ def answer(
             "not_found": True,
             "suggestion": "Try a more specific question about the ingested project documentation.",
             "complexity": {"tier": complexity.tier, "score": complexity.score},
+            "search": search_info,
         }
 
     fitted, prompt, context_info = _fit_to_context(question, retrieved, resolved_max_tokens, recent_history)
@@ -156,4 +172,5 @@ def answer(
         "not_found": False,
         "complexity": {"tier": complexity.tier, "score": complexity.score},
         "context": context_info,
+        "search": search_info,
     }

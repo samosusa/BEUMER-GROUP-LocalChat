@@ -12,10 +12,10 @@ the note in `docker-compose.yml`).
 
 ## TL;DR
 
-| | Vendor coverage | Relative speed on NVIDIA | Needs matching a driver/toolkit version | Extra wheel index |
-|---|---|---|---|---|
-| **CUDA** | NVIDIA only | Fastest — especially prompt processing/prefill | Yes — driver must support the CUDA version the wheel targets | `--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124` |
-| **Vulkan** | NVIDIA, AMD, Intel | Slower than CUDA, especially prefill; decode gap is small and closing | No — rides whatever Vulkan ICD the GPU driver already ships | `--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/vulkan` |
+|            | Vendor coverage    | Relative speed on NVIDIA                                              | Needs matching a driver/toolkit version                      | Extra wheel index                                                         |
+| ---------- | ------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| **CUDA**   | NVIDIA only        | Fastest — especially prompt processing/prefill                        | Yes — driver must support the CUDA version the wheel targets | `--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124`  |
+| **Vulkan** | NVIDIA, AMD, Intel | Slower than CUDA, especially prefill; decode gap is small and closing | No — rides whatever Vulkan ICD the GPU driver already ships  | `--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/vulkan` |
 
 ## Bare-metal prerequisites (the Electron installer's world)
 
@@ -38,7 +38,7 @@ the note in `docker-compose.yml`).
 - Any GPU (NVIDIA, AMD, or Intel, discrete or integrated) with a reasonably current driver.
   The Vulkan loader/ICD ships as part of the normal graphics driver on all three vendors —
   there is no separate "Vulkan install" for an end user in the common case. The Vulkan SDK
-  (LunarG) is only needed if *building* llama.cpp from source with validation layers; it is
+  (LunarG) is only needed if _building_ llama.cpp from source with validation layers; it is
   not needed to run a prebuilt wheel.
 - `pip install --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/vulkan -r requirements.txt`
 - Verify the same way: `llama_cpp.llama_supports_gpu_offload()` must print `True`.
@@ -53,7 +53,7 @@ today's image has no GPU path at all. Docker adds a layer the bare-metal case do
 **the image can decide which build gets installed, but it cannot grant itself access to the
 host's GPU.** That access is always requested and granted by the host, outside the image.
 
-### What Docker *can* automate (lives in this repo)
+### What Docker _can_ automate (lives in this repo)
 
 - **Which backend the image installs.** Swap the base image from `python:3.11-slim` to a CUDA
   base (e.g. `nvidia/cuda:12.4.1-runtime-ubuntu22.04`) and point pip at the `cu124` (or
@@ -63,7 +63,7 @@ host's GPU.** That access is always requested and granted by the host, outside t
   running `docker compose up` then gets that request automatically — they don't need to
   remember a `--gpus all` flag by hand.
 
-### What Docker can *not* automate (host-level, one-time, outside the repo)
+### What Docker can _not_ automate (host-level, one-time, outside the repo)
 
 - **The GPU driver itself** must already be installed on the host machine — the container
   borrows it via passthrough, it does not ship or install its own.
@@ -77,7 +77,7 @@ host's GPU.** That access is always requested and granted by the host, outside t
   `/dev/dri` device passthrough instead of the NVIDIA Container Toolkit.
 - None of the above can be triggered by anything baked into `Dockerfile` or
   `docker-compose.yml` — they're prerequisites the host must already satisfy before `docker
-  compose up` is run.
+compose up` is run.
 
 ### Practical implication
 

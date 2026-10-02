@@ -147,6 +147,10 @@ export const ServiceMessage = z.object({
   not_found: z.boolean().nullable(),
   complexity_tier: ServiceComplexityTier.nullable(),
   complexity_score: z.number().nullable(),
+  // Optional so a service predating migration 0019 still parses: older rows have no
+  // such column, and a hard requirement here would reject the whole conversation.
+  search_query: z.string().nullable().optional(),
+  search_rewritten: z.boolean().nullable().optional(),
   created_at: naiveDateTime,
 });
 export type ServiceMessage = z.infer<typeof ServiceMessage>;

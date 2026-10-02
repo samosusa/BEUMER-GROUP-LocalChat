@@ -153,6 +153,8 @@ const CANNED: Canned[] = [
       modelId: store.settings.activeModelId,
       complexityTier: 'simple',
       complexityScore: 0.1,
+      searchQuery: null,
+      searchRewritten: null,
     }),
   },
   {
@@ -200,6 +202,8 @@ const CANNED: Canned[] = [
       modelId: store.settings.activeModelId,
       complexityTier: 'complex',
       complexityScore: 0.55,
+      searchQuery: null,
+      searchRewritten: null,
     }),
   },
   {
@@ -259,6 +263,8 @@ const CANNED: Canned[] = [
       modelId: store.settings.activeModelId,
       complexityTier: 'moderate',
       complexityScore: 0.3,
+      searchQuery: null,
+      searchRewritten: null,
     }),
   },
 ];

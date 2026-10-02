@@ -401,6 +401,8 @@ export const handlers = [
       modelId: null,
       complexityTier: null,
       complexityScore: null,
+      searchQuery: null,
+      searchRewritten: null,
     };
     messages.push(userMessage);
 

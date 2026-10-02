@@ -61,6 +61,8 @@ class MessageResponse(BaseModel):
     not_found: bool | None
     complexity_tier: str | None
     complexity_score: float | None
+    search_query: str | None
+    search_rewritten: bool | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -212,6 +214,10 @@ def post_message(conversation_id: int, payload: MessageCreate, db: Session = Dep
     result = answer(question, db, project_id=project_id, include_general=include_general, history=history)
 
     complexity = result.get("complexity") or {}
+    # Only recorded when retrieval searched for something other than what the user typed.
+    # Storing the query on every turn would just duplicate the user message next to it.
+    search = result.get("search") or {}
+    rewritten = bool(search.get("rewritten"))
     assistant_message = Message(
         conversation_id=conversation.id,
         role="assistant",
@@ -220,6 +226,8 @@ def post_message(conversation_id: int, payload: MessageCreate, db: Session = Dep
         not_found=result["not_found"],
         complexity_tier=complexity.get("tier"),
         complexity_score=complexity.get("score"),
+        search_query=search.get("query") if rewritten else None,
+        search_rewritten=rewritten,
         created_at=_now(),
     )
     db.add(assistant_message)
