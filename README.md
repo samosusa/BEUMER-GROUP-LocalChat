@@ -290,6 +290,56 @@ separate Danish and English results for retrieval hit rate, answer correctness, 
 accuracy. The repository already includes a Danish cross-lingual dataset at
 `data/eval/rag_qa_pairs_da.md`.
 
+## Vector DB capacity sweep (research/eval tooling)
+
+Answers a different question than the benchmarks above: not "how fast is this model", but
+"how does the vector store hold up as the number of ingested _documents_ grows". Runnable as
+a background job from Settings > Benchmarks in the app, or standalone:
+
+```bash
+python scripts/vector_capacity_sweep.py
+python scripts/vector_capacity_sweep.py --steps 1000 5000 20000 --queries-per-step 10
+```
+
+or via the API, mirroring the job pattern above:
+
+```bash
+curl -X POST http://localhost:8000/vector-capacity/benchmark
+curl http://localhost:8000/vector-capacity/benchmark/status/1
+curl http://localhost:8000/vector-capacity/benchmark/results/1
+```
+
+It inserts synthetic documents with fake, correctly-dimensioned embeddings (standing in for
+sentence-transformers, so the run isn't dominated by embedding speed) through the real
+ingestion pipeline, into a throwaway database and vector directory that are discarded once
+the run's summary numbers are recorded - your real corpus is never touched. See
+`src/vector_capacity_benchmark.py` for the full rationale.
+
+**What this measures is a degradation curve, not a capacity ceiling.** `src/ingest/vector_store.py`
+keeps one FAISS index file per document rather than one shared index, and every query
+(`src/retriever.py`) globs and loads _all_ of them before merging results. That design has no
+hard wall to hit - given enough disk and RAM you could keep inserting documents indefinitely,
+and neither SQLite nor FAISS individually have a practical ceiling anywhere near what matters
+here. It just keeps getting slower, continuously, the more documents are indexed. So "maximum
+capacity" as a single crash point doesn't really apply to this architecture.
+
+What _does_ apply, and what a sweep's numbers answer, is: at what document count does the
+system cross from usable to unusable? One real run:
+
+| Documents | Mean query latency |
+| --------- | ------------------ |
+| 100       | 0.3s               |
+| 500       | 1.1s               |
+| 1,000     | 3.6s               |
+| 2,500     | 16.5s              |
+| 5,000     | 58.8s              |
+
+Document count grew 50x over this run; mean latency grew ~197x - worse than linear, confirming
+the glob-and-merge design degrades faster than document count alone would predict. For an
+interactive chat UI, anything past a couple of seconds is already unusable, which puts the
+practical ceiling somewhere between 500 and 1,000 documents on this machine - far below where
+anything actually breaks. Treat that crossing point, not a crash, as "capacity" for this system.
+
 ## Demo workflow
 
 `npm run demo` runs an isolated end-to-end simulation and prints each stage clearly: health
