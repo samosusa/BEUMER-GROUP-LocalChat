@@ -6,6 +6,7 @@ import type {
   RagEvalRun,
   RagEvalRunSummary,
   RagEvalSummary,
+  VectorCapacityRun,
 } from '@localchat/contracts';
 import {
   AskRequest,
@@ -565,6 +566,29 @@ export const handlers = [
     });
   }),
 
+  // --- vector-DB capacity sweep ----------------------------------------------
+  http.get(route(routes.vectorCapacity()), async () => {
+    await delay(LATENCY.fast);
+    return HttpResponse.json({ run: catalogue.vectorCapacity });
+  }),
+
+  http.get(route(routes.vectorCapacityHistory()), async () => {
+    await delay(LATENCY.fast);
+    return HttpResponse.json({ runs: vectorCapacityHistory() });
+  }),
+
+  http.post(route(routes.vectorCapacity()), async () => {
+    // A real sweep inserts thousands of documents one at a time and can run for minutes -
+    // see src/vector_capacity_benchmark.py. The mock simulates that as an already-finished
+    // run against the fixed sample steps, same tradeoff as the benchmark and embedding-
+    // benchmark POST handlers above.
+    await delay(1_500);
+    const finishedAt = new Date().toISOString();
+    return HttpResponse.json({
+      run: { ...catalogue.vectorCapacity, startedAt: finishedAt, finishedAt },
+    });
+  }),
+
   // --- RAG evaluation --------------------------------------------------------
   http.get(route(routes.ragEvalDatasets()), async () => {
     await delay(LATENCY.fast);
@@ -703,6 +727,42 @@ function embeddingHistory(): EmbeddingBenchmarkRun[] {
 
 function scale(value: number | null, factor: number): number | null {
   return value === null ? null : Math.round(value * factor * 100) / 100;
+}
+
+/**
+ * Four past sweeps, a week apart, derived from the finished one.
+ *
+ * Same deterministic-drift rule as `benchmarkHistory`/`embeddingHistory` above, but drifting
+ * the OPPOSITE direction on purpose: this benchmark exists to catch a regression in
+ * src/retriever.py's glob-and-merge retrieval, so the history reads as the fix landing two
+ * runs ago - latency per step improving - rather than everything simply getting faster over
+ * time for no reason, which a reader would rightly distrust.
+ */
+function vectorCapacityHistory(): VectorCapacityRun[] {
+  const RUNS = 4;
+  const DAY = 86_400_000;
+  const finished = Date.parse(catalogue.vectorCapacity.finishedAt ?? catalogue.vectorCapacity.startedAt);
+
+  return Array.from({ length: RUNS }, (_, index) => {
+    const age = RUNS - 1 - index;
+    const at = new Date(finished - age * 7 * DAY).toISOString();
+    // Latency only - insertion, disk and memory are unaffected by a retrieval-side fix.
+    const factor = 1 + age * 0.35;
+
+    return {
+      ...catalogue.vectorCapacity,
+      id: `capacity-history-${index}`,
+      startedAt: at,
+      finishedAt: at,
+      steps: catalogue.vectorCapacity.steps.map((step) => ({
+        ...step,
+        ranAt: at,
+        queryLatencyMsMean: scale(step.queryLatencyMsMean, factor),
+        queryLatencyMsMin: scale(step.queryLatencyMsMin, factor),
+        queryLatencyMsMax: scale(step.queryLatencyMsMax, factor),
+      })),
+    };
+  });
 }
 
 /**

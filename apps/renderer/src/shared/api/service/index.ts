@@ -15,6 +15,7 @@ import type {
   RagEvalRunSummary,
   ReindexJob,
   RetrievalScope,
+  VectorCapacityRun,
 } from '@localchat/contracts';
 import { request } from '../http';
 import {
@@ -48,6 +49,10 @@ import {
   ServiceReindexRunList,
   ServiceReindexStatus,
   ServiceSetActiveEmbeddingModel,
+  ServiceVectorCapacityAccepted,
+  ServiceVectorCapacityResults,
+  ServiceVectorCapacityRunList,
+  ServiceVectorCapacityStatus,
 } from './dto';
 import {
   benchmarkRunFromService,
@@ -68,6 +73,7 @@ import {
   reindexJobFromService,
   toId,
   toServiceId,
+  vectorCapacityRunFromService,
 } from './map';
 
 /**
@@ -597,6 +603,87 @@ export async function embeddingBenchmarkHistory(
         { schema: ServiceEmbeddingBenchmarkResults, signal },
       );
       return embeddingBenchmarkRunFromService(results, {
+        startedAt: run.created_at,
+        finishedAt: run.finished_at,
+      });
+    }),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Vector-DB capacity sweep
+// ---------------------------------------------------------------------------
+
+/**
+ * Starts a sweep and returns its job id. No arguments: unlike the two benchmarks above,
+ * there is no model or device to choose — see src/vector_capacity_benchmark.py.
+ */
+export async function startVectorCapacityBenchmark(): Promise<string> {
+  const dto = await request('/vector-capacity/benchmark', {
+    method: 'POST',
+    schema: ServiceVectorCapacityAccepted,
+  });
+  return toId(dto.vector_capacity_job_id);
+}
+
+/** The most recent sweep, assembled the same three-endpoint way as `latestBenchmark`. */
+export async function latestVectorCapacityBenchmark(
+  signal?: AbortSignal,
+): Promise<VectorCapacityRun | null> {
+  const runs = await request('/vector-capacity/benchmark/results', {
+    schema: ServiceVectorCapacityRunList,
+    signal,
+  });
+  if (runs.length === 0) return null;
+
+  const newest = [...runs].sort((a, b) => b.vector_capacity_job_id - a.vector_capacity_job_id)[0];
+  if (!newest) return null;
+
+  const results = await request(`/vector-capacity/benchmark/results/${newest.vector_capacity_job_id}`, {
+    schema: ServiceVectorCapacityResults,
+    signal,
+  });
+
+  let status;
+  if (newest.status.toLowerCase() === 'running') {
+    status = await request(`/vector-capacity/benchmark/status/${newest.vector_capacity_job_id}`, {
+      schema: ServiceVectorCapacityStatus,
+      signal,
+    });
+  }
+
+  return vectorCapacityRunFromService(results, {
+    startedAt: newest.created_at,
+    finishedAt: newest.finished_at,
+    status,
+  });
+}
+
+/**
+ * Every completed sweep, oldest first, with its steps. Mirrors `embeddingBenchmarkHistory`:
+ * capped at 20, running/failed jobs dropped for the same reason — a half-finished sweep
+ * plotted beside completed ones invents a trend that never happened.
+ */
+export async function vectorCapacityBenchmarkHistory(
+  signal?: AbortSignal,
+): Promise<VectorCapacityRun[]> {
+  const runs = await request('/vector-capacity/benchmark/results', {
+    schema: ServiceVectorCapacityRunList,
+    signal,
+  });
+
+  const completed = runs
+    .filter((run) => run.status.toLowerCase() === 'completed')
+    .sort((a, b) => a.vector_capacity_job_id - b.vector_capacity_job_id)
+    .slice(-20);
+
+  return Promise.all(
+    completed.map(async (run) => {
+      const results = await request(`/vector-capacity/benchmark/results/${run.vector_capacity_job_id}`, {
+        schema: ServiceVectorCapacityResults,
+        signal,
+      });
+      return vectorCapacityRunFromService(results, {
         startedAt: run.created_at,
         finishedAt: run.finished_at,
       });

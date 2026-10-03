@@ -44,6 +44,8 @@ export const keys = {
   reindexJob: ['reindexJob'] as const,
   embeddingBenchmark: ['embeddingBenchmark'] as const,
   embeddingBenchmarkHistory: ['embeddingBenchmark', 'history'] as const,
+  vectorCapacity: ['vectorCapacity'] as const,
+  vectorCapacityHistory: ['vectorCapacity', 'history'] as const,
   ragEvalDatasets: ['ragEvalDatasets'] as const,
   ragEval: ['ragEval'] as const,
   ragEvalRuns: ['ragEval', 'runs'] as const,
@@ -288,6 +290,37 @@ export function useEmbeddingBenchmarkHistory() {
   return useQuery({
     queryKey: [...keys.embeddingBenchmarkHistory, newestCompleted],
     queryFn: ({ signal }) => api.getEmbeddingBenchmarkHistory(signal),
+    select: (data) => data.runs,
+    ...STATIC,
+  });
+}
+
+/**
+ * Same shape as `useBenchmark`, for the vector-DB capacity sweep instead of the answer or
+ * embedding model - a sweep over document count rather than a pass over GGUF/embedding models,
+ * so it can run considerably longer than either.
+ */
+export function useVectorCapacityBenchmark() {
+  return useQuery({
+    queryKey: keys.vectorCapacity,
+    queryFn: ({ signal }) => api.getVectorCapacityBenchmark(signal),
+    select: (data) => data.run,
+    ...STATIC,
+    refetchInterval: (query) => (query.state.data?.run?.status === 'running' ? 3_000 : false),
+  });
+}
+
+/**
+ * Past sweeps, for the trend charts — mirrors `useBenchmarkHistory` exactly, keyed off the
+ * newest completed sweep instead of the newest completed benchmark run.
+ */
+export function useVectorCapacityBenchmarkHistory() {
+  const latest = useVectorCapacityBenchmark();
+  const newestCompleted = latest.data?.status === 'completed' ? latest.data.id : 'none';
+
+  return useQuery({
+    queryKey: [...keys.vectorCapacityHistory, newestCompleted],
+    queryFn: ({ signal }) => api.getVectorCapacityBenchmarkHistory(signal),
     select: (data) => data.runs,
     ...STATIC,
   });
@@ -594,6 +627,15 @@ export function useRunEmbeddingBenchmark() {
   return useMutation({
     mutationFn: (body: RunEmbeddingBenchmarkRequest) => api.runEmbeddingBenchmark(body),
     onSuccess: (data) => client.setQueryData(keys.embeddingBenchmark, data),
+  });
+}
+
+/** No arguments: the sweep always runs the same fixed document-count checkpoints. */
+export function useRunVectorCapacityBenchmark() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.runVectorCapacityBenchmark(),
+    onSuccess: (data) => client.setQueryData(keys.vectorCapacity, data),
   });
 }
 

@@ -20,6 +20,7 @@ import {
   RAG_EVAL,
   RAG_EVAL_DATASETS,
   SETTINGS,
+  VECTOR_CAPACITY,
 } from './fixtures';
 
 /**
@@ -56,6 +57,7 @@ export const catalogue = {
   tools: APPROVED_TOOLS,
   embeddingModels: EMBEDDING_MODELS,
   embeddingBenchmark: EMBEDDING_BENCHMARK,
+  vectorCapacity: VECTOR_CAPACITY,
   ragEval: RAG_EVAL,
   ragEvalDatasets: RAG_EVAL_DATASETS,
 };

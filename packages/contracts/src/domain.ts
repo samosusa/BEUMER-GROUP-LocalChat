@@ -483,6 +483,53 @@ export const EmbeddingBenchmarkRunSchema = z.object({
 export type EmbeddingBenchmarkRun = z.infer<typeof EmbeddingBenchmarkRunSchema>;
 
 // ---------------------------------------------------------------------------
+// Vector-DB capacity sweep
+// ---------------------------------------------------------------------------
+
+/**
+ * One document-count checkpoint in the sweep, not one model/device combination like the two
+ * benchmarks above — this one has a single fixed subject (the FAISS vector store itself) and
+ * sweeps document count instead. Documents are inserted with fake, correctly-dimensioned
+ * embeddings into a throwaway database and vector directory, never the real corpus — see
+ * src/vector_capacity_benchmark.py.
+ */
+export const VectorCapacityStepSchema = z.object({
+  /** Cumulative documents inserted by this checkpoint. */
+  docCount: z.number().int().nonnegative(),
+  chunkCount: z.number().int().nonnegative(),
+  /** Documents inserted since the previous checkpoint. */
+  stepDocs: z.number().int().nonnegative(),
+  stepMs: z.number().nonnegative(),
+  docsPerSecond: z.number().nonnegative().nullable(),
+  vectorDirBytes: z.number().nonnegative(),
+  vectorFileCount: z.number().int().nonnegative(),
+  dbSizeBytes: z.number().nonnegative(),
+  rssBytes: z.number().nonnegative(),
+  queryCount: z.number().int().nonnegative(),
+  queryLatencyMsMean: z.number().nonnegative().nullable(),
+  queryLatencyMsMin: z.number().nonnegative().nullable(),
+  queryLatencyMsMax: z.number().nonnegative().nullable(),
+  /** Should sit at the query's top_k once there are enough chunks to fill it — see the
+   * sanity check in scripts/vector_capacity_sweep.py. A value that falls short is the
+   * signal that retrieval silently found nothing, not that it found less. */
+  queryHitsMean: z.number().nonnegative().nullable(),
+  ranAt: isoDateTime,
+});
+export type VectorCapacityStep = z.infer<typeof VectorCapacityStepSchema>;
+
+export const VectorCapacityRunSchema = z.object({
+  id: z.string(),
+  status: BenchmarkJobStatus,
+  progress: z.string().nullable(),
+  /** e.g. "2500 documents", while the job is still inserting toward that checkpoint. */
+  current: z.string().nullable(),
+  steps: z.array(VectorCapacityStepSchema),
+  startedAt: isoDateTime,
+  finishedAt: isoDateTime.nullable(),
+});
+export type VectorCapacityRun = z.infer<typeof VectorCapacityRunSchema>;
+
+// ---------------------------------------------------------------------------
 // RAG evaluation - a labeled question set run end to end against real, ingested documents
 // ---------------------------------------------------------------------------
 

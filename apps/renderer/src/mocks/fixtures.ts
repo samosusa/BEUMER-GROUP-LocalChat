@@ -11,6 +11,7 @@ import type {
   RagEvalDatasetInfo,
   RagEvalRun,
   Settings,
+  VectorCapacityRun,
 } from '@localchat/contracts';
 
 /**
@@ -898,6 +899,56 @@ export const EMBEDDING_BENCHMARK: EmbeddingBenchmarkRun = {
       };
     }),
   ),
+};
+
+const MB = 1024 * 1024;
+
+/**
+ * A finished vector-DB capacity sweep: real numbers from an actual local run of
+ * scripts/vector_capacity_sweep.py (fake embeddings, real FAISS + SQLite + retriever),
+ * not invented figures. They are worth keeping exactly as measured because the shape IS
+ * the finding: retrieval latency grew ~197x while document count grew only 50x - worse
+ * than linear - which is what a reader of this card is meant to notice.
+ */
+export const VECTOR_CAPACITY: VectorCapacityRun = {
+  id: '1',
+  status: 'completed',
+  progress: '5 of 5',
+  current: null,
+  startedAt: daysAgo(2),
+  finishedAt: daysAgo(2),
+  steps: [
+    {
+      docCount: 100, chunkCount: 300, stepDocs: 100, stepMs: 2137, docsPerSecond: 46.79,
+      vectorDirBytes: 0.88 * MB, vectorFileCount: 100, dbSizeBytes: 1.07 * MB, rssBytes: 105.1 * MB,
+      queryCount: 5, queryLatencyMsMean: 297.62, queryLatencyMsMin: 76.38, queryLatencyMsMax: 1129.43,
+      queryHitsMean: 5, ranAt: daysAgo(2),
+    },
+    {
+      docCount: 500, chunkCount: 1500, stepDocs: 400, stepMs: 7194, docsPerSecond: 55.6,
+      vectorDirBytes: 4.42 * MB, vectorFileCount: 500, dbSizeBytes: 5.29 * MB, rssBytes: 107.3 * MB,
+      queryCount: 5, queryLatencyMsMean: 1148.97, queryLatencyMsMin: 411.11, queryLatencyMsMax: 3988.86,
+      queryHitsMean: 5, ranAt: daysAgo(2),
+    },
+    {
+      docCount: 1000, chunkCount: 3000, stepDocs: 500, stepMs: 8815, docsPerSecond: 56.72,
+      vectorDirBytes: 8.83 * MB, vectorFileCount: 1000, dbSizeBytes: 10.56 * MB, rssBytes: 110.7 * MB,
+      queryCount: 5, queryLatencyMsMean: 3570.83, queryLatencyMsMin: 2542.09, queryLatencyMsMax: 7440.82,
+      queryHitsMean: 5, ranAt: daysAgo(2),
+    },
+    {
+      docCount: 2500, chunkCount: 7500, stepDocs: 1500, stepMs: 25863, docsPerSecond: 58.0,
+      vectorDirBytes: 22.08 * MB, vectorFileCount: 2500, dbSizeBytes: 26.37 * MB, rssBytes: 114.9 * MB,
+      queryCount: 5, queryLatencyMsMean: 16541.58, queryLatencyMsMin: 13355.43, queryLatencyMsMax: 28516.61,
+      queryHitsMean: 5, ranAt: daysAgo(2),
+    },
+    {
+      docCount: 5000, chunkCount: 15000, stepDocs: 2500, stepMs: 43661, docsPerSecond: 57.26,
+      vectorDirBytes: 44.16 * MB, vectorFileCount: 5000, dbSizeBytes: 52.72 * MB, rssBytes: 126.5 * MB,
+      queryCount: 5, queryLatencyMsMean: 58762.98, queryLatencyMsMin: 52466.59, queryLatencyMsMax: 81865.54,
+      queryHitsMean: 5, ranAt: daysAgo(2),
+    },
+  ],
 };
 
 /**

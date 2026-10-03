@@ -29,6 +29,7 @@ from src.api.models import router as models_router
 from src.api.projects import router as projects_router
 from src.api.query import router as query_router
 from src.api.rag_eval import router as rag_eval_router
+from src.api.vector_capacity import router as vector_capacity_router
 from src.benchmark_seed import seed_from_csv
 from src.db import SessionLocal
 from src.errors import (
@@ -62,6 +63,7 @@ app.include_router(models_router)
 app.include_router(projects_router)
 app.include_router(query_router)
 app.include_router(rag_eval_router)
+app.include_router(vector_capacity_router)
 
 
 @app.on_event("startup")

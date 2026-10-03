@@ -331,6 +331,56 @@ export const ServiceEmbeddingBenchmarkRunList = z.array(
 );
 
 // ---------------------------------------------------------------------------
+// Vector-DB capacity sweep — mirrors the embedding benchmark shapes above, one row per
+// document-count checkpoint instead of per model/text-tier
+// ---------------------------------------------------------------------------
+
+export const ServiceVectorCapacityAccepted = z.object({ vector_capacity_job_id: pk });
+
+export const ServiceVectorCapacityStatus = z.object({
+  status: z.string(),
+  progress: z.string(),
+  current: z.string().nullable(),
+});
+export type ServiceVectorCapacityStatus = z.infer<typeof ServiceVectorCapacityStatus>;
+
+export const ServiceVectorCapacityRow = z.object({
+  doc_count: z.number().int().nonnegative(),
+  chunk_count: z.number().int().nonnegative(),
+  step_docs: z.number().int().nonnegative(),
+  step_s: z.number().nonnegative(),
+  docs_per_s: z.number().nullable(),
+  vector_dir_mb: z.number().nonnegative(),
+  vector_file_count: z.number().int().nonnegative(),
+  db_size_mb: z.number().nonnegative(),
+  rss_mb: z.number().nonnegative(),
+  query_count: z.number().int().nonnegative(),
+  query_latency_ms_mean: z.number().nullable(),
+  query_latency_ms_min: z.number().nullable(),
+  query_latency_ms_max: z.number().nullable(),
+  query_hits_mean: z.number().nullable(),
+  run_at: naiveDateTime,
+});
+export type ServiceVectorCapacityRow = z.infer<typeof ServiceVectorCapacityRow>;
+
+export const ServiceVectorCapacityResults = z.object({
+  vector_capacity_job_id: pk,
+  status: z.string(),
+  results: z.array(ServiceVectorCapacityRow),
+});
+export type ServiceVectorCapacityResults = z.infer<typeof ServiceVectorCapacityResults>;
+
+export const ServiceVectorCapacityRunList = z.array(
+  z.object({
+    vector_capacity_job_id: pk,
+    status: z.string(),
+    steps: z.array(z.number().int().positive()),
+    created_at: naiveDateTime,
+    finished_at: naiveDateTime.nullable(),
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // RAG evaluation — GET /rag-eval/datasets, POST /rag-eval, GET /rag-eval/status/{id},
 // GET /rag-eval/results, GET /rag-eval/results/{id}
 // ---------------------------------------------------------------------------

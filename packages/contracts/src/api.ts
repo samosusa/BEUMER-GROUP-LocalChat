@@ -20,6 +20,7 @@ import {
   RetrievalScope,
   SettingsSchema,
   ToolCallSchema,
+  VectorCapacityRunSchema,
 } from './domain.js';
 
 /**
@@ -247,6 +248,20 @@ export const RunEmbeddingBenchmarkRequest = z.object({
 export type RunEmbeddingBenchmarkRequest = z.infer<typeof RunEmbeddingBenchmarkRequest>;
 
 // ---------------------------------------------------------------------------
+// Vector-DB capacity sweep
+// ---------------------------------------------------------------------------
+
+export const VectorCapacityResponse = z.object({ run: VectorCapacityRunSchema.nullable() });
+export type VectorCapacityResponse = z.infer<typeof VectorCapacityResponse>;
+
+/** Past sweeps, oldest first — mirrors `BenchmarkHistoryResponse`. */
+export const VectorCapacityHistoryResponse = z.object({ runs: z.array(VectorCapacityRunSchema) });
+export type VectorCapacityHistoryResponse = z.infer<typeof VectorCapacityHistoryResponse>;
+
+// No RunVectorCapacityRequest: unlike the two benchmarks above, there is no model or device
+// to choose — the sweep always runs the same fixed document-count checkpoints.
+
+// ---------------------------------------------------------------------------
 // RAG evaluation
 // ---------------------------------------------------------------------------
 
@@ -305,6 +320,8 @@ export const routes = {
   reindexJob: () => '/api/embeddings/reindex',
   embeddingBenchmark: () => '/api/embeddings/benchmark',
   embeddingBenchmarkHistory: () => '/api/embeddings/benchmark/history',
+  vectorCapacity: () => '/api/vector-capacity',
+  vectorCapacityHistory: () => '/api/vector-capacity/history',
   ragEvalDatasets: () => '/api/rag-eval/datasets',
   /** The current or most recent evaluation run - there is at most one meaningful "current" run. */
   ragEval: () => '/api/rag-eval',

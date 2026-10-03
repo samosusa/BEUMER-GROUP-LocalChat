@@ -27,6 +27,8 @@ import type {
   RagEvalSummary,
   ReindexJob,
   ReindexJobStatus,
+  VectorCapacityRun,
+  VectorCapacityStep,
 } from '@localchat/contracts';
 import type {
   ServiceAnswer,
@@ -52,6 +54,9 @@ import type {
   ServiceRagEvalStatus,
   ServiceRagEvalSummary,
   ServiceReindexStatus,
+  ServiceVectorCapacityResults,
+  ServiceVectorCapacityRow,
+  ServiceVectorCapacityStatus,
 } from './dto';
 
 /**
@@ -553,6 +558,52 @@ export function embeddingBenchmarkRunFromService(
     progress: meta.status?.progress ?? null,
     current: meta.status?.current ?? null,
     rows,
+    startedAt: toIso(meta.startedAt),
+    finishedAt: toIsoOrNull(meta.finishedAt),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Vector-DB capacity sweep
+// ---------------------------------------------------------------------------
+
+/**
+ * Converted from the service's seconds/megabytes to the domain's ms/bytes, the same
+ * convention `toMs`/`toBytes` apply elsewhere in this file — inlined rather than reused
+ * because every field here is guaranteed non-null (unlike `peak_mem_mb` and friends), and
+ * `toMs`/`toBytes` are typed to return `number | null` to match the fields that are not.
+ */
+export function vectorCapacityStepFromService(dto: ServiceVectorCapacityRow): VectorCapacityStep {
+  return {
+    docCount: dto.doc_count,
+    chunkCount: dto.chunk_count,
+    stepDocs: dto.step_docs,
+    stepMs: dto.step_s * 1000,
+    docsPerSecond: dto.docs_per_s,
+    vectorDirBytes: dto.vector_dir_mb * 1024 * 1024,
+    vectorFileCount: dto.vector_file_count,
+    dbSizeBytes: dto.db_size_mb * 1024 * 1024,
+    rssBytes: dto.rss_mb * 1024 * 1024,
+    queryCount: dto.query_count,
+    queryLatencyMsMean: dto.query_latency_ms_mean,
+    queryLatencyMsMin: dto.query_latency_ms_min,
+    queryLatencyMsMax: dto.query_latency_ms_max,
+    queryHitsMean: dto.query_hits_mean,
+    ranAt: toIso(dto.run_at),
+  };
+}
+
+export function vectorCapacityRunFromService(
+  results: ServiceVectorCapacityResults,
+  meta: { startedAt: string; finishedAt: string | null; status?: ServiceVectorCapacityStatus },
+): VectorCapacityRun {
+  const steps = results.results.map(vectorCapacityStepFromService);
+  return {
+    id: toId(results.vector_capacity_job_id),
+    status: JOB_STATUS[(meta.status?.status ?? results.status).toLowerCase()] ?? 'running',
+    progress: meta.status?.progress ?? null,
+    current: meta.status?.current ?? null,
+    steps,
     startedAt: toIso(meta.startedAt),
     finishedAt: toIsoOrNull(meta.finishedAt),
   };

@@ -36,6 +36,8 @@ import {
   type UpdateChatContextRequest,
   type UpdateProjectRequest,
   type UpdateSettingsRequest,
+  VectorCapacityHistoryResponse,
+  VectorCapacityResponse,
   routes,
 } from '@localchat/contracts';
 import { z } from 'zod';
@@ -459,6 +461,33 @@ export const api = {
     }
     await service.startEmbeddingBenchmark(body.models);
     return { run: await service.latestEmbeddingBenchmark() };
+  },
+
+  // --- vector-DB capacity sweep ----------------------------------------------
+  // No model or device axis: the subject under test is the FAISS vector store itself, swept
+  // over a fixed set of document-count checkpoints. See src/vector_capacity_benchmark.py.
+
+  getVectorCapacityBenchmark: async (signal?: AbortSignal): Promise<VectorCapacityResponse> =>
+    LIVE
+      ? { run: await service.latestVectorCapacityBenchmark(signal) }
+      : request(routes.vectorCapacity(), { schema: VectorCapacityResponse, signal }),
+
+  getVectorCapacityBenchmarkHistory: async (
+    signal?: AbortSignal,
+  ): Promise<VectorCapacityHistoryResponse> =>
+    LIVE
+      ? { runs: await service.vectorCapacityBenchmarkHistory(signal) }
+      : request(routes.vectorCapacityHistory(), {
+          schema: VectorCapacityHistoryResponse,
+          signal,
+        }),
+
+  runVectorCapacityBenchmark: async (): Promise<VectorCapacityResponse> => {
+    if (!LIVE) {
+      return request(routes.vectorCapacity(), { method: 'POST', schema: VectorCapacityResponse });
+    }
+    await service.startVectorCapacityBenchmark();
+    return { run: await service.latestVectorCapacityBenchmark() };
   },
 
   // --- RAG evaluation --------------------------------------------------------

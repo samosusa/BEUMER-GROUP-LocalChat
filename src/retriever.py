@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
+from typing import Callable
 
 import faiss
 import numpy as np
@@ -29,11 +30,21 @@ def retrieve(
     vector_dir: Path | None = None,
     project_id: int | None = None,
     include_general: bool = False,
+    embed_fn: Callable[[list[str]], list[list[float]]] | None = None,
 ) -> list[RetrievedChunk]:
     if top_k <= 0 or not query.strip():
         return []
 
-    query_vector = np.asarray(embed_query([query]), dtype="float32")
+    # Not a default parameter value (`embed_fn: ... = embed_query`): that would bind to
+    # whatever `embed_query` was at import time, which would silently stop honoring
+    # `monkeypatch.setattr("src.retriever.embed_query", ...)` in tests/unit/test_retriever.py
+    # and any other caller that relies on patching the module-level name instead of passing
+    # embed_fn. Looking it up here keeps that late-binding intact for every existing caller,
+    # while still letting src/vector_capacity_benchmark.py inject a fake embedder explicitly -
+    # the only safe way to fake retrieval from a background job that may run alongside real
+    # traffic in the same process, where mutating a global would corrupt a real query too.
+    embed = embed_fn or embed_query
+    query_vector = np.asarray(embed([query]), dtype="float32")
     vector_dir = vector_dir or Path(os.getenv("LOCALCHAT_VECTOR_DIR", VECTOR_DIR))
 
     # A document is part of the general corpus if it has no project of its own, or if it was

@@ -22,15 +22,19 @@ import {
   useRunBenchmark,
   useRunEmbeddingBenchmark,
   useRunRagEval,
+  useRunVectorCapacityBenchmark,
   useSetActiveEmbeddingModel,
   useSetActiveModel,
   useSettings,
   useUpdateSettings,
+  useVectorCapacityBenchmark,
+  useVectorCapacityBenchmarkHistory,
 } from '@/shared/api/queries';
 import { describeError } from '@/shared/api/http';
 import { BenchmarkCharts } from './BenchmarkCharts';
 import { EmbeddingBenchmarkCharts } from './EmbeddingBenchmarkCharts';
 import { RagEvalCompare, RagEvalResultBody } from './RagEvalCompare';
+import { VectorCapacityCharts } from './VectorCapacityCharts';
 import { Button, IconButton } from '@/shared/ui/Button';
 import { Toggle } from '@/shared/ui/Controls';
 import { Icon, type IconName } from '@/shared/ui/Icon';
@@ -242,6 +246,7 @@ export function SettingsPage() {
             <div className={styles.column}>
               <BenchmarkCard />
               <EmbeddingBenchmarkCard />
+              <VectorCapacityBenchmarkCard />
               <RagEvalCard />
             </div>
           </div>
@@ -945,6 +950,129 @@ function EmbeddingBenchmarkCard() {
       {picker}
 
       <Button variant="outline" size="sm" loading={running} onClick={start}>
+        Run benchmark again
+      </Button>
+    </section>
+  );
+}
+
+/**
+ * How many documents the vector store can hold before retrieval and insertion slow down -
+ * swept over a fixed set of document-count checkpoints rather than a model or device choice,
+ * since the subject under test is the FAISS vector store itself (see
+ * src/vector_capacity_benchmark.py). No picker: there is nothing to choose.
+ */
+function VectorCapacityBenchmarkCard() {
+  const benchmark = useVectorCapacityBenchmark();
+  const history = useVectorCapacityBenchmarkHistory();
+  const run = useRunVectorCapacityBenchmark();
+  const result = benchmark.data;
+  const running = result?.status === 'running' || run.isPending;
+
+  if (!result) {
+    return (
+      <section className={styles.card}>
+        <SectionLabel>Vector DB capacity</SectionLabel>
+        <p className={styles.hint}>
+          Inserts synthetic documents with fake embeddings through the real ingestion pipeline,
+          sweeping document count from 100 to 5,000, and measures insertion throughput, disk
+          usage and retrieval latency at each step. Documents are throwaway and never touch your
+          real corpus.
+        </p>
+        {benchmark.isError && (
+          <p className={styles.benchWarning}>{describeError(benchmark.error)}</p>
+        )}
+        {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
+        <Button variant="outline" size="sm" loading={running} onClick={() => run.mutate()}>
+          Run benchmark
+        </Button>
+      </section>
+    );
+  }
+
+  return (
+    <section className={styles.card}>
+      <SectionLabel
+        action={
+          <Mono className={styles.cardHeaderMeta}>
+            {result.status === 'running'
+              ? (result.progress ?? 'running')
+              : formatRelative(result.finishedAt ?? result.startedAt)}
+          </Mono>
+        }
+      >
+        Vector DB capacity
+      </SectionLabel>
+
+      <p className={styles.hint}>
+        Insertion throughput, disk usage and retrieval latency as document count grows. Fake,
+        correctly-dimensioned embeddings stand in for sentence-transformers, so this measures the
+        vector store and retriever, not the embedding model.
+      </p>
+
+      {result.status === 'running' && (
+        <p className={styles.benchWarning}>
+          Running{result.current ? ` — ${result.current}` : ''}. A full sweep inserts 5,000
+          documents one at a time and can take several minutes.
+        </p>
+      )}
+
+      {result.status === 'failed' && (
+        <p className={styles.benchWarning}>The run did not finish. Start it again below.</p>
+      )}
+
+      {run.isError && <p className={styles.benchWarning}>{describeError(run.error)}</p>}
+
+      {result.steps.length > 0 && (
+        <VectorCapacityCharts run={history.data?.at(-1) ?? result} />
+      )}
+
+      <div className={styles.benchScroll}>
+        <table className={styles.benchTable}>
+          <thead>
+            <tr>
+              <th scope="col">Documents</th>
+              <th scope="col">Chunks</th>
+              <th scope="col">Step time</th>
+              <th scope="col">Docs/s</th>
+              <th scope="col">Query latency (mean)</th>
+              <th scope="col">Disk (vectors + db)</th>
+              <th scope="col">RSS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.steps.map((step) => (
+              <tr key={step.docCount}>
+                <th scope="row" className={styles.benchModel}>
+                  <Mono>{formatCount(step.docCount)}</Mono>
+                </th>
+                <td>
+                  <Mono>{formatCount(step.chunkCount)}</Mono>
+                </td>
+                <td>
+                  <Mono>{formatDuration(step.stepMs)}</Mono>
+                </td>
+                <td>
+                  <Mono>{step.docsPerSecond === null ? '—' : step.docsPerSecond.toFixed(1)}</Mono>
+                </td>
+                <td>
+                  <Mono>
+                    {step.queryLatencyMsMean === null ? '—' : formatDuration(step.queryLatencyMsMean)}
+                  </Mono>
+                </td>
+                <td>
+                  <Mono>{formatBytes(step.vectorDirBytes + step.dbSizeBytes, 1)}</Mono>
+                </td>
+                <td>
+                  <Mono>{formatBytes(step.rssBytes, 1)}</Mono>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <Button variant="outline" size="sm" loading={running} onClick={() => run.mutate()}>
         Run benchmark again
       </Button>
     </section>
