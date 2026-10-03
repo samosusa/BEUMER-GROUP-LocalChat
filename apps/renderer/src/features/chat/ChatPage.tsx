@@ -133,7 +133,7 @@ export function ChatPage() {
     setAppliedPreset(presetProjectId);
     setPendingProjectId(presetProjectId);
     setPendingScope(
-      (location.state as { presetScope?: RetrievalScope } | null)?.presetScope ?? 'both',
+      (location.state as { presetScope?: RetrievalScope } | null)?.presetScope ?? 'project',
     );
   }
   useEffect(() => {

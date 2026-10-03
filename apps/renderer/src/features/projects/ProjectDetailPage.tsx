@@ -117,7 +117,7 @@ export function ProjectDetailPage() {
               variant="outline"
               icon="chat"
               onClick={() =>
-                navigate('/chat', { state: { presetProjectId: projectId, presetScope: 'both' } })
+                navigate('/chat', { state: { presetProjectId: projectId, presetScope: 'project' } })
               }
             >
               New chat
