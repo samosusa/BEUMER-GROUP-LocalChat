@@ -17,8 +17,10 @@ VALID_DEVICES = ("cpu", "gpu")
 
 # Stops generation before the model starts hallucinating extra turns: small models
 # tend to keep going past a real answer by falling back into "Question: ... Answer:
-# ..." style completions once the real content runs out.
-STOP_SEQUENCES = ["\nQuestion:", "\nQ:"]
+# ..." style completions once the real content runs out - or by re-printing the
+# prompt's own "Documentation:" block, which then drags other documents' facts into
+# what reads as the answer (10 of 70 answers in a multi-turn test on Llama 3.2 1B/3B).
+STOP_SEQUENCES = ["\nQuestion:", "\nQ:", "\nDocumentation:"]
 
 _FAMILY_SUFFIX = re.compile(r"[-_][Qq]\d.*$")
 

@@ -26,20 +26,6 @@ function formatHitCount(bucket: { total: number; retrievalHitRate: number | null
   return `${Math.round(bucket.retrievalHitRate * bucket.total)} of ${bucket.total}`;
 }
 
-/**
- * Questions the judge never returned a verdict on.
- *
- * Correct + partial + incorrect came to five across six questions and nothing said where the
- * sixth went. It was the retrieval miss: with no document found there is no answer to grade,
- * so the judge is not asked. That is reasonable behaviour and an unexplained gap in a row of
- * totals, which is why it now gets counted out loud instead of being left as arithmetic for
- * the reader to fail.
- */
-function unjudgedCount(bucket: { total: number; judgeCounts: Record<string, number> }): number {
-  const judged = Object.values(bucket.judgeCounts).reduce((sum, count) => sum + count, 0);
-  return Math.max(0, bucket.total - judged);
-}
-
 function projectLabel(projectId: string | null, projects: Project[] | undefined): string {
   if (projectId === null) return 'General (no project)';
   return projects?.find((project) => project.id === projectId)?.name ?? projectId;
@@ -84,28 +70,6 @@ export function RagEvalResultBody({ result }: { result: RagEvalRun }) {
                 </div>
               );
             })}
-          </div>
-
-          <div className={styles.evalStatGroup}>
-            <div className={styles.evalStat}>
-              <span className={styles.evalStatLabel}>Judge correct</span>
-              <span className={styles.evalStatValue}>{summary.judgeCounts.correct ?? 0}</span>
-            </div>
-            <div className={styles.evalStat}>
-              <span className={styles.evalStatLabel}>Judge partial</span>
-              <span className={styles.evalStatValue}>{summary.judgeCounts.partial ?? 0}</span>
-            </div>
-            <div className={styles.evalStat}>
-              <span className={styles.evalStatLabel}>Judge incorrect</span>
-              <span className={styles.evalStatValue}>{summary.judgeCounts.incorrect ?? 0}</span>
-            </div>
-            {unjudgedCount(summary) > 0 && (
-              <div className={styles.evalStat}>
-                <span className={styles.evalStatLabel}>Not judged</span>
-                <span className={styles.evalStatValue}>{unjudgedCount(summary)}</span>
-                <span className={styles.evalStatDetail}>nothing retrieved to grade</span>
-              </div>
-            )}
           </div>
         </div>
       )}

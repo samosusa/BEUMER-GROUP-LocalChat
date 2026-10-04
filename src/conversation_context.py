@@ -70,6 +70,16 @@ _STOPWORDS = frozenset(
     whose why how often much many long""".split()
 )
 
+# Words that make a sentence ask something by itself. A short fragment with none of them -
+# "Maximum load?", "Error codes?" - can only be a continuation of what was just said,
+# however many content words it has. Danish included for the same reason as above.
+_QUESTION_WORDS = frozenset(
+    """who what when where why how which whose whom is are was were do does did can could
+    should would will has have had tell list describe show give explain find
+    hvem hvad hvor hvornår hvorfor hvordan hvilken hvilket hvilke er var kan""".split()
+)
+FRAGMENT_MAX_WORDS = 3
+
 _WORD_RE = re.compile(r"[\wÀ-ÿ']+", re.UNICODE)
 _LABEL_RE = re.compile(
     r"^\s*(standalone\s+question|rewritten\s+question|question|query|answer)\s*[:\-]\s*",
@@ -79,6 +89,10 @@ _LABEL_RE = re.compile(
 
 def _words(text: str) -> list[str]:
     return [word.lower() for word in _WORD_RE.findall(text)]
+
+
+def _is_fragment(words: list[str]) -> bool:
+    return len(words) <= FRAGMENT_MAX_WORDS and not any(word in _QUESTION_WORDS for word in words)
 
 
 def looks_like_followup(question: str) -> bool:
@@ -108,6 +122,10 @@ def looks_like_followup(question: str) -> bool:
     if any(term in stripped for term in _REFERRING_TERMS if " " in term):
         return True
 
+    # A bare fragment that asks nothing on its own: "Maximum load?", "Any error codes?"
+    if _is_fragment(words):
+        return True
+
     # Elliptical: almost nothing but function words. "How often?", "Why?", "And the motor?"
     return len(content) <= 1
 
@@ -117,8 +135,11 @@ def _render_for_rewrite(history: list[tuple[str, str]]) -> str:
     formatting on purpose: that block is tuned for answering, this one for one narrow
     extraction task, and tying them together would mean every change to the answer prompt
     silently re-tunes the rewriter too."""
+    # A turn that found nothing has an empty answer: what was asked still says who or what
+    # the conversation is about now, even though nothing came back.
     return "\n".join(
-        f"User: {' '.join(asked.split())}\nAssistant: {' '.join(answered.split())}"
+        f"User: {' '.join(asked.split())}"
+        + (f"\nAssistant: {' '.join(answered.split())}" if answered.strip() else "")
         for asked, answered in history
     )
 
@@ -155,6 +176,19 @@ def _validate_rewrite(candidate: str, question: str) -> str | None:
     return cleaned
 
 
+def _content_words(text: str) -> set[str]:
+    return {word.removesuffix("'s") for word in _words(text) if word not in _STOPWORDS}
+
+
+def _adds_context(rewrite: str, question: str, history: list[tuple[str, str]]) -> bool:
+    """Whether the rewrite carries in something from the conversation that the question
+    left out - the whole point of a rewrite, and something _validate_rewrite cannot check
+    without the conversation. Small models often pass the length check by echoing the
+    question back unchanged, which would otherwise be recorded and searched as a rewrite."""
+    from_history = set().union(*(_content_words(f"{asked} {answered}") for asked, answered in history))
+    return bool(_content_words(rewrite) & (from_history - _content_words(question)))
+
+
 def resolve_search_query(
     question: str,
     history: list[tuple[str, str]],
@@ -181,4 +215,6 @@ def resolve_search_query(
     cleaned = _validate_rewrite(raw or "", question)
     if cleaned is None:
         return ResolvedQuery(question, False, "rewrite rejected as unusable")
+    if not _adds_context(cleaned, question, usable):
+        return ResolvedQuery(question, False, "rewrite added nothing from the conversation")
     return ResolvedQuery(cleaned, True, "rewritten from conversation")

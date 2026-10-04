@@ -12,7 +12,7 @@ from src.db import get_db
 from src.errors import AppError
 from src.models.conversation import Conversation
 from src.models.message import Message
-from src.rag_service import HISTORY_TURNS, History, answer
+from src.rag_service import HISTORY_TURNS, History, answer, is_refusal
 from src.validation import ROOT, validate_against_schema
 
 router = APIRouter()
@@ -94,7 +94,16 @@ def _recent_history(db: Session, conversation_id: int) -> History:
     oldest first - fetched before the new question is added, so it never includes the
     turn currently being answered. Pulls HISTORY_TURNS*2 rows (user+assistant alternate)
     and pairs them up rather than trusting strict alternation, in case a turn ever ends up
-    orphaned (e.g. a row written but its partner failed)."""
+    orphaned (e.g. a row written but its partner failed).
+
+    A turn that found nothing keeps its question but loses its answer (an empty string).
+    The answer is either the generic not-found suggestion or the model saying the evidence
+    it had did not cover the question - true of that turn's scope and corpus, not of this
+    one's. A small model handed "Q: how is X? A: no information" copies that verdict onto
+    the next question, even after the scope widens and X's document is retrieved first.
+    The question still says what the conversation is about now, though: drop it, and the
+    "it" in a following "and now?" resolves to whatever was discussed before it. Rows
+    stored before refusals were flagged as not_found are caught by checking the text too."""
     rows = (
         db.query(Message)
         .filter_by(conversation_id=conversation_id)
@@ -109,9 +118,31 @@ def _recent_history(db: Session, conversation_id: int) -> History:
         if row.role == "user":
             pending_question = row.text
         elif row.role == "assistant" and pending_question is not None:
-            pairs.append((pending_question, row.text))
+            # The standalone question retrieval actually searched, when there was one, rather
+            # than the user's "and its weight?" - so what the conversation is about survives
+            # a run of follow-ups longer than HISTORY_TURNS, after the turn that last named
+            # it has dropped out of the window.
+            asked = row.search_query or pending_question
+            found_nothing = row.not_found or is_refusal(row.text)
+            pairs.append((asked, "" if found_nothing else row.text))
             pending_question = None
     return pairs
+
+
+def _previous_focus(db: Session, conversation_id: int) -> list[int]:
+    """The document the previous answer came from most directly - its top source - which is
+    what a follow-up is most likely still about (see rag_service._keep_focus). Empty when
+    that turn found nothing, or was stored before citations carried a doc_id."""
+    last = (
+        db.query(Message)
+        .filter_by(conversation_id=conversation_id, role="assistant")
+        .order_by(Message.id.desc())
+        .first()
+    )
+    if last is None or last.not_found or is_refusal(last.text) or not last.citations:
+        return []
+    doc_id = last.citations[0].get("doc_id")
+    return [doc_id] if doc_id is not None else []
 
 
 def _get_conversation_or_404(db: Session, conversation_id: int) -> Conversation:
@@ -206,12 +237,16 @@ def post_message(conversation_id: int, payload: MessageCreate, db: Session = Dep
     conversation = _get_conversation_or_404(db, conversation_id)
     question = payload.q.strip()
     history = _recent_history(db, conversation_id) if payload.use_history else []
+    focus = _previous_focus(db, conversation_id) if payload.use_history else []
 
     db.add(Message(conversation_id=conversation.id, role="user", text=question, created_at=_now()))
 
     project_id = None if payload.scope == "general" else conversation.project_id
     include_general = payload.scope == "both" and conversation.project_id is not None
-    result = answer(question, db, project_id=project_id, include_general=include_general, history=history)
+    result = answer(
+        question, db, project_id=project_id, include_general=include_general, history=history,
+        focus_doc_ids=focus,
+    )
 
     complexity = result.get("complexity") or {}
     # Only recorded when retrieval searched for something other than what the user typed.

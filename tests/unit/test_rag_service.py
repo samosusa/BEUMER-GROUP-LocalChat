@@ -7,7 +7,7 @@ def retrieved(text="The conveyor speed is 2 meters per second.", score=0.9):
     return [SimpleNamespace(
         score=score,
         chunk=SimpleNamespace(text=text, section="Specifications", page=3),
-        document=SimpleNamespace(title="Guide"),
+        document=SimpleNamespace(id=1, title="Guide"),
     )]
 
 
@@ -61,8 +61,63 @@ def test_answer_citations_match_retrieved_chunks(monkeypatch):
     response = rag_service.answer("Question", object())
 
     assert response["citations"] == [{
-        "title": "Guide", "section": "Specifications", "page": 3, "score": 0.9,
+        "doc_id": 1, "title": "Guide", "section": "Specifications", "page": 3, "score": 0.9,
     }]
+
+
+def test_answer_treats_a_model_refusal_as_not_found(monkeypatch):
+    """Retrieval clearing MIN_SIMILARITY does not mean the chunks hold the answer. When the
+    model reads them and declines, the turn must not list them as sources for a non-answer."""
+    monkeypatch.setattr(
+        rag_service,
+        "retrieve_chunks",
+        lambda question, db, top_k, project_id=None, include_general=False: retrieved(score=0.49),
+    )
+    _stub_context(monkeypatch)
+    monkeypatch.setattr(
+        rag_service.llm_adapter, "generate", lambda prompt, max_tokens: "I don't have any information about a cat."
+    )
+
+    response = rag_service.answer("How is the cat doing?", object())
+
+    assert response["not_found"] is True
+    assert response["answer"] is None
+    assert response["citations"] == []
+    assert response["suggestion"] == rag_service.NOT_FOUND_SUGGESTION
+
+
+def test_is_refusal_recognises_common_ways_of_saying_not_available():
+    for reply in (
+        "The answer is not available in the documentation.",
+        "That information is not available.",
+        "I don't have any information about a cat.",
+        "I do not have information on that.",
+        "I couldn't find that in the documentation.",
+        "The documentation does not contain information about the cat.",
+        "The provided documentation doesn't mention a cat.",
+        "There is no information about a cat.",
+        "Sorry, I cannot find any details about that.",
+        "Unfortunately, the documentation does not say.",
+        "It's not mentioned in the documentation.",
+        "Not specified in the documentation.",
+        "I am not available to answer this question.",
+        "  i  don’t have any information about a dog.  ",
+    ):
+        assert rag_service.is_refusal(reply), reply
+
+
+def test_is_refusal_leaves_real_answers_alone():
+    for reply in (
+        None,
+        "",
+        "cat is happy and makes sounds like meow",
+        "Samo Susa studied at VIA University College, Horsens.",
+        "No, the conveyor has no emergency brake.",
+        "The documentation does not mention the exact speed, but the conveyor runs at 2 m/s.",
+        "I don't have the exact figure; however, the manual lists 2 m/s as the nominal speed.",
+        "There is no information about a cat. " + "The rest of this reply keeps going. " * 10,
+    ):
+        assert not rag_service.is_refusal(reply), reply
 
 
 def _stub_generate(monkeypatch, rewrite="What are Samo Susa's hobbies?", answer="answer"):
@@ -200,6 +255,50 @@ def test_answer_prompt_includes_history_for_pronoun_resolution(monkeypatch):
     assert "Question: What are his hobbies?\nAnswer:" in answer_prompt
 
 
+def test_answer_prompt_leaves_history_out_for_a_standalone_question(monkeypatch):
+    """History is only there to resolve pronouns. A question with none gets a clean prompt,
+    so a small model has no earlier answer - least of all an earlier refusal - to copy."""
+    monkeypatch.setattr(
+        rag_service,
+        "retrieve_chunks",
+        lambda question, db, top_k, project_id=None, include_general=False: retrieved(),
+    )
+    _stub_context(monkeypatch)
+    prompts = _stub_generate(monkeypatch)
+
+    rag_service.answer(
+        "How is the cat doing?",
+        object(),
+        history=[("How is the cat doing?", "I don't have any information about a cat.")],
+    )
+
+    assert len(prompts) == 1  # no rewrite either - the question already stands alone
+    assert "Earlier in this conversation" not in prompts[0]
+    assert "I don't have any information about a cat." not in prompts[0]
+
+
+def test_a_turn_that_found_nothing_reaches_the_rewriter_but_not_the_answer_prompt(monkeypatch):
+    """Its question says what "it" is; its missing answer has nothing to teach the model."""
+    monkeypatch.setattr(
+        rag_service,
+        "retrieve_chunks",
+        lambda question, db, top_k, project_id=None, include_general=False: retrieved(),
+    )
+    _stub_context(monkeypatch)
+    prompts = _stub_generate(monkeypatch, rewrite="How is the cat doing now?")
+
+    rag_service.answer(
+        "How is it doing now?",
+        object(),
+        history=[("Who is Samo Susa?", "A software developer."), ("How is the cat doing?", "")],
+    )
+
+    rewrite_prompt, answer_prompt = prompts
+    assert "User: How is the cat doing?" in rewrite_prompt
+    assert "How is the cat doing?" not in answer_prompt.split("Documentation:")[0]
+    assert "Question: Who is Samo Susa?" in answer_prompt
+
+
 def test_answer_drops_history_before_evidence_when_tight_on_context(monkeypatch):
     """Evidence chunks answer the question; history only helps phrasing. Under budget
     pressure the oldest history turn must go first, before any retrieved chunk is cut."""
@@ -241,12 +340,12 @@ def test_answer_drops_weakest_chunks_to_fit_context(monkeypatch):
         SimpleNamespace(
             score=0.9,
             chunk=SimpleNamespace(text="short strong chunk", section="A", page=1),
-            document=SimpleNamespace(title="Guide"),
+            document=SimpleNamespace(id=1, title="Guide"),
         ),
         SimpleNamespace(
             score=0.5,
             chunk=SimpleNamespace(text="weaker chunk padding " * 20, section="B", page=2),
-            document=SimpleNamespace(title="Guide"),
+            document=SimpleNamespace(id=1, title="Guide"),
         ),
     ]
     monkeypatch.setattr(
@@ -263,3 +362,92 @@ def test_answer_drops_weakest_chunks_to_fit_context(monkeypatch):
     assert response["context"]["chunks_dropped"] == 1
     assert len(response["citations"]) == 1
     assert response["citations"][0]["score"] == 0.9
+
+def _chunk(doc_id, title, index, score, text="text"):
+    return SimpleNamespace(
+        score=score,
+        chunk=SimpleNamespace(text=text, section=None, page=1, chunk_index=index),
+        document=SimpleNamespace(id=doc_id, title=title),
+    )
+
+
+def _stub_focus_retrieval(monkeypatch, everywhere, in_focus):
+    """Corpus-wide search returns `everywhere`; a search narrowed to doc_ids returns
+    `in_focus`. Records the doc_ids each call was narrowed to."""
+    calls = []
+
+    def fake_retrieve(query, db, top_k, project_id=None, include_general=False, doc_ids=None):
+        calls.append(doc_ids)
+        return list(in_focus if doc_ids else everywhere)[:top_k]
+
+    monkeypatch.setattr(rag_service, "retrieve_chunks", fake_retrieve)
+    _stub_context(monkeypatch)
+    return calls
+
+
+def test_a_follow_up_keeps_the_previous_answers_document_in_the_evidence(monkeypatch):
+    """"And its battery voltage?" says nothing about which forklift. Corpus-wide, a similar
+    document outscores the one the conversation is about; the previous answer's document
+    must still get its share of the evidence."""
+    calls = _stub_focus_retrieval(
+        monkeypatch,
+        everywhere=[_chunk(2, "Pallet truck manual", 0, 0.62), _chunk(3, "Crane manual", 0, 0.58),
+                    _chunk(1, "Forklift manual", 0, 0.55)],
+        in_focus=[_chunk(1, "Forklift manual", 4, 0.57), _chunk(1, "Forklift manual", 0, 0.55)],
+    )
+    monkeypatch.setattr(rag_service.llm_adapter, "generate", lambda prompt, max_tokens: "48 V.")
+
+    response = rag_service.answer(
+        "And its battery voltage?", object(), top_k=3,
+        history=[("How often is the forklift inspected?", "Before every shift.")],
+        focus_doc_ids=[1],
+    )
+
+    assert calls[-1] == {1}
+    # Listed first, so it is still the top source - and the focus - for the next follow-up.
+    assert [(c["doc_id"], c["score"]) for c in response["citations"]] == [(1, 0.57), (1, 0.55), (2, 0.62)]
+
+
+def test_a_standalone_question_is_not_pulled_back_to_the_previous_document(monkeypatch):
+    calls = _stub_focus_retrieval(
+        monkeypatch,
+        everywhere=[_chunk(3, "Crane manual", 0, 0.8)],
+        in_focus=[_chunk(1, "Forklift manual", 0, 0.5)],
+    )
+    monkeypatch.setattr(rag_service.llm_adapter, "generate", lambda prompt, max_tokens: "Hand signals.")
+
+    response = rag_service.answer(
+        "Which signals does the crane operator use?", object(),
+        history=[("How often is the forklift inspected?", "Before every shift.")],
+        focus_doc_ids=[1],
+    )
+
+    assert calls == [None]
+    assert [c["doc_id"] for c in response["citations"]] == [3]
+
+
+def test_keep_focus_gives_the_focus_document_half_the_slots_first_without_duplicates():
+    everywhere = [_chunk(2, "B", 0, 0.9), _chunk(1, "A", 0, 0.8), _chunk(3, "C", 0, 0.7), _chunk(4, "D", 0, 0.6)]
+    in_focus = [_chunk(1, "A", 0, 0.8), _chunk(1, "A", 1, 0.5), _chunk(1, "A", 2, 0.4)]
+
+    kept = rag_service._keep_focus(everywhere, in_focus, top_k=4)
+
+    assert [(c.document.id, c.chunk.chunk_index) for c in kept] == [(1, 0), (1, 1), (2, 0), (3, 0)]
+
+
+def test_keep_focus_lets_go_once_another_document_clearly_wins():
+    """"What about the other model?" is phrased as a follow-up but names a new subject: the
+    old document's best match falls well behind, and the conversation moves with it."""
+    everywhere = [_chunk(5, "Other model", 0, 0.74), _chunk(6, "Unrelated", 0, 0.54)]
+    in_focus = [_chunk(1, "Previous model", 0, 0.45)]
+
+    assert rag_service._keep_focus(everywhere, in_focus, top_k=3) == everywhere
+
+
+def test_keep_focus_holds_through_a_near_tie():
+    everywhere = [_chunk(2, "Similar manual", 0, 0.66), _chunk(1, "Focus manual", 0, 0.57)]
+    in_focus = [_chunk(1, "Focus manual", 3, 0.57), _chunk(1, "Focus manual", 0, 0.57)]
+
+    kept = rag_service._keep_focus(everywhere, in_focus, top_k=3)
+
+    assert kept[0].document.id == 1

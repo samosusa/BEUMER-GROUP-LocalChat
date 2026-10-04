@@ -14,7 +14,7 @@ def _fake_answer(monkeypatch, result: dict):
     monkeypatch.setattr(
         conversations_api,
         "answer",
-        lambda question, db, project_id=None, include_general=False, history=None: result,
+        lambda question, db, project_id=None, include_general=False, history=None, focus_doc_ids=None: result,
     )
 
 
@@ -181,7 +181,7 @@ def test_post_message_scopes_retrieval_to_the_conversations_project(monkeypatch)
 
     captured_project_ids = []
 
-    def fake_answer(question, db, project_id=None, include_general=False, history=None):
+    def fake_answer(question, db, project_id=None, include_general=False, history=None, focus_doc_ids=None):
         captured_project_ids.append(project_id)
         return {"answer": "answer", "citations": [], "not_found": False}
 
@@ -207,7 +207,7 @@ def test_post_message_scope_general_overrides_the_conversations_project(monkeypa
 
     captured_project_ids = []
 
-    def fake_answer(question, db, project_id=None, include_general=False, history=None):
+    def fake_answer(question, db, project_id=None, include_general=False, history=None, focus_doc_ids=None):
         captured_project_ids.append(project_id)
         return {"answer": "answer", "citations": [], "not_found": False}
 
@@ -235,7 +235,7 @@ def test_post_message_scope_both_keeps_project_and_adds_general(monkeypatch):
 
     captured = []
 
-    def fake_answer(question, db, project_id=None, include_general=False, history=None):
+    def fake_answer(question, db, project_id=None, include_general=False, history=None, focus_doc_ids=None):
         captured.append((project_id, include_general))
         return {"answer": "answer", "citations": [], "not_found": False}
 
@@ -261,7 +261,7 @@ def test_post_message_scope_both_without_a_project_is_plain_general(monkeypatch)
 
     captured = []
 
-    def fake_answer(question, db, project_id=None, include_general=False, history=None):
+    def fake_answer(question, db, project_id=None, include_general=False, history=None, focus_doc_ids=None):
         captured.append((project_id, include_general))
         return {"answer": "answer", "citations": [], "not_found": False}
 
@@ -305,7 +305,7 @@ def test_post_message_passes_prior_turn_as_history_to_answer(monkeypatch):
 
     captured_history = []
 
-    def fake_answer(question, db, project_id=None, include_general=False, history=None):
+    def fake_answer(question, db, project_id=None, include_general=False, history=None, focus_doc_ids=None):
         captured_history.append(history)
         if question == "Is Samo Susa 20 years old?":
             return {"answer": "Yes, Samo Susa is 20 years old.", "citations": [], "not_found": False}
@@ -337,7 +337,7 @@ def test_post_message_use_history_false_opts_out_of_conversation_context(monkeyp
 
     captured_history = []
 
-    def fake_answer(question, db, project_id=None, include_general=False, history=None):
+    def fake_answer(question, db, project_id=None, include_general=False, history=None, focus_doc_ids=None):
         captured_history.append(history)
         return {"answer": "answer", "citations": [], "not_found": False}
 
@@ -358,5 +358,112 @@ def test_post_message_use_history_false_opts_out_of_conversation_context(monkeyp
         assert second.status_code == 201
 
         assert captured_history == [[], []]
+    finally:
+        client.delete(f"/conversations/{created['id']}")
+
+
+def test_post_message_keeps_the_question_but_not_the_refusal_of_a_turn_that_found_nothing(monkeypatch):
+    """The cat scenario: a refusal from an earlier turn - flagged not_found, or stored before
+    refusals were flagged and only recognisable by its text - must not reach the next turn's
+    history. A small model copies "I don't have any information about a cat." onto the next
+    question even once the scope widens to Both and the cat document is retrieved first. The
+    question stays: it is what "how is it doing now?" refers to."""
+    import src.api.conversations as conversations_api
+
+    captured_history = []
+    replies = {
+        "How often is the forklift inspected?": {"answer": "Before every shift.", "citations": [], "not_found": False},
+        "Is there a spill kit near the chargers?": {"answer": None, "suggestion": "Try again.", "citations": [], "not_found": True},
+        "Who refills it?": {"answer": "I don't have any information about a spill kit.", "citations": [], "not_found": False},
+        "What is the yard speed limit?": {"answer": "15 km/h.", "citations": [], "not_found": False},
+    }
+
+    def fake_answer(question, db, project_id=None, include_general=False, history=None, focus_doc_ids=None):
+        captured_history.append(history)
+        return replies[question]
+
+    monkeypatch.setattr(conversations_api, "answer", fake_answer)
+
+    created = client.post("/conversations", json={}).json()
+
+    try:
+        for question in replies:
+            response = client.post(f"/conversations/{created['id']}/messages", json={"q": question})
+            assert response.status_code == 201
+
+        assert captured_history[-1] == [
+            ("How often is the forklift inspected?", "Before every shift."),
+            ("Is there a spill kit near the chargers?", ""),
+            ("Who refills it?", ""),
+        ]
+    finally:
+        client.delete(f"/conversations/{created['id']}")
+
+
+def test_history_carries_the_standalone_question_that_was_searched(monkeypatch):
+    """After a few "it"/"its" follow-ups, the turn that named the machine has left the
+    HISTORY_TURNS window. Each follow-up's standalone rewrite - what retrieval actually
+    searched - still names it, so that is what the history keeps."""
+    import src.api.conversations as conversations_api
+
+    captured_history = []
+
+    def fake_answer(question, db, project_id=None, include_general=False, history=None, focus_doc_ids=None):
+        captured_history.append(history)
+        if question == "What is its rated load?":
+            return {
+                "answer": "5 tonnes.", "citations": [], "not_found": False,
+                "search": {"query": "What is the crane's rated load?", "rewritten": True, "reason": "rewritten"},
+            }
+        return {"answer": "answer", "citations": [], "not_found": False}
+
+    monkeypatch.setattr(conversations_api, "answer", fake_answer)
+
+    created = client.post("/conversations", json={}).json()
+
+    try:
+        for question in ("Who may operate the crane?", "What is its rated load?", "And its lifting height?"):
+            response = client.post(f"/conversations/{created['id']}/messages", json={"q": question})
+            assert response.status_code == 201
+
+        assert captured_history[-1] == [
+            ("Who may operate the crane?", "answer"),
+            ("What is the crane's rated load?", "5 tonnes."),
+        ]
+    finally:
+        client.delete(f"/conversations/{created['id']}")
+
+
+def test_a_follow_up_is_focused_on_the_document_the_previous_answer_came_from(monkeypatch):
+    """The previous answer's top source is passed on, so a follow-up can keep it in the
+    evidence. A turn that found nothing has no source - and leaves nothing to focus on."""
+    import src.api.conversations as conversations_api
+
+    captured_focus = []
+    replies = iter([
+        {"answer": "Before every shift.", "not_found": False,
+         "citations": [{"doc_id": 7, "title": "Forklift manual", "section": None, "page": 1, "score": 0.8},
+                       {"doc_id": 9, "title": "Maintenance plan", "section": None, "page": 2, "score": 0.6}]},
+        {"answer": "48 V.", "not_found": False,
+         "citations": [{"doc_id": 7, "title": "Forklift manual", "section": None, "page": 3, "score": 0.7}]},
+        {"answer": None, "suggestion": "Try again.", "citations": [], "not_found": True},
+        {"answer": "answer", "citations": [], "not_found": False},
+    ])
+
+    def fake_answer(question, db, project_id=None, include_general=False, history=None, focus_doc_ids=None):
+        captured_focus.append(focus_doc_ids)
+        return next(replies)
+
+    monkeypatch.setattr(conversations_api, "answer", fake_answer)
+
+    created = client.post("/conversations", json={}).json()
+
+    try:
+        for question in ("How often is the forklift inspected?", "And its battery voltage?",
+                         "Where is the spill kit?", "Who refills it?"):
+            response = client.post(f"/conversations/{created['id']}/messages", json={"q": question})
+            assert response.status_code == 201
+
+        assert captured_focus == [[], [7], [7], []]
     finally:
         client.delete(f"/conversations/{created['id']}")

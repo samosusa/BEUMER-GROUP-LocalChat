@@ -27,6 +27,9 @@ HISTORY = [("Is Samo Susa 20 years old?", "Yes, Samo Susa is 20 years old.")]
         "What about the drive motor?",
         "Can they be reset?",
         "og hvad med motoren?",       # Danish: the app ships a Danish eval set
+        "Maximum load?",              # bare fragment: asks nothing on its own
+        "Any error codes?",
+        "Battery voltage?",
     ],
 )
 def test_gate_catches_questions_that_need_earlier_turns(question):
@@ -41,6 +44,8 @@ def test_gate_catches_questions_that_need_earlier_turns(question):
         "How do I test an emergency stop pull-cord?",
         "What is the maximum belt speed for the MSC800 scanner?",
         "Explain the calibration procedure for the HBS machine",
+        "Who has right of way at the loading docks?",
+        "Which chemicals need a spill kit nearby?",
     ],
 )
 def test_gate_leaves_standalone_questions_alone(question):
@@ -125,3 +130,48 @@ def test_usable_rewrites_are_cleaned_not_discarded(candidate, expected):
     """Small models label, quote and over-answer. None of that is a reason to throw away
     an otherwise good rewrite."""
     assert _validate_rewrite(candidate, "What are his hobbies?") == expected
+
+
+MANUAL_HISTORY = [("What is the rated load of the crane?", "The crane is rated for 5 tonnes.")]
+
+
+@pytest.mark.parametrize(
+    "rewrite",
+    ["What is its maximum lifting height?", "What is its maximum lifting height, exactly?"],
+)
+def test_a_rewrite_that_brings_nothing_from_the_conversation_is_not_used(rewrite):
+    """Echoing the question back, or padding it, passes the length check - but searching it
+    would still be searching the user's own words while recording it as a rewrite."""
+    resolved = resolve_search_query(
+        "What is its maximum lifting height?", MANUAL_HISTORY, generate=lambda prompt, max_tokens: rewrite
+    )
+    assert resolved.search_query == "What is its maximum lifting height?"
+    assert resolved.rewritten is False
+    assert resolved.reason == "rewrite added nothing from the conversation"
+
+
+def test_a_rewrite_that_names_what_the_conversation_was_about_is_used():
+    resolved = resolve_search_query(
+        "What is its maximum lifting height?",
+        MANUAL_HISTORY,
+        generate=lambda prompt, max_tokens: "What is the crane's maximum lifting height?",
+    )
+    assert resolved.search_query == "What is the crane's maximum lifting height?"
+    assert resolved.rewritten is True
+
+
+def test_the_rewriter_still_sees_a_question_that_found_nothing():
+    """Its answer is withheld, but the question is what a following "it" refers to."""
+    seen = {}
+
+    def capture(prompt, max_tokens):
+        seen["prompt"] = prompt
+        return "Where is the spill kit for the battery charging area?"
+
+    resolve_search_query(
+        "And where is it?",
+        [("Is there a spill kit for the battery charging area?", "")],
+        generate=capture,
+    )
+    assert "User: Is there a spill kit for the battery charging area?" in seen["prompt"]
+    assert "Assistant:" not in seen["prompt"].split("Conversation:")[1].split("Latest question:")[0]

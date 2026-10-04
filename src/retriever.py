@@ -31,6 +31,7 @@ def retrieve(
     project_id: int | None = None,
     include_general: bool = False,
     embed_fn: Callable[[list[str]], list[list[float]]] | None = None,
+    doc_ids: set[int] | None = None,
 ) -> list[RetrievedChunk]:
     if top_k <= 0 or not query.strip():
         return []
@@ -63,6 +64,10 @@ def retrieve(
     allowed_doc_ids = {
         doc_id for (doc_id,) in db.query(Document.id).filter(document_filter).all()
     }
+    # Narrows within the scope, never widens past it: a document outside the scope chosen for
+    # this turn stays out even when the caller names it.
+    if doc_ids is not None:
+        allowed_doc_ids &= doc_ids
 
     active_model = embedding_adapter.active["model"]
 
@@ -108,5 +113,8 @@ def retrieve_chunks(
     top_k: int = 5,
     project_id: int | None = None,
     include_general: bool = False,
+    doc_ids: set[int] | None = None,
 ) -> list[RetrievedChunk]:
-    return retrieve(query, db, top_k=top_k, project_id=project_id, include_general=include_general)
+    return retrieve(
+        query, db, top_k=top_k, project_id=project_id, include_general=include_general, doc_ids=doc_ids
+    )

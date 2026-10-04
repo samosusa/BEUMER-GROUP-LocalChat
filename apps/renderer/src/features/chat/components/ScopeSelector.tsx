@@ -124,5 +124,5 @@ function explainScope(
   }
   const name = projectName ?? 'the project';
   if (scope === 'project') return `Searching ${name} only.`;
-  return `Searching ${name} first, then falling back to company-wide documentation.`;
+  return `Searching ${name} and company-wide documentation together.`;
 }
