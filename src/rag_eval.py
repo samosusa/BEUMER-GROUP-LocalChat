@@ -43,6 +43,7 @@ QA_DATASET_DIR = ROOT / "data" / "eval"
 DEFAULT_DATASET_ID = "rag_qa_pairs"
 
 JUDGE_VERDICTS = ("correct", "partial", "incorrect")
+_VERDICT_RE = re.compile(r"\b(correct|partial|incorrect)\b", re.IGNORECASE)
 
 JUDGE_PROMPT = (
     "You are grading whether a generated answer captures the same key facts as a reference "
@@ -51,7 +52,10 @@ JUDGE_PROMPT = (
     "Question: {question}\n"
     "Reference answer: {expected_answer}\n"
     "Generated answer: {actual_answer}\n\n"
-    "Respond with exactly one word: CORRECT, PARTIAL, or INCORRECT."
+    "Respond with exactly one word: CORRECT, PARTIAL, or INCORRECT.\n"
+    # generate() is a raw completion, not a chat turn: without a cue to complete, small models
+    # open with "Note: the reference answer..." and the 8-token budget ends before any verdict.
+    "Verdict:"
 )
 
 # A dataset id becomes part of a filesystem path below - restricted to a bare filename stem
@@ -140,11 +144,10 @@ def judge(question: str, expected_answer: str, actual_answer: str | None) -> tup
         raw = llm_adapter.generate(prompt, max_tokens=8).strip()
     except Exception as error:
         return "error", str(error)
-    lowered = raw.lower()
-    for verdict in JUDGE_VERDICTS:
-        if verdict in lowered:
-            return verdict, raw
-    return "error", raw
+    # The first verdict word, matched as a whole word: a substring test would read
+    # "INCORRECT" as "correct", since that is the first verdict checked.
+    match = _VERDICT_RE.search(raw)
+    return (match.group(1).lower(), raw) if match else ("error", raw)
 
 
 def run_one(db: Session, doc: dict[str, Any], item: dict[str, Any], project_id: int | None) -> RagEvalRow:
@@ -163,7 +166,12 @@ def run_one(db: Session, doc: dict[str, Any], item: dict[str, Any], project_id: 
     row.citations = result["citations"]
     row.complexity_tier = result["complexity"]["tier"]
     row.complexity_score = result["complexity"]["score"]
-    row.retrieval_hit = _retrieval_hit(doc["title_hint"], result["citations"])
+    if item.get("answerable", True):
+        row.retrieval_hit = _retrieval_hit(doc["title_hint"], result["citations"])
+    else:
+        # The answer is not in the corpus (data/eval/demo_qa_pairs.json marks these): the
+        # right outcome is saying so, and citing any document for it would be a miss.
+        row.retrieval_hit = result["not_found"]
     row.judge_verdict, row.judge_detail = judge(
         item["question"], item["expected_answer"], row.actual_answer
     )

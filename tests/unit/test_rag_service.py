@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from src import rag_service
+from src import rag_config, rag_service
 
 
 def retrieved(text="The conveyor speed is 2 meters per second.", score=0.9):
@@ -154,13 +154,147 @@ def test_answer_retrieves_on_the_standalone_rewrite_not_a_concatenation(monkeypa
         history=[("Is Samo Susa 20 years old?", "Yes, Samo Susa is 20 years old.")],
     )
 
-    assert captured_queries == ["What are Samo Susa's hobbies?"]
+    # Both the rewrite and the user's own words are searched and fused (RRF).
+    assert captured_queries == ["What are Samo Susa's hobbies?", "What are his hobbies?"]
     assert "\n" not in captured_queries[0]  # never a concatenation of turns
     assert response["search"] == {
         "query": "What are Samo Susa's hobbies?",
         "rewritten": True,
         "reason": "rewritten from conversation",
+        "queries": ["What are Samo Susa's hobbies?", "What are his hobbies?"],
+        "fusion": "rrf",
     }
+
+
+def test_fallback_mode_searches_only_the_rewrite_when_it_finds_something(monkeypatch):
+    captured_queries = []
+
+    def fake_retrieve(query, db, top_k, project_id=None, include_general=False):
+        captured_queries.append(query)
+        return retrieved()
+
+    monkeypatch.setattr(rag_service, "retrieve_chunks", fake_retrieve)
+    _stub_context(monkeypatch)
+    _stub_generate(monkeypatch)
+
+    with rag_config.override(fusion="fallback"):
+        response = rag_service.answer(
+            "What are his hobbies?",
+            object(),
+            history=[("Is Samo Susa 20 years old?", "Yes, Samo Susa is 20 years old.")],
+        )
+
+    assert captured_queries == ["What are Samo Susa's hobbies?"]
+    assert response["search"] == {
+        "query": "What are Samo Susa's hobbies?",
+        "rewritten": True,
+        "reason": "rewritten from conversation",
+    }
+
+
+def test_rrf_still_finds_the_passage_when_the_rewrite_finds_nothing(monkeypatch):
+    """Fusion makes the fallback unnecessary: the literal ranking is always in the merge."""
+    def fake_retrieve(query, db, top_k, project_id=None, include_general=False):
+        return [] if query == "What are Samo Susa's hobbies?" else retrieved()
+
+    monkeypatch.setattr(rag_service, "retrieve_chunks", fake_retrieve)
+    _stub_context(monkeypatch)
+    _stub_generate(monkeypatch)
+
+    response = rag_service.answer(
+        "What are his hobbies?",
+        object(),
+        history=[("Is Samo Susa 20 years old?", "Yes, Samo Susa is 20 years old.")],
+    )
+
+    assert response["not_found"] is False
+    assert response["citations"]
+
+
+def _scored(*scores):
+    return [
+        SimpleNamespace(
+            score=score,
+            chunk=SimpleNamespace(text=f"passage {i}", section=None, page=None, chunk_index=i),
+            document=SimpleNamespace(id=1, title="Guide"),
+        )
+        for i, score in enumerate(scores)
+    ]
+
+
+def test_relative_selection_keeps_the_minimum_behind_one_clear_winner():
+    # The mentor's first example: one passage far ahead of the rest.
+    selected = rag_service.select_by_relative_score(_scored(0.82, 0.51, 0.48, 0.45), 0.85, 2, 8)
+    assert [item.score for item in selected] == [0.82, 0.51]
+
+
+def test_relative_selection_keeps_a_flat_run_of_close_scores():
+    # The mentor's second example: 0.85 x 0.71 = 0.6035, so all five pass.
+    selected = rag_service.select_by_relative_score(_scored(0.71, 0.69, 0.68, 0.66, 0.64), 0.85, 2, 8)
+    assert len(selected) == 5
+
+
+def test_relative_selection_caps_at_the_maximum():
+    selected = rag_service.select_by_relative_score(_scored(*([0.7] * 10)), 0.85, 2, 8)
+    assert len(selected) == 8
+
+
+def test_relative_selection_handles_fewer_candidates_than_the_minimum():
+    assert len(rag_service.select_by_relative_score(_scored(0.9), 0.85, 2, 8)) == 1
+    assert rag_service.select_by_relative_score([], 0.85, 2, 8) == []
+
+
+def test_adaptive_selection_fetches_the_pool_and_reports_what_it_kept(monkeypatch):
+    pools = []
+
+    def fake_retrieve(query, db, top_k, project_id=None, include_general=False):
+        pools.append(top_k)
+        return _scored(0.82, 0.51, 0.48, 0.45)
+
+    monkeypatch.setattr(rag_service, "retrieve_chunks", fake_retrieve)
+    _stub_context(monkeypatch)
+    _stub_generate(monkeypatch)
+
+    response = rag_service.answer("What is the conveyor speed?", object())
+
+    assert pools == [10]
+    assert len(response["citations"]) == 2
+    assert response["retrieval"]["selection"] == "adaptive"
+    assert response["retrieval"]["candidates"] == 4
+    assert response["retrieval"]["selected"] == 2
+
+
+def test_tiered_selection_still_guesses_the_count_from_complexity(monkeypatch):
+    pools = []
+
+    def fake_retrieve(query, db, top_k, project_id=None, include_general=False):
+        pools.append(top_k)
+        return retrieved()
+
+    monkeypatch.setattr(rag_service, "retrieve_chunks", fake_retrieve)
+    _stub_context(monkeypatch)
+    _stub_generate(monkeypatch)
+
+    with rag_config.override(selection="tiered"):
+        response = rag_service.answer("What is the conveyor speed?", object())
+
+    assert pools == [rag_service.TIER_PARAMS[response["complexity"]["tier"]]["top_k"]]
+    assert response["retrieval"]["selection"] == "tiered"
+
+
+def test_compact_history_shortens_earlier_answers_in_the_answer_prompt(monkeypatch):
+    monkeypatch.setattr(
+        rag_service, "retrieve_chunks", lambda q, db, top_k, project_id=None, include_general=False: retrieved()
+    )
+    _stub_context(monkeypatch)
+    prompts = _stub_generate(monkeypatch)
+    long_answer = "Samo Susa is 20 years old. He lives in Slovenia and studies software engineering."
+
+    rag_service.answer("What are his hobbies?", object(), history=[("Is Samo Susa 20 years old?", long_answer)])
+
+    answer_prompt = prompts[-1].split("Documentation:")[0]
+    assert "Answer: Samo Susa is 20 years old." in answer_prompt
+    assert "lives in Slovenia" not in answer_prompt
 
 
 def test_answer_falls_back_to_the_literal_question_when_the_rewrite_finds_nothing(monkeypatch):
@@ -177,11 +311,12 @@ def test_answer_falls_back_to_the_literal_question_when_the_rewrite_finds_nothin
     _stub_context(monkeypatch)
     _stub_generate(monkeypatch)
 
-    response = rag_service.answer(
-        "What are his hobbies?",
-        object(),
-        history=[("Is Samo Susa 20 years old?", "Yes, Samo Susa is 20 years old.")],
-    )
+    with rag_config.override(fusion="fallback"):
+        response = rag_service.answer(
+            "What are his hobbies?",
+            object(),
+            history=[("Is Samo Susa 20 years old?", "Yes, Samo Susa is 20 years old.")],
+        )
 
     assert captured_queries == ["What are Samo Susa's hobbies?", "What are his hobbies?"]
     assert response["search"]["query"] == "What are his hobbies?"
@@ -294,7 +429,7 @@ def test_a_turn_that_found_nothing_reaches_the_rewriter_but_not_the_answer_promp
     )
 
     rewrite_prompt, answer_prompt = prompts
-    assert "User: How is the cat doing?" in rewrite_prompt
+    assert "User asked about: cat" in rewrite_prompt
     assert "How is the cat doing?" not in answer_prompt.split("Documentation:")[0]
     assert "Question: Who is Samo Susa?" in answer_prompt
 

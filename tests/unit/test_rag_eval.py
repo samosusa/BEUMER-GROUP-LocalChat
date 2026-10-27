@@ -185,3 +185,17 @@ def test_summarize_results_handles_no_rows_without_dividing_by_zero():
     assert summary["total"] == 0
     assert summary["retrieval_hit_rate"] is None
     assert summary["by_difficulty"] == {}
+
+
+def test_judge_does_not_read_incorrect_as_correct(monkeypatch):
+    monkeypatch.setattr(
+        "src.rag_eval.llm_adapter.generate", lambda prompt, max_tokens: "INCORRECT. The generated answer is"
+    )
+
+    assert judge("q", "expected", "actual")[0] == "incorrect"
+
+
+def test_the_judge_prompt_ends_on_a_cue_for_the_verdict():
+    from src.rag_eval import JUDGE_PROMPT
+
+    assert JUDGE_PROMPT.rstrip().endswith("Verdict:")

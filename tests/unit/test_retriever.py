@@ -182,3 +182,57 @@ def test_retrieve_with_include_general_unions_project_and_general_documents(tmp_
         )
 
     assert {result.chunk.text for result in results} == {"in-project text", "general text"}
+
+def test_keyword_tokens_keep_product_codes_whole_and_drop_stopwords():
+    from src.retriever import keyword_tokens
+
+    assert keyword_tokens("What is the max throughput of the CrisBelt MSC800-2?") == [
+        "max", "throughput", "crisbelt", "msc800-2",
+    ]
+
+
+def test_bm25_ranks_the_rarer_exact_term_first():
+    from src.retriever import bm25_rank
+
+    documents = [
+        ("a", "conveyor belt tension is checked weekly"),
+        ("b", "the MSC800 scanner is configured on the conveyor"),
+        ("c", "conveyor rollers are inspected monthly"),
+    ]
+    ranked = bm25_rank("MSC800 conveyor", documents)
+
+    assert [key for key, _ in ranked][0] == "b"
+    assert bm25_rank("unrelated words", documents) == []
+
+
+def _two_chunk_document(tmp_path, db):
+    document = Document(
+        title="Guide", path="guide.txt", checksum="guide", version=1, uploaded_at=datetime.utcnow(),
+    )
+    db.add(document)
+    db.flush()
+    db.add_all([
+        Chunk(doc_id=document.id, chunk_index=0, text="general conveyor overview", created_at=datetime.utcnow()),
+        Chunk(doc_id=document.id, chunk_index=1, text="MSC800 scanner settings", created_at=datetime.utcnow()),
+    ])
+    db.commit()
+    index = faiss.IndexFlatIP(2)
+    index.add(np.asarray([[1.0, 0.0], [0.6, 0.8]], dtype="float32"))
+    faiss.write_index(index, str(tmp_path / f"{document.id}.index"))
+
+
+def test_hybrid_search_lifts_the_passage_that_contains_the_exact_term(tmp_path, monkeypatch):
+    """The embedding prefers the overview; only the second passage names the MSC800."""
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with sessionmaker(bind=engine)() as db:
+        _two_chunk_document(tmp_path, db)
+        monkeypatch.setattr("src.retriever.embed_query", lambda texts: [[1.0, 0.0]])
+
+        vector_only = retrieve("MSC800 settings", db, top_k=2, vector_dir=tmp_path, hybrid=False)
+        hybrid = retrieve("MSC800 settings", db, top_k=2, vector_dir=tmp_path, hybrid=True)
+
+    assert [r.chunk.text for r in vector_only] == ["general conveyor overview", "MSC800 scanner settings"]
+    assert [r.chunk.text for r in hybrid] == ["MSC800 scanner settings", "general conveyor overview"]
+    # Keyword hits keep their cosine score, so similarity thresholds still apply to them.
+    assert hybrid[0].score == pytest.approx(0.6)

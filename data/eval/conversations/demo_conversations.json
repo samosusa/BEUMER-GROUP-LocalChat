@@ -1,0 +1,929 @@
+[
+  {
+    "id": "speed-limits",
+    "description": "Follow-ups that change place: aisles, crossings, then the yard (a different document).",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "What is the speed limit for forklifts in warehouse aisles?",
+        "expected_source": "txt-long",
+        "keywords": [
+          "8 km/h"
+        ],
+        "reference_answer": "Forklifts must not exceed 8 km/h in warehouse aisles."
+      },
+      {
+        "kind": "followup",
+        "question": "And near pedestrian crossings?",
+        "expected_source": "txt-long",
+        "keywords": [
+          "5 km/h near pedestrian crossings"
+        ],
+        "reference_answer": "Near pedestrian crossings the limit is 5 km/h."
+      },
+      {
+        "kind": "followup",
+        "question": "What about out in the yard?",
+        "expected_source": "md-sectioned",
+        "keywords": [
+          "15 km/h"
+        ],
+        "reference_answer": "In the yard vehicles are limited to 15 km/h."
+      },
+      {
+        "kind": "followup",
+        "question": "Does that change near building entrances?",
+        "expected_source": "md-sectioned",
+        "keywords": [
+          "5 km/h within 10 meters"
+        ],
+        "reference_answer": "Yes, it drops to 5 km/h within 10 meters of any building entrance."
+      }
+    ]
+  },
+  {
+    "id": "spill-kits",
+    "description": "Two documents mention spill kits; the follow-ups must stay with the right one.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "Where must spill kits be kept for chemical storage?",
+        "expected_source": "word-sectioned",
+        "keywords": [
+          "10 meters"
+        ],
+        "reference_answer": "Spill kits must be within 10 meters of the chemical storage area."
+      },
+      {
+        "kind": "followup",
+        "question": "How often are they checked?",
+        "expected_source": "word-sectioned",
+        "keywords": [
+          "checked monthly"
+        ],
+        "reference_answer": "They are checked monthly for completeness."
+      },
+      {
+        "kind": "topic-switch",
+        "question": "What should I do if a chemical spill is bigger than one liter?",
+        "expected_source": "pdf-long",
+        "keywords": [
+          "full evacuation"
+        ],
+        "reference_answer": "Evacuate the affected zone fully and notify the site safety officer."
+      },
+      {
+        "kind": "followup",
+        "question": "And who has to be notified?",
+        "expected_source": "pdf-long",
+        "keywords": [
+          "site safety officer"
+        ],
+        "reference_answer": "The site safety officer must be notified."
+      }
+    ]
+  },
+  {
+    "id": "conveyor",
+    "description": "Elliptical follow-ups ('and the belt tension?') inside one long document.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "How often are conveyor belts inspected?",
+        "expected_source": "word-long",
+        "keywords": [
+          "inspected daily"
+        ],
+        "reference_answer": "Conveyor belts are visually inspected daily by the shift operator."
+      },
+      {
+        "kind": "followup",
+        "question": "And the belt tension?",
+        "expected_source": "word-long",
+        "keywords": [
+          "checked weekly"
+        ],
+        "reference_answer": "Belt tension is checked weekly with the tension gauge."
+      },
+      {
+        "kind": "followup",
+        "question": "What about the drive train?",
+        "expected_source": "word-long",
+        "keywords": [
+          "quarterly"
+        ],
+        "reference_answer": "A full drive train inspection is done quarterly."
+      },
+      {
+        "kind": "followup",
+        "question": "Who does that one?",
+        "expected_source": "word-long",
+        "keywords": [
+          "maintenance team"
+        ],
+        "reference_answer": "The maintenance team performs it."
+      }
+    ]
+  },
+  {
+    "id": "forklift-service",
+    "description": "'its battery' means the maintenance schedule, not the charging rules in the forklift manual.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "What does a forklift operator check before a shift?",
+        "expected_source": "txt-long",
+        "keywords": [
+          "mast chain tension"
+        ],
+        "reference_answer": "Tires, forks, hydraulic leaks, horn, backup alarm, seatbelt and mast chain tension."
+      },
+      {
+        "kind": "followup",
+        "question": "What if they find a broken brake?",
+        "expected_source": "txt-long",
+        "keywords": [
+          "tagged out"
+        ],
+        "reference_answer": "A forklift with a safety-critical defect is tagged out and removed from service."
+      },
+      {
+        "kind": "followup",
+        "question": "How often does the forklift get serviced beyond that?",
+        "expected_source": "word-long",
+        "keywords": [
+          "250-hour"
+        ],
+        "reference_answer": "Each forklift receives a 250-hour service."
+      },
+      {
+        "kind": "followup",
+        "question": "And its battery?",
+        "expected_source": "word-long",
+        "keywords": [
+          "six months"
+        ],
+        "reference_answer": "Electric forklift batteries are load-tested every six months."
+      }
+    ]
+  },
+  {
+    "id": "crane-signals",
+    "description": "Pronouns pointing at the signal person and the exclusion zone.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "Who directs the crane operator during a lift?",
+        "expected_source": "md-long",
+        "keywords": [
+          "signal person"
+        ],
+        "reference_answer": "One designated signal person directs the crane operator."
+      },
+      {
+        "kind": "followup",
+        "question": "What happens if radio contact with them is lost?",
+        "expected_source": "md-long",
+        "keywords": [
+          "holds the load in place"
+        ],
+        "reference_answer": "The operator holds the load in place until visual contact is reestablished."
+      },
+      {
+        "kind": "standalone",
+        "question": "Can someone walk under the load to grab a dropped tool?",
+        "expected_source": "md-long",
+        "keywords": [
+          "dropped tools"
+        ],
+        "reference_answer": "No one may walk under a suspended load, even to retrieve dropped tools."
+      },
+      {
+        "kind": "followup",
+        "question": "How big must that zone be?",
+        "expected_source": "md-long",
+        "keywords": [
+          "maximum boom length"
+        ],
+        "reference_answer": "The exclusion zone radius is at least the maximum boom length."
+      }
+    ]
+  },
+  {
+    "id": "visitors",
+    "description": "Parking policy then badge policy - two short documents about visitors.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "Where do visitors park?",
+        "expected_source": "pdf-simple",
+        "keywords": [
+          "visitor spaces"
+        ],
+        "reference_answer": "Visitors park only in the marked visitor spaces near the main entrance."
+      },
+      {
+        "kind": "followup",
+        "question": "Where do they get their pass?",
+        "expected_source": "pdf-simple",
+        "keywords": [
+          "front desk"
+        ],
+        "reference_answer": "Visitor parking passes are issued at the front desk."
+      },
+      {
+        "kind": "followup",
+        "question": "Do they also need a badge to enter the production floor?",
+        "expected_source": "txt-simple",
+        "keywords": [
+          "visitor badge"
+        ],
+        "reference_answer": "Yes, visitors check in at the security desk and receive a visitor badge."
+      },
+      {
+        "kind": "followup",
+        "question": "Can they walk around on their own?",
+        "expected_source": "txt-simple",
+        "keywords": [
+          "employee escort"
+        ],
+        "reference_answer": "No, visitors need an employee escort on the floor."
+      }
+    ]
+  },
+  {
+    "id": "racking-then-ppe",
+    "description": "A topic switch mid-conversation; the follow-up after it belongs to the new topic.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "What is the maximum load per racking bay?",
+        "expected_source": "txt-sectioned",
+        "keywords": [
+          "2,200 kg"
+        ],
+        "reference_answer": "Each bay is rated for 2,200 kg evenly distributed."
+      },
+      {
+        "kind": "followup",
+        "question": "How often is it inspected?",
+        "expected_source": "txt-sectioned",
+        "keywords": [
+          "inspected monthly"
+        ],
+        "reference_answer": "Monthly by the warehouse supervisor and annually by a certified inspector."
+      },
+      {
+        "kind": "followup",
+        "question": "And what if a beam is bent?",
+        "expected_source": "txt-sectioned",
+        "keywords": [
+          "red tape"
+        ],
+        "reference_answer": "Report it and take the bay out of service with red tape."
+      },
+      {
+        "kind": "topic-switch",
+        "question": "What PPE do I need on the production floor?",
+        "expected_source": "word-simple",
+        "keywords": [
+          "steel-toed boots"
+        ],
+        "reference_answer": "Safety glasses and steel-toed boots."
+      },
+      {
+        "kind": "followup",
+        "question": "And where is hearing protection needed?",
+        "expected_source": "word-simple",
+        "keywords": [
+          "high-noise placard"
+        ],
+        "reference_answer": "In any area marked with a high-noise placard."
+      }
+    ]
+  },
+  {
+    "id": "evacuation",
+    "description": "A run of short follow-ups longer than the history window.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "Where do warehouse staff go during an evacuation?",
+        "expected_source": "pdf-long",
+        "keywords": [
+          "north parking lot"
+        ],
+        "reference_answer": "Warehouse staff assemble at the north parking lot."
+      },
+      {
+        "kind": "followup",
+        "question": "And office staff?",
+        "expected_source": "pdf-long",
+        "keywords": [
+          "south courtyard"
+        ],
+        "reference_answer": "Office staff assemble at the south courtyard."
+      },
+      {
+        "kind": "followup",
+        "question": "Who counts them?",
+        "expected_source": "pdf-long",
+        "keywords": [
+          "headcount"
+        ],
+        "reference_answer": "Shift supervisors take a headcount against the shift roster."
+      },
+      {
+        "kind": "followup",
+        "question": "How quickly must that be reported?",
+        "expected_source": "pdf-long",
+        "keywords": [
+          "five minutes"
+        ],
+        "reference_answer": "Within five minutes of evacuation, to the site safety officer."
+      },
+      {
+        "kind": "followup",
+        "question": "What if someone is missing?",
+        "expected_source": "pdf-long",
+        "keywords": [
+          "targeted search"
+        ],
+        "reference_answer": "They are reported to the fire brigade leader so responders can search."
+      }
+    ]
+  },
+  {
+    "id": "incident-command",
+    "description": "Ends with a question the corpus cannot answer.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "Who is the incident commander during an emergency?",
+        "expected_source": "pdf-long",
+        "keywords": [
+          "incident commander"
+        ],
+        "reference_answer": "The senior manager on site acts as incident commander."
+      },
+      {
+        "kind": "followup",
+        "question": "What if they can't be reached?",
+        "expected_source": "pdf-long",
+        "keywords": [
+          "longest tenure"
+        ],
+        "reference_answer": "The shift supervisor with the longest tenure takes over."
+      },
+      {
+        "kind": "unanswerable",
+        "question": "What is their phone number?",
+        "expected_source": null,
+        "keywords": [],
+        "reference_answer": ""
+      }
+    ]
+  },
+  {
+    "id": "loading-dock",
+    "description": "'backs into it' refers to the dock, but the answer is in the yard rules.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "What are the loading dock hours?",
+        "expected_source": "pdf-sectioned",
+        "keywords": [
+          "06:00"
+        ],
+        "reference_answer": "06:00 to 22:00 on weekdays."
+      },
+      {
+        "kind": "followup",
+        "question": "Who assigns the bays?",
+        "expected_source": "pdf-sectioned",
+        "keywords": [
+          "dock coordinator"
+        ],
+        "reference_answer": "The dock coordinator assigns each trailer a bay."
+      },
+      {
+        "kind": "followup",
+        "question": "What has to be engaged before lowering the dock plate?",
+        "expected_source": "pdf-sectioned",
+        "keywords": [
+          "wheel chocks"
+        ],
+        "reference_answer": "Wheel chocks and a dock lock."
+      },
+      {
+        "kind": "followup",
+        "question": "What colour is the light until then?",
+        "expected_source": "pdf-sectioned",
+        "keywords": [
+          "red"
+        ],
+        "reference_answer": "The dock light shows red until securing is confirmed."
+      },
+      {
+        "kind": "followup",
+        "question": "Who has right of way when a trailer backs into it?",
+        "expected_source": "md-sectioned",
+        "keywords": [
+          "right of way"
+        ],
+        "reference_answer": "A trailer backing into a dock always has right of way."
+      }
+    ]
+  },
+  {
+    "id": "chemical-labels",
+    "description": "Short follow-ups inside a short document.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "How should chemical containers be labeled?",
+        "expected_source": "word-sectioned",
+        "keywords": [
+          "hazard pictograms"
+        ],
+        "reference_answer": "With the chemical name, hazard pictograms and the date opened."
+      },
+      {
+        "kind": "followup",
+        "question": "What if one has no label?",
+        "expected_source": "word-sectioned",
+        "keywords": [
+          "unknown hazardous waste"
+        ],
+        "reference_answer": "It is treated as unknown hazardous waste."
+      },
+      {
+        "kind": "followup",
+        "question": "Where do flammable liquids go?",
+        "expected_source": "word-sectioned",
+        "keywords": [
+          "flammables cabinet"
+        ],
+        "reference_answer": "In an approved flammables cabinet away from ignition sources."
+      },
+      {
+        "kind": "followup",
+        "question": "And oxidizers?",
+        "expected_source": "word-sectioned",
+        "keywords": [
+          "oxidizers"
+        ],
+        "reference_answer": "Oxidizers are stored separately from flammable materials."
+      }
+    ]
+  },
+  {
+    "id": "battery-charging",
+    "description": "'it' and 'there' both mean the charging bay.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "Where can forklift batteries be charged?",
+        "expected_source": "txt-long",
+        "keywords": [
+          "charging bay"
+        ],
+        "reference_answer": "Only in the designated charging bay."
+      },
+      {
+        "kind": "followup",
+        "question": "How long must they cool first?",
+        "expected_source": "txt-long",
+        "keywords": [
+          "thirty minutes"
+        ],
+        "reference_answer": "At least thirty minutes after a shift."
+      },
+      {
+        "kind": "followup",
+        "question": "What protective gear is needed for it?",
+        "expected_source": "txt-long",
+        "keywords": [
+          "safety glasses and gloves"
+        ],
+        "reference_answer": "Safety glasses and gloves."
+      },
+      {
+        "kind": "followup",
+        "question": "Why is smoking banned there?",
+        "expected_source": "txt-long",
+        "keywords": [
+          "hydrogen"
+        ],
+        "reference_answer": "Because of hydrogen off-gassing during charging."
+      }
+    ]
+  },
+  {
+    "id": "hvac",
+    "description": "'those records' refers to maintenance records in the same document.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "How often are HVAC filters changed?",
+        "expected_source": "word-long",
+        "keywords": [
+          "filtered monthly"
+        ],
+        "reference_answer": "Air handling units are filtered monthly."
+      },
+      {
+        "kind": "followup",
+        "question": "And the refrigerant?",
+        "expected_source": "word-long",
+        "keywords": [
+          "twice a year"
+        ],
+        "reference_answer": "Refrigerant levels are checked twice a year."
+      },
+      {
+        "kind": "followup",
+        "question": "Who does the electrical inspection on the rooftop units?",
+        "expected_source": "word-long",
+        "keywords": [
+          "licensed hvac contractor"
+        ],
+        "reference_answer": "A licensed HVAC contractor."
+      },
+      {
+        "kind": "followup",
+        "question": "How long are those records kept?",
+        "expected_source": "word-long",
+        "keywords": [
+          "five years"
+        ],
+        "reference_answer": "At least five years."
+      }
+    ]
+  },
+  {
+    "id": "break-room-aed",
+    "description": "'nearest to it' means the break room, but the answer is in the emergency plan.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "What happens to food left in the break room fridge?",
+        "expected_source": "md-simple",
+        "keywords": [
+          "friday afternoons"
+        ],
+        "reference_answer": "Food left more than a week is discarded on Friday afternoons."
+      },
+      {
+        "kind": "followup",
+        "question": "Is there a defibrillator near it?",
+        "expected_source": "pdf-long",
+        "keywords": [
+          "defibrillators"
+        ],
+        "reference_answer": "Yes, an AED is mounted near the break room."
+      },
+      {
+        "kind": "followup",
+        "question": "What should I do first if someone collapses?",
+        "expected_source": "pdf-long",
+        "keywords": [
+          "site emergency line"
+        ],
+        "reference_answer": "Call the site emergency line, then give first aid if trained."
+      }
+    ]
+  },
+  {
+    "id": "tip-over",
+    "description": "Reporting deadlines after a forklift tip-over.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "What must happen after a forklift tips over?",
+        "expected_source": "txt-long",
+        "keywords": [
+          "inspected by maintenance"
+        ],
+        "reference_answer": "Maintenance inspects it and the operator completes refresher training."
+      },
+      {
+        "kind": "followup",
+        "question": "How soon must it be reported?",
+        "expected_source": "txt-long",
+        "keywords": [
+          "within one hour"
+        ],
+        "reference_answer": "To the shift supervisor within one hour."
+      },
+      {
+        "kind": "followup",
+        "question": "And the written report?",
+        "expected_source": "txt-long",
+        "keywords": [
+          "24 hours"
+        ],
+        "reference_answer": "A written report is required within 24 hours."
+      },
+      {
+        "kind": "followup",
+        "question": "What if the same operator has another incident that year?",
+        "expected_source": "txt-long",
+        "keywords": [
+          "site safety committee"
+        ],
+        "reference_answer": "A formal review by the site safety committee."
+      }
+    ]
+  },
+  {
+    "id": "critical-lift",
+    "description": "Lift planning, then a return to the pre-operation check.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "When does a crane lift need a second qualified person?",
+        "expected_source": "md-long",
+        "keywords": [
+          "90 percent"
+        ],
+        "reference_answer": "When it is within 90 percent of rated capacity."
+      },
+      {
+        "kind": "followup",
+        "question": "And when is it a critical lift?",
+        "expected_source": "md-long",
+        "keywords": [
+          "critical lift"
+        ],
+        "reference_answer": "When the load weight is uncertain."
+      },
+      {
+        "kind": "followup",
+        "question": "Who reviews its plan?",
+        "expected_source": "md-long",
+        "keywords": [
+          "site safety officer"
+        ],
+        "reference_answer": "The site safety officer reviews the written lift plan."
+      },
+      {
+        "kind": "followup",
+        "question": "What does the operator check on the hoist line beforehand?",
+        "expected_source": "md-long",
+        "keywords": [
+          "fraying"
+        ],
+        "reference_answer": "The hoist line is inspected for fraying."
+      }
+    ]
+  },
+  {
+    "id": "technician-training",
+    "description": "Ends with an unanswerable follow-up.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "What training does a new maintenance technician need?",
+        "expected_source": "word-long",
+        "keywords": [
+          "onboarding"
+        ],
+        "reference_answer": "A site-specific onboarding program before working unsupervised."
+      },
+      {
+        "kind": "followup",
+        "question": "How often is it refreshed?",
+        "expected_source": "word-long",
+        "keywords": [
+          "refresher training is required annually"
+        ],
+        "reference_answer": "Refresher training is required annually."
+      },
+      {
+        "kind": "followup",
+        "question": "What if they were away for more than 90 days?",
+        "expected_source": "word-long",
+        "keywords": [
+          "mentor"
+        ],
+        "reference_answer": "They are paired with a mentor for their first two weeks back."
+      },
+      {
+        "kind": "unanswerable",
+        "question": "How much do they earn?",
+        "expected_source": null,
+        "keywords": [],
+        "reference_answer": ""
+      }
+    ]
+  },
+  {
+    "id": "severe-weather",
+    "description": "Severe weather follow-ups, then a switch to yard traffic.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "What happens during a severe weather warning?",
+        "expected_source": "pdf-long",
+        "keywords": [
+          "central corridor"
+        ],
+        "reference_answer": "Everyone moves to the shelter areas in the central corridor."
+      },
+      {
+        "kind": "followup",
+        "question": "Do forklifts keep running?",
+        "expected_source": "pdf-long",
+        "keywords": [
+          "must stop"
+        ],
+        "reference_answer": "No, forklift and crane operations must stop immediately."
+      },
+      {
+        "kind": "followup",
+        "question": "What about contractors working outside?",
+        "expected_source": "pdf-long",
+        "keywords": [
+          "outdoor contractors"
+        ],
+        "reference_answer": "Outdoor contractors must be accounted for along with staff."
+      },
+      {
+        "kind": "topic-switch",
+        "question": "What's the speed limit for trailers in the yard?",
+        "expected_source": "md-sectioned",
+        "keywords": [
+          "15 km/h"
+        ],
+        "reference_answer": "Vehicles are limited to 15 km/h in the yard."
+      }
+    ]
+  },
+  {
+    "id": "racking-records",
+    "description": "A follow-up whose answer moves to another document ('that system').",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "Who may load racking bays?",
+        "expected_source": "txt-sectioned",
+        "keywords": [
+          "trained personnel"
+        ],
+        "reference_answer": "Only trained personnel."
+      },
+      {
+        "kind": "followup",
+        "question": "Who inspects it every year?",
+        "expected_source": "txt-sectioned",
+        "keywords": [
+          "certified racking inspector"
+        ],
+        "reference_answer": "A certified racking inspector."
+      },
+      {
+        "kind": "followup",
+        "question": "Where are the dates logged?",
+        "expected_source": "txt-sectioned",
+        "keywords": [
+          "facility maintenance system"
+        ],
+        "reference_answer": "In the facility maintenance system."
+      },
+      {
+        "kind": "followup",
+        "question": "How long are records in that system kept?",
+        "expected_source": "word-long",
+        "keywords": [
+          "five years"
+        ],
+        "reference_answer": "Maintenance records are kept at least five years."
+      }
+    ]
+  },
+  {
+    "id": "ppe-glasses",
+    "description": "'ones' and 'them' refer to safety glasses; the last turn switches document.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "What PPE is required on the production floor?",
+        "expected_source": "word-simple",
+        "keywords": [
+          "steel-toed boots"
+        ],
+        "reference_answer": "Safety glasses and steel-toed boots."
+      },
+      {
+        "kind": "followup",
+        "question": "Can I get prescription ones?",
+        "expected_source": "word-simple",
+        "keywords": [
+          "prescription"
+        ],
+        "reference_answer": "Yes, through the safety office."
+      },
+      {
+        "kind": "followup",
+        "question": "Who pays for them?",
+        "expected_source": "word-simple",
+        "keywords": [
+          "no cost"
+        ],
+        "reference_answer": "They are provided at no cost."
+      },
+      {
+        "kind": "topic-switch",
+        "question": "What gear do I need when connecting forklift chargers?",
+        "expected_source": "txt-long",
+        "keywords": [
+          "safety glasses and gloves"
+        ],
+        "reference_answer": "Safety glasses and gloves."
+      }
+    ]
+  },
+  {
+    "id": "rigging",
+    "description": "Rigging hardware and slings.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "What rigging hardware may be used for a lift?",
+        "expected_source": "md-long",
+        "keywords": [
+          "12 months"
+        ],
+        "reference_answer": "Hardware rated for the load and inspected within the last 12 months."
+      },
+      {
+        "kind": "followup",
+        "question": "How are slings chosen?",
+        "expected_source": "md-long",
+        "keywords": [
+          "center of gravity"
+        ],
+        "reference_answer": "By load weight, center of gravity and lift angle."
+      },
+      {
+        "kind": "followup",
+        "question": "And what if one is damaged?",
+        "expected_source": "md-long",
+        "keywords": [
+          "removed from service on the spot"
+        ],
+        "reference_answer": "A damaged sling is removed from service on the spot."
+      },
+      {
+        "kind": "followup",
+        "question": "When is a tag line needed?",
+        "expected_source": "md-long",
+        "keywords": [
+          "tag line"
+        ],
+        "reference_answer": "On any load that could rotate or swing."
+      }
+    ]
+  },
+  {
+    "id": "yard-blind-spots",
+    "description": "Yard rules with an unanswerable turn in the middle.",
+    "turns": [
+      {
+        "kind": "standalone",
+        "question": "Who has right of way in the yard?",
+        "expected_source": "md-sectioned",
+        "keywords": [
+          "right of way"
+        ],
+        "reference_answer": "Trailers backing into a dock."
+      },
+      {
+        "kind": "followup",
+        "question": "What should forklifts do then?",
+        "expected_source": "md-sectioned",
+        "keywords": [
+          "stop and wait"
+        ],
+        "reference_answer": "Stop and wait until the trailer has finished backing in."
+      },
+      {
+        "kind": "unanswerable",
+        "question": "How many trailers arrive per day?",
+        "expected_source": null,
+        "keywords": [],
+        "reference_answer": ""
+      },
+      {
+        "kind": "followup",
+        "question": "What should pedestrians do near moving vehicles?",
+        "expected_source": "md-sectioned",
+        "keywords": [
+          "eye contact"
+        ],
+        "reference_answer": "Make eye contact with the operator before crossing."
+      }
+    ]
+  }
+]

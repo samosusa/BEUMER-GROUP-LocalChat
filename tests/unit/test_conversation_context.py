@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import pytest
 
+from src import rag_config
 from src.conversation_context import (
     _validate_rewrite,
+    extract_subject,
+    first_sentence,
     looks_like_followup,
     resolve_search_query,
 )
@@ -100,8 +103,22 @@ def test_the_rewrite_prompt_carries_the_conversation():
         return "What are Samo Susa's hobbies?"
 
     resolve_search_query("What are his hobbies?", HISTORY, generate=capture)
-    assert "Is Samo Susa 20 years old?" in seen["prompt"]
+    # Compact history: the rewriter sees what the earlier question was about, not all of it.
+    assert "User asked about: Samo Susa" in seen["prompt"]
+    assert "Is Samo Susa 20 years old?" not in seen["prompt"]
     assert seen["prompt"].rstrip().endswith("Standalone question:")
+
+
+def test_full_history_mode_gives_the_rewriter_every_turn_verbatim():
+    seen = {}
+
+    def capture(prompt, max_tokens):
+        seen["prompt"] = prompt
+        return "What are Samo Susa's hobbies?"
+
+    with rag_config.override(history_mode="full"):
+        resolve_search_query("What are his hobbies?", HISTORY, generate=capture)
+    assert "User: Is Samo Susa 20 years old?" in seen["prompt"]
 
 
 @pytest.mark.parametrize(
@@ -173,5 +190,26 @@ def test_the_rewriter_still_sees_a_question_that_found_nothing():
         [("Is there a spill kit for the battery charging area?", "")],
         generate=capture,
     )
-    assert "User: Is there a spill kit for the battery charging area?" in seen["prompt"]
+    assert "User asked about: spill kit battery charging area" in seen["prompt"]
     assert "Assistant:" not in seen["prompt"].split("Conversation:")[1].split("Latest question:")[0]
+
+
+@pytest.mark.parametrize(
+    "question,subject",
+    [
+        ("What is the max throughput of the CrisBelt?", "CrisBelt"),
+        ("Is Samo Susa 20 years old?", "Samo Susa"),
+        ("How do I calibrate the MSC800 scanner?", "MSC800"),
+        ("How often must spill kits be checked?", "spill kits checked"),
+        ("How is the cat doing?", "cat"),
+    ],
+)
+def test_extract_subject_keeps_only_what_the_question_was_about(question, subject):
+    assert extract_subject(question) == subject
+
+
+def test_first_sentence_keeps_the_headline_of_an_earlier_answer():
+    assert first_sentence("The limit is 8 km/h. Near crossings it is 5 km/h.") == "The limit is 8 km/h."
+    assert first_sentence("Steps:\n1. Stop.\n2. Wait.") == "Steps:"
+    assert first_sentence("") == ""
+    assert len(first_sentence("word " * 200)) <= 241

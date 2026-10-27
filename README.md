@@ -340,6 +340,67 @@ interactive chat UI, anything past a couple of seconds is already unusable, whic
 practical ceiling somewhere between 500 and 1,000 documents on this machine - far below where
 anything actually breaks. Treat that crossing point, not a crash, as "capacity" for this system.
 
+## Retrieval settings and the conversation benchmark (research/eval tooling)
+
+How a question finds its passages is controlled by `src/rag_config.py`. Every setting keeps
+the previous behaviour reachable, so a change can be measured against what it replaced:
+
+| Setting | Default | Previous behaviour | Env var |
+| --- | --- | --- | --- |
+| History given to the query rewriter | `compact`: only the subject of each earlier question (e.g. "What is the max throughput of the CrisBelt?" becomes "CrisBelt") and the first sentence of each earlier answer | `full`: every turn verbatim | `LOCALCHAT_HISTORY_MODE` |
+| Searching a rewritten follow-up | `rrf`: search the rewrite **and** the user's own words, merge with reciprocal rank fusion (k=60) | `fallback`: search the rewrite, retry the original only if nothing is found | `LOCALCHAT_FUSION` |
+| Search type | hybrid: BM25 keyword search + vector search, merged with RRF | vector only | `LOCALCHAT_HYBRID` |
+| How many passages the model reads | `adaptive`: fetch 10, keep those scoring at least 85% of the best, minimum 2 and maximum 8 | `tiered`: guessed from the question's complexity | `LOCALCHAT_SELECTION` |
+
+Adaptive selection examples: scores 0.82 / 0.51 / 0.48 / 0.45 keep 2 passages (only 0.82
+clears 0.85 × 0.82 = 0.70, then padded to the minimum). Scores 0.71 / 0.69 / 0.68 / 0.66 /
+0.64 keep all five (cutoff 0.60). Each `/query` and conversation answer now reports this in
+a `retrieval` block: candidates, best score, cutoff and how many passages were kept.
+
+`scripts/conversation_benchmark.py` compares these settings on the demo corpus. It ingests
+`data/demo-inputs/` into a throwaway database under `data/eval_runs/<timestamp>/`, then runs:
+
+- **Conversations** (`data/eval/conversations/demo_conversations.json`): 22 scripted
+  conversations, 89 turns. Turns are standalone, follow-ups ("And its battery?"), topic
+  switches, or unanswerable. They are replayed with history and focus document built exactly
+  as the API builds them.
+- **Single questions** (`data/eval/demo_qa_pairs.json`, readable as `demo_qa_pairs.md`):
+  146 English questions. Each is tagged by difficulty (38 easy / 71 medium / 37 hard) and
+  type (fact, numeric, list, procedure, conditional, reasoning, multi-doc, unanswerable).
+  The file also appears as a dataset in the app's RAG evaluation.
+
+Each variant is a full settings combination: `baseline` (before these changes), `improved`
+(the defaults), and one variant per change with only that change undone. Every turn is
+scored on what retrieval handed the model. A source hit means a passage came from the right
+document. An evidence hit means the passages contain the answer's key phrases. Precision is
+the share of passages from the right document. `--answers` also generates every turn and
+has the active model grade it against a reference answer.
+
+```bash
+python scripts/conversation_benchmark.py                                  # retrieval scores only
+python scripts/conversation_benchmark.py --answers --device gpu           # + generated, judged answers
+python scripts/conversation_benchmark.py --variants baseline improved --skip-questions
+python scripts/conversation_benchmark.py --answers --device gpu --judge-model Qwen2.5-7B-Instruct-Q5_K_M.gguf
+```
+
+Use `--judge-model` when generating answers. Llama 3.2 3B grading its own answers called
+most correct answers "incorrect", so its verdicts were noise.
+
+One run (Llama 3.2 3B answering on an RTX 2070, Qwen2.5 7B judging):
+
+| | Baseline | Improved |
+| --- | --- | --- |
+| Follow-up turns: right document among the passages | 89.8% | 96.6% |
+| Follow-up turns: answer's key phrases among the passages | 83.0% | 93.2% |
+| Follow-up turns: passages given to the model (mean) | 3.3 | 4.9 |
+| Follow-up turns: share of passages from the right document | 40.1% | 37.5% |
+| All turns: judged correct or partial | 79.3% | 84.7% |
+| Single questions: answer's key phrases among the passages | 91.8% | 97.0% |
+
+The demo corpus is small (12 documents, 16 passages). Single-passage documents always share
+the minimum of 2 passages with another document, which keeps precision low for every
+variant. Re-run on the real manuals before drawing conclusions about the 85% cutoff.
+
 ## Demo workflow
 
 `npm run demo` runs an isolated end-to-end simulation and prints each stage clearly: health

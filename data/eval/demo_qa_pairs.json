@@ -1,0 +1,2722 @@
+[
+  {
+    "source": "md-long.md",
+    "title_hint": "md-long",
+    "title": "Crane Operations Manual",
+    "questions": [
+      {
+        "id": "md-long-01",
+        "difficulty": "easy",
+        "type": "numeric",
+        "tags": [
+          "easy",
+          "numeric",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "Within what percentage of rated capacity does a crane lift need a second qualified person to confirm the load?",
+        "expected_answer": "Lifts within 90 percent of rated capacity.",
+        "keywords": [
+          "90 percent"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-long-02",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "Who directs the crane operator during a lift?",
+        "expected_answer": "One designated signal person, using standard hand signals or a two-way radio.",
+        "keywords": [
+          "signal person"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-long-03",
+        "difficulty": "easy",
+        "type": "numeric",
+        "tags": [
+          "easy",
+          "numeric",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "How recently must rigging hardware have been inspected before it may be used?",
+        "expected_answer": "Within the last 12 months, and it must be rated for the intended load.",
+        "keywords": [
+          "12 months"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-long-04",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "What happens to a sling that shows cuts, abrasion or crushed fibers?",
+        "expected_answer": "It is removed from service on the spot.",
+        "keywords": [
+          "removed from service on the spot"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-long-05",
+        "difficulty": "medium",
+        "type": "procedure",
+        "tags": [
+          "medium",
+          "procedure",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "What must the crane operator do if radio contact with the signal person is lost during a lift?",
+        "expected_answer": "Hold the load in place until visual signal contact is reestablished.",
+        "keywords": [
+          "holds the load in place"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-long-06",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "How large must the exclusion zone radius around a suspended load be?",
+        "expected_answer": "At least the maximum boom length.",
+        "keywords": [
+          "maximum boom length"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-long-07",
+        "difficulty": "medium",
+        "type": "list",
+        "tags": [
+          "medium",
+          "list",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "What does the crane operator check before any lift?",
+        "expected_answer": "The hoist line for fraying, that the load chart matches the boom configuration, the upper and lower limit switches, and that outrigger pads are on stable, level ground.",
+        "keywords": [
+          "hoist line",
+          "limit switches"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-long-08",
+        "difficulty": "medium",
+        "type": "conditional",
+        "tags": [
+          "medium",
+          "conditional",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "When is a crane lift treated as a critical lift, and what does it require?",
+        "expected_answer": "When the load weight is uncertain; it needs a written lift plan reviewed by the site safety officer beforehand.",
+        "keywords": [
+          "critical lift",
+          "written lift plan"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-long-09",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "What happens to a crane that has a damaged hook latch?",
+        "expected_answer": "It is a safety-critical defect, so the crane is tagged out of service immediately.",
+        "keywords": [
+          "tagged out of service"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-long-10",
+        "difficulty": "medium",
+        "type": "conditional",
+        "tags": [
+          "medium",
+          "conditional",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "When must riggers attach a tag line to a load?",
+        "expected_answer": "To any load that could rotate or swing once it clears the ground.",
+        "keywords": [
+          "tag line"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-long-11",
+        "difficulty": "medium",
+        "type": "list",
+        "tags": [
+          "medium",
+          "list",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "Which factors determine the choice of sling for a lift?",
+        "expected_answer": "The load weight, the center of gravity and the angle of the lift - never estimated by eye.",
+        "keywords": [
+          "center of gravity"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-long-12",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "What must the crane operator and the signal person agree on before the lift begins?",
+        "expected_answer": "That they use the same signal set, and an emergency stop signal that overrides all other instructions.",
+        "keywords": [
+          "emergency stop signal"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-long-13",
+        "difficulty": "medium",
+        "type": "procedure",
+        "tags": [
+          "medium",
+          "procedure",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "When can the exclusion zone barriers be removed after a lift?",
+        "expected_answer": "Once the load is set down, the rigging is slack and the signal person confirms the area is clear.",
+        "keywords": [
+          "rigging is slack"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-long-14",
+        "difficulty": "hard",
+        "type": "reasoning",
+        "tags": [
+          "hard",
+          "reasoning",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "The boom length changed since the last lift. Can the operator reuse the capacity from that previous lift?",
+        "expected_answer": "No. Rated capacity changes with boom angle, boom length and counterweight, so the load chart must be consulted for every new lift.",
+        "keywords": [
+          "load chart for every new lift"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-long-15",
+        "difficulty": "hard",
+        "type": "reasoning",
+        "tags": [
+          "hard",
+          "reasoning",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "A worker dropped a tool under a suspended load. May they walk under it to pick the tool up?",
+        "expected_answer": "No. No one may walk under a suspended load for any reason, including to retrieve dropped tools.",
+        "keywords": [
+          "dropped tools"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-long-16",
+        "difficulty": "hard",
+        "type": "reasoning",
+        "tags": [
+          "hard",
+          "reasoning",
+          "md",
+          "long",
+          "single-doc"
+        ],
+        "question": "Why must outrigger pads be on stable, level ground before the boom is extended?",
+        "expected_answer": "Because an unstable base is one of the leading causes of tip-over incidents on mobile cranes.",
+        "keywords": [
+          "tip-over"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "multi-08",
+        "difficulty": "hard",
+        "type": "multi-doc",
+        "tags": [
+          "hard",
+          "multi-doc",
+          "md",
+          "long",
+          "cross-document"
+        ],
+        "question": "Who has to stop work during a severe weather warning, and who directs a crane lift?",
+        "expected_answer": "Forklift and crane operations stop immediately; a single designated signal person directs crane lifts.",
+        "keywords": [
+          "signal person",
+          "must stop"
+        ],
+        "answerable": true,
+        "also_title_hints": [
+          "pdf-long"
+        ]
+      },
+      {
+        "id": "none-01",
+        "difficulty": "hard",
+        "type": "unanswerable",
+        "tags": [
+          "hard",
+          "unanswerable",
+          "md",
+          "long",
+          "not-in-corpus"
+        ],
+        "question": "What is the maximum lifting capacity of the crane in tonnes?",
+        "expected_answer": "Not in the documentation - the assistant should say the information is not available.",
+        "keywords": [],
+        "answerable": false
+      }
+    ]
+  },
+  {
+    "source": "md-sectioned.md",
+    "title_hint": "md-sectioned",
+    "title": "Yard Traffic Rules",
+    "questions": [
+      {
+        "id": "md-sectioned-01",
+        "difficulty": "easy",
+        "type": "numeric",
+        "tags": [
+          "easy",
+          "numeric",
+          "md",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "What is the speed limit for vehicles in the yard?",
+        "expected_answer": "15 km/h.",
+        "keywords": [
+          "15 km/h"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-sectioned-02",
+        "difficulty": "easy",
+        "type": "numeric",
+        "tags": [
+          "easy",
+          "numeric",
+          "md",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "What is the yard speed limit close to a building entrance?",
+        "expected_answer": "5 km/h within 10 meters of any building entrance.",
+        "keywords": [
+          "5 km/h within 10 meters"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-sectioned-03",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "md",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "Who has right of way in the yard?",
+        "expected_answer": "Trailers backing into a dock always have right of way.",
+        "keywords": [
+          "right of way"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-sectioned-04",
+        "difficulty": "easy",
+        "type": "list",
+        "tags": [
+          "easy",
+          "list",
+          "md",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "Who shares the yard?",
+        "expected_answer": "Trailers, forklifts and pedestrians.",
+        "keywords": [
+          "trailers, forklifts, and pedestrians"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-sectioned-05",
+        "difficulty": "medium",
+        "type": "procedure",
+        "tags": [
+          "medium",
+          "procedure",
+          "md",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "What must a forklift do when a trailer is backing into a dock across its path?",
+        "expected_answer": "Stop and wait until the trailer has finished backing in before crossing behind it.",
+        "keywords": [
+          "stop and wait"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-sectioned-06",
+        "difficulty": "medium",
+        "type": "procedure",
+        "tags": [
+          "medium",
+          "procedure",
+          "md",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "What should pedestrians do before crossing in front of a moving vehicle in the yard?",
+        "expected_answer": "Make eye contact with the operator.",
+        "keywords": [
+          "eye contact"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-sectioned-07",
+        "difficulty": "medium",
+        "type": "conditional",
+        "tags": [
+          "medium",
+          "conditional",
+          "md",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "Does the yard speed limit still apply when the yard is empty?",
+        "expected_answer": "Yes, speed limits are enforced whether the yard is busy or empty.",
+        "keywords": [
+          "regardless of whether the yard is busy or empty"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-sectioned-08",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "md",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "What should drivers assume near the loading docks?",
+        "expected_answer": "That they cannot be seen by trailer or crane operators.",
+        "keywords": [
+          "cannot be seen"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-sectioned-09",
+        "difficulty": "hard",
+        "type": "reasoning",
+        "tags": [
+          "hard",
+          "reasoning",
+          "md",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "A van is driving at 12 km/h about 8 meters from a building entrance. Is that allowed?",
+        "expected_answer": "No. Within 10 meters of a building entrance the limit is 5 km/h.",
+        "keywords": [
+          "5 km/h within 10 meters"
+        ],
+        "answerable": true
+      }
+    ]
+  },
+  {
+    "source": "md-simple.md",
+    "title_hint": "md-simple",
+    "title": "Break Room Policy",
+    "questions": [
+      {
+        "id": "md-simple-01",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "md",
+          "simple",
+          "single-doc"
+        ],
+        "question": "When is food in the shared refrigerator thrown out?",
+        "expected_answer": "Personal food left for more than a week is discarded on Friday afternoons.",
+        "keywords": [
+          "friday afternoons"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-simple-02",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "md",
+          "simple",
+          "single-doc"
+        ],
+        "question": "Who may use the break rooms?",
+        "expected_answer": "All staff, during scheduled breaks and the lunch period.",
+        "keywords": [
+          "all staff"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-simple-03",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "md",
+          "simple",
+          "single-doc"
+        ],
+        "question": "Who is responsible for cleaning the break room after use?",
+        "expected_answer": "Employees clean up after themselves.",
+        "keywords": [
+          "cleaning up after themselves"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-simple-04",
+        "difficulty": "medium",
+        "type": "numeric",
+        "tags": [
+          "medium",
+          "numeric",
+          "md",
+          "simple",
+          "single-doc"
+        ],
+        "question": "How long can personal food stay in the break room fridge?",
+        "expected_answer": "Up to a week; food left longer is discarded on Friday afternoons.",
+        "keywords": [
+          "more than a week"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "md-simple-05",
+        "difficulty": "hard",
+        "type": "reasoning",
+        "tags": [
+          "hard",
+          "reasoning",
+          "md",
+          "simple",
+          "single-doc"
+        ],
+        "question": "I left my lunch in the shared fridge on Monday of last week. What happens to it this Friday afternoon?",
+        "expected_answer": "It has been there more than a week, so it will be discarded.",
+        "keywords": [
+          "discarded"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "none-02",
+        "difficulty": "hard",
+        "type": "unanswerable",
+        "tags": [
+          "hard",
+          "unanswerable",
+          "md",
+          "simple",
+          "not-in-corpus"
+        ],
+        "question": "What is the Wi-Fi password in the break room?",
+        "expected_answer": "Not in the documentation - the assistant should say the information is not available.",
+        "keywords": [],
+        "answerable": false
+      }
+    ]
+  },
+  {
+    "source": "pdf-long.pdf",
+    "title_hint": "pdf-long",
+    "title": "Site Emergency Response Plan",
+    "questions": [
+      {
+        "id": "pdf-long-01",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "Where does the fire brigade assemble during a fire?",
+        "expected_answer": "At the north gate, to brief arriving responders.",
+        "keywords": [
+          "north gate"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-02",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "Where do warehouse staff assemble during an evacuation?",
+        "expected_answer": "In the north parking lot.",
+        "keywords": [
+          "north parking lot"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-03",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "Where do office staff assemble during an evacuation?",
+        "expected_answer": "In the south courtyard.",
+        "keywords": [
+          "south courtyard"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-04",
+        "difficulty": "easy",
+        "type": "numeric",
+        "tags": [
+          "easy",
+          "numeric",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "Up to what volume may trained staff contain a chemical spill themselves?",
+        "expected_answer": "Spills under 1 liter.",
+        "keywords": [
+          "1 liter"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-05",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "Can elevators be used during a fire evacuation?",
+        "expected_answer": "No, do not use elevators.",
+        "keywords": [
+          "do not use elevators"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-06",
+        "difficulty": "medium",
+        "type": "numeric",
+        "tags": [
+          "medium",
+          "numeric",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "Within how many minutes must the evacuation headcount be reported to the site safety officer?",
+        "expected_answer": "Within five minutes of evacuation.",
+        "keywords": [
+          "five minutes"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-07",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "Where are the automated external defibrillators located?",
+        "expected_answer": "Near the break room and the main warehouse entrance.",
+        "keywords": [
+          "defibrillators"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-08",
+        "difficulty": "medium",
+        "type": "procedure",
+        "tags": [
+          "medium",
+          "procedure",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "What should I do first in a medical emergency?",
+        "expected_answer": "Call the site emergency line first, then begin first aid only if trained.",
+        "keywords": [
+          "site emergency line"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-09",
+        "difficulty": "medium",
+        "type": "conditional",
+        "tags": [
+          "medium",
+          "conditional",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "When should staff stop using a fire extinguisher and evacuate?",
+        "expected_answer": "If the fire grows beyond the size of a trash can.",
+        "keywords": [
+          "trash can"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-10",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "Who acts as incident commander during an emergency?",
+        "expected_answer": "The senior manager on site, until the fire department or emergency medical services take control.",
+        "keywords": [
+          "incident commander"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-11",
+        "difficulty": "medium",
+        "type": "procedure",
+        "tags": [
+          "medium",
+          "procedure",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "How are visitors and contractors accounted for during an evacuation?",
+        "expected_answer": "With the front desk sign-in log, which the receptionist brings to the assembly point.",
+        "keywords": [
+          "sign-in log"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-12",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "Where do personnel shelter during a severe weather warning?",
+        "expected_answer": "In the designated shelter areas in the central corridor, away from exterior windows and large roof spans.",
+        "keywords": [
+          "central corridor"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-13",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "What happens to forklift and crane operations when a severe weather warning is issued?",
+        "expected_answer": "They must stop immediately.",
+        "keywords": [
+          "must stop"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-14",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "How often is the emergency response plan reviewed?",
+        "expected_answer": "Annually and after any incident requiring a full site evacuation.",
+        "keywords": [
+          "reviewed annually"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-15",
+        "difficulty": "medium",
+        "type": "conditional",
+        "tags": [
+          "medium",
+          "conditional",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "When may people re-enter the building after a fire?",
+        "expected_answer": "Only after the fire department gives an explicit all-clear.",
+        "keywords": [
+          "all-clear"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-16",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "What do new hires learn about emergencies on their first day?",
+        "expected_answer": "A walkthrough of their nearest exit routes and assembly point.",
+        "keywords": [
+          "first day"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-17",
+        "difficulty": "hard",
+        "type": "conditional",
+        "tags": [
+          "hard",
+          "conditional",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "Who becomes incident commander if the senior manager on site cannot be reached?",
+        "expected_answer": "The shift supervisor with the longest tenure on site.",
+        "keywords": [
+          "longest tenure"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-18",
+        "difficulty": "hard",
+        "type": "procedure",
+        "tags": [
+          "hard",
+          "procedure",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "What must happen for a chemical spill of about three liters?",
+        "expected_answer": "Full evacuation of the affected zone and notification of the site safety officer; increase ventilation where safe and hand the safety data sheet to responders.",
+        "keywords": [
+          "full evacuation",
+          "site safety officer"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-long-19",
+        "difficulty": "hard",
+        "type": "procedure",
+        "tags": [
+          "hard",
+          "procedure",
+          "pdf",
+          "long",
+          "single-doc"
+        ],
+        "question": "What happens if someone is still unaccounted for after the headcount?",
+        "expected_answer": "They are reported to the fire brigade leader immediately so responders can begin a targeted search.",
+        "keywords": [
+          "targeted search"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "multi-02",
+        "difficulty": "medium",
+        "type": "multi-doc",
+        "tags": [
+          "medium",
+          "multi-doc",
+          "pdf",
+          "long",
+          "cross-document"
+        ],
+        "question": "Where are spill kits located on site?",
+        "expected_answer": "At each dock bay and in the chemical storage room, within 10 meters of the storage area.",
+        "keywords": [
+          "spill kits"
+        ],
+        "answerable": true,
+        "also_title_hints": [
+          "word-sectioned"
+        ]
+      },
+      {
+        "id": "multi-07",
+        "difficulty": "hard",
+        "type": "multi-doc",
+        "tags": [
+          "hard",
+          "multi-doc",
+          "pdf",
+          "long",
+          "cross-document"
+        ],
+        "question": "How is a safety data sheet used in chemical storage and during a chemical spill?",
+        "expected_answer": "Every stored chemical must have a current safety data sheet on file, and in a spill the sheet is pulled and handed to responders.",
+        "keywords": [
+          "safety data sheet"
+        ],
+        "answerable": true,
+        "also_title_hints": [
+          "word-sectioned"
+        ]
+      },
+      {
+        "id": "none-04",
+        "difficulty": "hard",
+        "type": "unanswerable",
+        "tags": [
+          "hard",
+          "unanswerable",
+          "pdf",
+          "long",
+          "not-in-corpus"
+        ],
+        "question": "What is the phone number of the site emergency line?",
+        "expected_answer": "Not in the documentation - the assistant should say the information is not available.",
+        "keywords": [],
+        "answerable": false
+      },
+      {
+        "id": "none-08",
+        "difficulty": "hard",
+        "type": "unanswerable",
+        "tags": [
+          "hard",
+          "unanswerable",
+          "pdf",
+          "long",
+          "not-in-corpus"
+        ],
+        "question": "What is the name of the current site safety officer?",
+        "expected_answer": "Not in the documentation - the assistant should say the information is not available.",
+        "keywords": [],
+        "answerable": false
+      }
+    ]
+  },
+  {
+    "source": "pdf-sectioned.pdf",
+    "title_hint": "pdf-sectioned",
+    "title": "Loading Dock Procedures",
+    "questions": [
+      {
+        "id": "pdf-sectioned-01",
+        "difficulty": "easy",
+        "type": "numeric",
+        "tags": [
+          "easy",
+          "numeric",
+          "pdf",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "What are the loading dock's operating hours?",
+        "expected_answer": "06:00 to 22:00 on weekdays.",
+        "keywords": [
+          "06:00",
+          "22:00"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-sectioned-02",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "pdf",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "Who assigns trailers to dock bays?",
+        "expected_answer": "The dock coordinator, based on the delivery schedule.",
+        "keywords": [
+          "dock coordinator"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-sectioned-03",
+        "difficulty": "medium",
+        "type": "list",
+        "tags": [
+          "medium",
+          "list",
+          "pdf",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "What must be engaged before the dock plate is lowered?",
+        "expected_answer": "Wheel chocks and a dock lock.",
+        "keywords": [
+          "wheel chocks"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-sectioned-04",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "pdf",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "What colour does the dock light show before trailer securing is confirmed?",
+        "expected_answer": "Red, then green once loading may begin.",
+        "keywords": [
+          "red"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-sectioned-05",
+        "difficulty": "medium",
+        "type": "conditional",
+        "tags": [
+          "medium",
+          "conditional",
+          "pdf",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "Can a driver pick their own dock bay?",
+        "expected_answer": "No, not without the dock coordinator's approval.",
+        "keywords": [
+          "coordinator approval"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-sectioned-06",
+        "difficulty": "medium",
+        "type": "list",
+        "tags": [
+          "medium",
+          "list",
+          "pdf",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "What must be cleared from the dock apron between trailers?",
+        "expected_answer": "Pallets, stretch wrap and strapping debris.",
+        "keywords": [
+          "stretch wrap"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-sectioned-07",
+        "difficulty": "medium",
+        "type": "procedure",
+        "tags": [
+          "medium",
+          "procedure",
+          "pdf",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "What must a trailer do before backing into a bay?",
+        "expected_answer": "Check in with the dock coordinator.",
+        "keywords": [
+          "check in"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-sectioned-08",
+        "difficulty": "hard",
+        "type": "reasoning",
+        "tags": [
+          "hard",
+          "reasoning",
+          "pdf",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "A trailer arrives at 23:00 on a Wednesday. Can it be unloaded at the dock?",
+        "expected_answer": "No. The loading dock only operates from 06:00 to 22:00 on weekdays.",
+        "keywords": [
+          "22:00"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "none-12",
+        "difficulty": "hard",
+        "type": "unanswerable",
+        "tags": [
+          "hard",
+          "unanswerable",
+          "pdf",
+          "sectioned",
+          "not-in-corpus"
+        ],
+        "question": "How many dock bays does the loading dock have?",
+        "expected_answer": "Not in the documentation - the assistant should say the information is not available.",
+        "keywords": [],
+        "answerable": false
+      }
+    ]
+  },
+  {
+    "source": "pdf-simple.pdf",
+    "title_hint": "pdf-simple",
+    "title": "Visitor Parking Policy",
+    "questions": [
+      {
+        "id": "pdf-simple-01",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "pdf",
+          "simple",
+          "single-doc"
+        ],
+        "question": "Where must visitors park?",
+        "expected_answer": "Only in the marked visitor spaces near the main entrance.",
+        "keywords": [
+          "visitor spaces"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-simple-02",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "pdf",
+          "simple",
+          "single-doc"
+        ],
+        "question": "Where are visitor parking passes issued?",
+        "expected_answer": "At the front desk.",
+        "keywords": [
+          "front desk"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-simple-03",
+        "difficulty": "medium",
+        "type": "list",
+        "tags": [
+          "medium",
+          "list",
+          "pdf",
+          "simple",
+          "single-doc"
+        ],
+        "question": "Where are visitors not allowed to park?",
+        "expected_answer": "Loading dock lanes, fire lanes and reserved employee spaces.",
+        "keywords": [
+          "fire lanes"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-simple-04",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "pdf",
+          "simple",
+          "single-doc"
+        ],
+        "question": "Where should a visitor display the parking pass?",
+        "expected_answer": "On the dashboard, for the full duration of the visit.",
+        "keywords": [
+          "dashboard"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "pdf-simple-05",
+        "difficulty": "hard",
+        "type": "reasoning",
+        "tags": [
+          "hard",
+          "reasoning",
+          "pdf",
+          "simple",
+          "single-doc"
+        ],
+        "question": "The visitor spaces are full. Can a visitor use an empty reserved employee space?",
+        "expected_answer": "No, parking in reserved employee spaces is not permitted for visitors.",
+        "keywords": [
+          "reserved employee spaces"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "multi-04",
+        "difficulty": "medium",
+        "type": "multi-doc",
+        "tags": [
+          "medium",
+          "multi-doc",
+          "pdf",
+          "simple",
+          "cross-document"
+        ],
+        "question": "What does a visitor need to do on arrival, from parking to entering the production floor?",
+        "expected_answer": "Park in a marked visitor space with the pass on the dashboard, then check in at the front security desk for a badge and stay with an employee escort.",
+        "keywords": [
+          "visitor"
+        ],
+        "answerable": true,
+        "also_title_hints": [
+          "txt-simple"
+        ]
+      },
+      {
+        "id": "none-03",
+        "difficulty": "hard",
+        "type": "unanswerable",
+        "tags": [
+          "hard",
+          "unanswerable",
+          "pdf",
+          "simple",
+          "not-in-corpus"
+        ],
+        "question": "How many parking spaces are reserved for visitors?",
+        "expected_answer": "Not in the documentation - the assistant should say the information is not available.",
+        "keywords": [],
+        "answerable": false
+      }
+    ]
+  },
+  {
+    "source": "txt-long.txt",
+    "title_hint": "txt-long",
+    "title": "Forklift Operations Manual",
+    "questions": [
+      {
+        "id": "txt-long-01",
+        "difficulty": "easy",
+        "type": "numeric",
+        "tags": [
+          "easy",
+          "numeric",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "What is the forklift speed limit in warehouse aisles?",
+        "expected_answer": "8 km/h.",
+        "keywords": [
+          "8 km/h"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-02",
+        "difficulty": "easy",
+        "type": "numeric",
+        "tags": [
+          "easy",
+          "numeric",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "How fast may a forklift drive near pedestrian crossings?",
+        "expected_answer": "5 km/h.",
+        "keywords": [
+          "5 km/h near pedestrian crossings"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-03",
+        "difficulty": "easy",
+        "type": "numeric",
+        "tags": [
+          "easy",
+          "numeric",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "How often must the internal forklift certification be renewed?",
+        "expected_answer": "Every three years.",
+        "keywords": [
+          "three years"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-04",
+        "difficulty": "easy",
+        "type": "numeric",
+        "tags": [
+          "easy",
+          "numeric",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "How high may a load be carried while the forklift is travelling?",
+        "expected_answer": "No higher than 15 cm off the ground, tilted back.",
+        "keywords": [
+          "15 cm"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-05",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "Who reviews the forklift inspection sheets, and how often?",
+        "expected_answer": "The maintenance lead, weekly.",
+        "keywords": [
+          "reviewed weekly"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-06",
+        "difficulty": "medium",
+        "type": "list",
+        "tags": [
+          "medium",
+          "list",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "What does the forklift pre-shift inspection checklist cover?",
+        "expected_answer": "Tire condition, fork straightness, hydraulic leaks, horn, backup alarm, seatbelt condition and mast chain tension.",
+        "keywords": [
+          "mast chain tension"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-07",
+        "difficulty": "medium",
+        "type": "numeric",
+        "tags": [
+          "medium",
+          "numeric",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "How soon must a forklift near-miss be reported to the shift supervisor?",
+        "expected_answer": "Within one hour, with a written report within 24 hours.",
+        "keywords": [
+          "within one hour"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-08",
+        "difficulty": "medium",
+        "type": "numeric",
+        "tags": [
+          "medium",
+          "numeric",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "How long must a forklift battery cool down after a shift before charging?",
+        "expected_answer": "At least thirty minutes.",
+        "keywords": [
+          "thirty minutes"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-09",
+        "difficulty": "medium",
+        "type": "list",
+        "tags": [
+          "medium",
+          "list",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "What protective equipment must operators wear when connecting forklift charging cables?",
+        "expected_answer": "Safety glasses and gloves.",
+        "keywords": [
+          "safety glasses and gloves"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-10",
+        "difficulty": "medium",
+        "type": "reasoning",
+        "tags": [
+          "medium",
+          "reasoning",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "Why are battery charging areas no-smoking zones?",
+        "expected_answer": "Because of hydrogen off-gassing during charging.",
+        "keywords": [
+          "hydrogen"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-11",
+        "difficulty": "medium",
+        "type": "procedure",
+        "tags": [
+          "medium",
+          "procedure",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "How must a forklift be left when it is unattended?",
+        "expected_answer": "Forks fully lowered, parking brake engaged and key removed.",
+        "keywords": [
+          "key removed"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-12",
+        "difficulty": "medium",
+        "type": "conditional",
+        "tags": [
+          "medium",
+          "conditional",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "When must a forklift operator sound the horn?",
+        "expected_answer": "At every blind corner and intersection.",
+        "keywords": [
+          "blind corner"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-13",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "Are passengers allowed to ride on a forklift?",
+        "expected_answer": "No riders other than the operator, including on the forks or the load.",
+        "keywords": [
+          "riders other than the operator"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-14",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "Who has priority at marked pedestrian crossings in the warehouse?",
+        "expected_answer": "Pedestrians; forklifts must come to a complete stop.",
+        "keywords": [
+          "take priority"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-15",
+        "difficulty": "medium",
+        "type": "list",
+        "tags": [
+          "medium",
+          "list",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "Which battery conditions mean a forklift battery must be taken out of service?",
+        "expected_answer": "Swelling, cracking or excessive corrosion on the terminals.",
+        "keywords": [
+          "swelling"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-16",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "Are high-visibility vests required on the warehouse floor?",
+        "expected_answer": "Yes, mandatory for all pedestrians.",
+        "keywords": [
+          "high-visibility vests"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-17",
+        "difficulty": "hard",
+        "type": "conditional",
+        "tags": [
+          "hard",
+          "conditional",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "What happens to an operator who skips the pre-shift inspection twice within 90 days?",
+        "expected_answer": "They must repeat the internal certification course.",
+        "keywords": [
+          "90-day"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-18",
+        "difficulty": "hard",
+        "type": "procedure",
+        "tags": [
+          "hard",
+          "procedure",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "After a forklift tip-over, what has to happen before the operator may drive again?",
+        "expected_answer": "Report within one hour and in writing within 24 hours; maintenance inspects the forklift before it returns to service; the operator completes refresher training.",
+        "keywords": [
+          "refresher training"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-long-19",
+        "difficulty": "hard",
+        "type": "conditional",
+        "tags": [
+          "hard",
+          "conditional",
+          "txt",
+          "long",
+          "single-doc"
+        ],
+        "question": "What can repeated incidents by the same operator within a year lead to?",
+        "expected_answer": "A formal review by the site safety committee, which may lead to additional training, restricted duties or suspension of forklift privileges.",
+        "keywords": [
+          "site safety committee"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "multi-01",
+        "difficulty": "medium",
+        "type": "multi-doc",
+        "tags": [
+          "medium",
+          "multi-doc",
+          "txt",
+          "long",
+          "cross-document"
+        ],
+        "question": "How does the forklift speed limit in warehouse aisles compare with the vehicle speed limit in the yard?",
+        "expected_answer": "8 km/h in warehouse aisles versus 15 km/h in the yard.",
+        "keywords": [
+          "8 km/h",
+          "15 km/h"
+        ],
+        "answerable": true,
+        "also_title_hints": [
+          "md-sectioned"
+        ]
+      },
+      {
+        "id": "multi-03",
+        "difficulty": "hard",
+        "type": "multi-doc",
+        "tags": [
+          "hard",
+          "multi-doc",
+          "txt",
+          "long",
+          "cross-document"
+        ],
+        "question": "Apart from the daily inspection, how often is a forklift serviced, and how often must its operator renew certification?",
+        "expected_answer": "A 250-hour service; the operator certification is renewed every three years.",
+        "keywords": [
+          "three years",
+          "250-hour"
+        ],
+        "answerable": true,
+        "also_title_hints": [
+          "word-long"
+        ]
+      },
+      {
+        "id": "multi-06",
+        "difficulty": "hard",
+        "type": "multi-doc",
+        "tags": [
+          "hard",
+          "multi-doc",
+          "txt",
+          "long",
+          "cross-document"
+        ],
+        "question": "What do the crane and forklift manuals both require when a safety-critical defect is found?",
+        "expected_answer": "The equipment is tagged out of service immediately.",
+        "keywords": [
+          "tagged out"
+        ],
+        "answerable": true,
+        "also_title_hints": [
+          "md-long"
+        ]
+      },
+      {
+        "id": "none-05",
+        "difficulty": "hard",
+        "type": "unanswerable",
+        "tags": [
+          "hard",
+          "unanswerable",
+          "txt",
+          "long",
+          "not-in-corpus"
+        ],
+        "question": "Which brand of forklift does the warehouse use?",
+        "expected_answer": "Not in the documentation - the assistant should say the information is not available.",
+        "keywords": [],
+        "answerable": false
+      }
+    ]
+  },
+  {
+    "source": "txt-sectioned.txt",
+    "title_hint": "txt-sectioned",
+    "title": "Warehouse Racking Safety",
+    "questions": [
+      {
+        "id": "txt-sectioned-01",
+        "difficulty": "easy",
+        "type": "numeric",
+        "tags": [
+          "easy",
+          "numeric",
+          "txt",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "What is the maximum load per pallet racking bay?",
+        "expected_answer": "2,200 kg evenly distributed across the pallet footprint.",
+        "keywords": [
+          "2,200 kg"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-sectioned-02",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "txt",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "How often does the warehouse supervisor inspect racking?",
+        "expected_answer": "Monthly.",
+        "keywords": [
+          "inspected monthly"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-sectioned-03",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "txt",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "Who performs the annual racking inspection?",
+        "expected_answer": "A certified racking inspector.",
+        "keywords": [
+          "certified racking inspector"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-sectioned-04",
+        "difficulty": "medium",
+        "type": "procedure",
+        "tags": [
+          "medium",
+          "procedure",
+          "txt",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "What should I do if I find a bent beam in a racking bay?",
+        "expected_answer": "Report it immediately; the bay is taken out of service with red tape until repaired.",
+        "keywords": [
+          "red tape"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-sectioned-05",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "txt",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "Where are racking load limit placards mounted?",
+        "expected_answer": "On the end frame of every aisle.",
+        "keywords": [
+          "end frame"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-sectioned-06",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "txt",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "Who may load or reconfigure racking bays?",
+        "expected_answer": "Only trained personnel.",
+        "keywords": [
+          "trained personnel"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-sectioned-07",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "txt",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "Where are racking inspection dates recorded?",
+        "expected_answer": "In the facility maintenance system.",
+        "keywords": [
+          "facility maintenance system"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-sectioned-08",
+        "difficulty": "hard",
+        "type": "reasoning",
+        "tags": [
+          "hard",
+          "reasoning",
+          "txt",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "Can I put a 2,500 kg load in a single racking bay?",
+        "expected_answer": "No, it exceeds the 2,200 kg bay rating.",
+        "keywords": [
+          "2,200 kg"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "multi-05",
+        "difficulty": "hard",
+        "type": "multi-doc",
+        "tags": [
+          "hard",
+          "multi-doc",
+          "txt",
+          "sectioned",
+          "cross-document"
+        ],
+        "question": "Which is inspected more often: warehouse racking or conveyor belts?",
+        "expected_answer": "Conveyor belts (visually inspected daily) - racking is inspected monthly by the supervisor and annually by a certified inspector.",
+        "keywords": [
+          "monthly",
+          "daily"
+        ],
+        "answerable": true,
+        "also_title_hints": [
+          "word-long"
+        ]
+      },
+      {
+        "id": "none-07",
+        "difficulty": "hard",
+        "type": "unanswerable",
+        "tags": [
+          "hard",
+          "unanswerable",
+          "txt",
+          "sectioned",
+          "not-in-corpus"
+        ],
+        "question": "What is the maximum height of the pallet racking?",
+        "expected_answer": "Not in the documentation - the assistant should say the information is not available.",
+        "keywords": [],
+        "answerable": false
+      }
+    ]
+  },
+  {
+    "source": "txt-simple.txt",
+    "title_hint": "txt-simple",
+    "title": "Visitor Badge Policy",
+    "questions": [
+      {
+        "id": "txt-simple-01",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "txt",
+          "simple",
+          "single-doc"
+        ],
+        "question": "Where do visitors get a visitor badge?",
+        "expected_answer": "At the front security desk.",
+        "keywords": [
+          "front security desk"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-simple-02",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "txt",
+          "simple",
+          "single-doc"
+        ],
+        "question": "Can visitors walk the production floor alone?",
+        "expected_answer": "No, they need an employee escort.",
+        "keywords": [
+          "employee escort"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-simple-03",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "txt",
+          "simple",
+          "single-doc"
+        ],
+        "question": "Must a visitor badge be visible?",
+        "expected_answer": "Yes, at all times.",
+        "keywords": [
+          "visible at all times"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-simple-04",
+        "difficulty": "medium",
+        "type": "procedure",
+        "tags": [
+          "medium",
+          "procedure",
+          "txt",
+          "simple",
+          "single-doc"
+        ],
+        "question": "What happens to the visitor badge at the end of a visit?",
+        "expected_answer": "It is returned at checkout.",
+        "keywords": [
+          "returned at checkout"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "txt-simple-05",
+        "difficulty": "medium",
+        "type": "conditional",
+        "tags": [
+          "medium",
+          "conditional",
+          "txt",
+          "simple",
+          "single-doc"
+        ],
+        "question": "Can two visitors share one badge?",
+        "expected_answer": "No, badge sharing between visitors is prohibited.",
+        "keywords": [
+          "badge sharing"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "none-10",
+        "difficulty": "hard",
+        "type": "unanswerable",
+        "tags": [
+          "hard",
+          "unanswerable",
+          "txt",
+          "simple",
+          "not-in-corpus"
+        ],
+        "question": "How much does it cost to replace a lost visitor badge?",
+        "expected_answer": "Not in the documentation - the assistant should say the information is not available.",
+        "keywords": [],
+        "answerable": false
+      }
+    ]
+  },
+  {
+    "source": "word-long.docx",
+    "title_hint": "word-long",
+    "title": "Preventive Maintenance Program",
+    "questions": [
+      {
+        "id": "word-long-01",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "How often are conveyor belts visually inspected?",
+        "expected_answer": "Daily, by the shift operator.",
+        "keywords": [
+          "inspected daily"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-02",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "How often is conveyor belt tension checked?",
+        "expected_answer": "Weekly, using the tension gauge at the designated test point.",
+        "keywords": [
+          "checked weekly"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-03",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "How often are HVAC air handling units filtered?",
+        "expected_answer": "Monthly.",
+        "keywords": [
+          "filtered monthly"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-04",
+        "difficulty": "easy",
+        "type": "numeric",
+        "tags": [
+          "easy",
+          "numeric",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "How long are maintenance records kept?",
+        "expected_answer": "At least five years.",
+        "keywords": [
+          "five years"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-05",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "How often are conveyor idler rollers inspected?",
+        "expected_answer": "Monthly, for bearing noise and shell wear.",
+        "keywords": [
+          "idler rollers"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-06",
+        "difficulty": "medium",
+        "type": "list",
+        "tags": [
+          "medium",
+          "list",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "What does the quarterly conveyor drive train inspection include, and who does it?",
+        "expected_answer": "Motor bearings and gearbox oil level, by the maintenance team.",
+        "keywords": [
+          "gearbox oil"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-07",
+        "difficulty": "medium",
+        "type": "list",
+        "tags": [
+          "medium",
+          "list",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "What does a forklift's 250-hour service cover?",
+        "expected_answer": "Hydraulic fluid, brake adjustment and mast chain lubrication, plus tire tread measurement.",
+        "keywords": [
+          "250-hour"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-08",
+        "difficulty": "medium",
+        "type": "numeric",
+        "tags": [
+          "medium",
+          "numeric",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "How often are electric forklift batteries load-tested?",
+        "expected_answer": "Every six months.",
+        "keywords": [
+          "six months"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-09",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "When are HVAC refrigerant levels and coil condition checked?",
+        "expected_answer": "Twice a year, ahead of the summer and winter seasons.",
+        "keywords": [
+          "twice a year"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-10",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "How often do maintenance technicians need refresher training?",
+        "expected_answer": "Annually.",
+        "keywords": [
+          "refresher training is required annually"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-11",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "When are the conveyor emergency stop pull-cords tested?",
+        "expected_answer": "At the start of each shift.",
+        "keywords": [
+          "pull-cords"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-12",
+        "difficulty": "medium",
+        "type": "list",
+        "tags": [
+          "medium",
+          "list",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "What information is logged for each maintenance activity?",
+        "expected_answer": "Technician name, date, findings and parts used.",
+        "keywords": [
+          "parts used"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-13",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "Who performs the annual electrical inspection of rooftop HVAC units?",
+        "expected_answer": "A licensed HVAC contractor under the site's service agreement.",
+        "keywords": [
+          "licensed hvac contractor"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-14",
+        "difficulty": "medium",
+        "type": "list",
+        "tags": [
+          "medium",
+          "list",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "What does the maintenance technician onboarding cover?",
+        "expected_answer": "Lockout/tagout, confined space entry and the equipment-specific checklists.",
+        "keywords": [
+          "lockout/tagout"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-15",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "What is the goal of the preventive maintenance program?",
+        "expected_answer": "To catch equipment wear before it causes an unplanned production stoppage or a safety incident.",
+        "keywords": [
+          "unplanned production stoppage"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-16",
+        "difficulty": "hard",
+        "type": "conditional",
+        "tags": [
+          "hard",
+          "conditional",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "When does equipment get a root-cause review instead of another routine repair?",
+        "expected_answer": "When it has three or more repeat findings within a twelve-month period.",
+        "keywords": [
+          "root-cause review"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-17",
+        "difficulty": "hard",
+        "type": "conditional",
+        "tags": [
+          "hard",
+          "conditional",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "A technician is coming back after four months away. What applies to them?",
+        "expected_answer": "More than 90 days away: they are paired with a mentor for their first two weeks back before working solo.",
+        "keywords": [
+          "mentor"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-18",
+        "difficulty": "hard",
+        "type": "procedure",
+        "tags": [
+          "hard",
+          "procedure",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "What happens to deferred maintenance items that are older than two weeks?",
+        "expected_answer": "The maintenance manager escalates them to the plant manager for prioritization.",
+        "keywords": [
+          "plant manager"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-long-19",
+        "difficulty": "hard",
+        "type": "conditional",
+        "tags": [
+          "hard",
+          "conditional",
+          "word",
+          "long",
+          "single-doc"
+        ],
+        "question": "What happens to a forklift whose tires are below the minimum tread depth?",
+        "expected_answer": "It is scheduled for replacement before its next shift.",
+        "keywords": [
+          "minimum tread depth"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "none-11",
+        "difficulty": "hard",
+        "type": "unanswerable",
+        "tags": [
+          "hard",
+          "unanswerable",
+          "word",
+          "long",
+          "not-in-corpus"
+        ],
+        "question": "What is the annual maintenance budget in euros?",
+        "expected_answer": "Not in the documentation - the assistant should say the information is not available.",
+        "keywords": [],
+        "answerable": false
+      }
+    ]
+  },
+  {
+    "source": "word-sectioned.docx",
+    "title_hint": "word-sectioned",
+    "title": "Chemical Storage Guidelines",
+    "questions": [
+      {
+        "id": "word-sectioned-01",
+        "difficulty": "easy",
+        "type": "numeric",
+        "tags": [
+          "easy",
+          "numeric",
+          "word",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "How far from the chemical storage area must spill kits be?",
+        "expected_answer": "Within 10 meters.",
+        "keywords": [
+          "10 meters"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-sectioned-02",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "word",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "How often are chemical spill kits checked?",
+        "expected_answer": "Monthly, for completeness.",
+        "keywords": [
+          "checked monthly"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-sectioned-03",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "word",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "Where must flammable liquids be stored?",
+        "expected_answer": "In an approved flammables cabinet away from ignition sources.",
+        "keywords": [
+          "flammables cabinet"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-sectioned-04",
+        "difficulty": "medium",
+        "type": "list",
+        "tags": [
+          "medium",
+          "list",
+          "word",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "What must be on every chemical container label?",
+        "expected_answer": "The chemical name, hazard pictograms and the date it was opened.",
+        "keywords": [
+          "hazard pictograms"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-sectioned-05",
+        "difficulty": "medium",
+        "type": "conditional",
+        "tags": [
+          "medium",
+          "conditional",
+          "word",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "How are unlabeled chemical containers treated?",
+        "expected_answer": "As unknown hazardous waste.",
+        "keywords": [
+          "unknown hazardous waste"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-sectioned-06",
+        "difficulty": "medium",
+        "type": "conditional",
+        "tags": [
+          "medium",
+          "conditional",
+          "word",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "Can oxidizers be stored next to flammable materials?",
+        "expected_answer": "No, oxidizers are stored separately from flammable and combustible materials.",
+        "keywords": [
+          "oxidizers"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-sectioned-07",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "word",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "What is required for every chemical stored on site?",
+        "expected_answer": "It must be listed in the chemical inventory system with a current safety data sheet.",
+        "keywords": [
+          "safety data sheet"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-sectioned-08",
+        "difficulty": "hard",
+        "type": "reasoning",
+        "tags": [
+          "hard",
+          "reasoning",
+          "word",
+          "sectioned",
+          "single-doc"
+        ],
+        "question": "A solvent bottle is labeled only with its name. Is that enough?",
+        "expected_answer": "No, the label also needs hazard pictograms and the date it was opened.",
+        "keywords": [
+          "date it was opened"
+        ],
+        "answerable": true
+      }
+    ]
+  },
+  {
+    "source": "word-simple.docx",
+    "title_hint": "word-simple",
+    "title": "Personal Protective Equipment Policy",
+    "questions": [
+      {
+        "id": "word-simple-01",
+        "difficulty": "easy",
+        "type": "list",
+        "tags": [
+          "easy",
+          "list",
+          "word",
+          "simple",
+          "single-doc"
+        ],
+        "question": "What protective equipment is required on the production floor at all times?",
+        "expected_answer": "Safety glasses and steel-toed boots.",
+        "keywords": [
+          "steel-toed boots"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-simple-02",
+        "difficulty": "easy",
+        "type": "fact",
+        "tags": [
+          "easy",
+          "fact",
+          "word",
+          "simple",
+          "single-doc"
+        ],
+        "question": "Where is hearing protection required?",
+        "expected_answer": "In any area marked with a high-noise placard.",
+        "keywords": [
+          "high-noise placard"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-simple-03",
+        "difficulty": "medium",
+        "type": "procedure",
+        "tags": [
+          "medium",
+          "procedure",
+          "word",
+          "simple",
+          "single-doc"
+        ],
+        "question": "How can employees get prescription safety glasses?",
+        "expected_answer": "Request them through the safety office.",
+        "keywords": [
+          "safety office"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-simple-04",
+        "difficulty": "medium",
+        "type": "fact",
+        "tags": [
+          "medium",
+          "fact",
+          "word",
+          "simple",
+          "single-doc"
+        ],
+        "question": "Do prescription safety glasses cost the employee anything?",
+        "expected_answer": "No, they are provided at no cost.",
+        "keywords": [
+          "no cost"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "word-simple-05",
+        "difficulty": "hard",
+        "type": "reasoning",
+        "tags": [
+          "hard",
+          "reasoning",
+          "word",
+          "simple",
+          "single-doc"
+        ],
+        "question": "I'm in an area with no high-noise placard. Do I need hearing protection there?",
+        "expected_answer": "Not under the policy - it is required only where a high-noise placard is posted; safety glasses and steel-toed boots still apply.",
+        "keywords": [
+          "high-noise placard"
+        ],
+        "answerable": true
+      },
+      {
+        "id": "none-06",
+        "difficulty": "hard",
+        "type": "unanswerable",
+        "tags": [
+          "hard",
+          "unanswerable",
+          "word",
+          "simple",
+          "not-in-corpus"
+        ],
+        "question": "How many vacation days do employees get per year?",
+        "expected_answer": "Not in the documentation - the assistant should say the information is not available.",
+        "keywords": [],
+        "answerable": false
+      },
+      {
+        "id": "none-09",
+        "difficulty": "hard",
+        "type": "unanswerable",
+        "tags": [
+          "hard",
+          "unanswerable",
+          "word",
+          "simple",
+          "not-in-corpus"
+        ],
+        "question": "At what decibel level is hearing protection required?",
+        "expected_answer": "Not in the documentation - the assistant should say the information is not available.",
+        "keywords": [],
+        "answerable": false
+      }
+    ]
+  }
+]

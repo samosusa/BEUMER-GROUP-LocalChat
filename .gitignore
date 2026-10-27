@@ -86,6 +86,7 @@ data/vectors/
 data/models/
 data/demo_runs/
 data/capacity_runs/
+data/eval_runs/
 eval_results/
 
 # Frameworks

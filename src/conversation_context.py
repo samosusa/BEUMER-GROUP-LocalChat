@@ -29,7 +29,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from src import llm_adapter
+from src import llm_adapter, rag_config
 
 # The rewrite is one short question. Past this, the model has stopped following the
 # instruction and started answering instead.
@@ -130,13 +130,104 @@ def looks_like_followup(question: str) -> bool:
     return len(content) <= 1
 
 
-def _render_for_rewrite(history: list[tuple[str, str]]) -> str:
+# ---------------------------------------------------------------------------------------
+# Compact history
+#
+# A small rewriter given whole earlier turns tends to copy their details into the rewrite,
+# or to answer instead of rewriting. What it needs from an earlier question is only what
+# that question was about - "What is the max throughput of the CrisBelt?" is about the
+# CrisBelt - and from an earlier answer only its opening statement.
+# ---------------------------------------------------------------------------------------
+
+# Imperatives that open a question ("Name three...", "List the...") and are capitalised
+# only because they start the sentence.
+_LEADING_VERBS = frozenset(
+    """name list describe give show tell explain find compare summarize summarise define
+    please""".split()
+)
+# Words that carry the question's grammar or intent, not its subject.
+_GENERIC_WORDS = frozenset(
+    """say says said mean means need needs required require requires use used using happen
+    happens work works done make makes get gets know kind type types way ways main long often
+    much many number exactly least doing going""".split()
+)
+_SUBJECT_TOKEN_RE = re.compile(r"[\w®/-]+", re.UNICODE)
+SUBJECT_MAX_WORDS = 6
+FIRST_SENTENCE_MAX_CHARS = 240
+_SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
+
+
+def _is_named(token: str) -> bool:
+    """A proper noun, product name or code: CrisBelt, Samo, MSC800, OPNL_B01, HBS."""
+    lower = token.lower()
+    if lower in _STOPWORDS or lower in _QUESTION_WORDS or lower in _LEADING_VERBS:
+        return False
+    if any(char.isdigit() for char in token) and any(char.isalpha() for char in token):
+        return True
+    return token[0].isupper() or any(char.isupper() for char in token[1:])
+
+
+def extract_subject(question: str) -> str:
+    """The entity an earlier question was about, for the rewriter's view of the history.
+
+    Named things first: runs of capitalised words or codes ("Samo Susa", "CrisBelt",
+    "MSC800"). A question without one ("What does the maintenance program say about
+    conveyor belts?") keeps its content words instead, which is as close to a subject as a
+    rule can get without a model call. Falls back to the question itself rather than
+    returning nothing, because an empty subject would lose the turn altogether."""
+    tokens = _SUBJECT_TOKEN_RE.findall(question)
+    groups: list[str] = []
+    current: list[str] = []
+    for token in [*tokens, ""]:
+        if token and _is_named(token):
+            current.append(token)
+            continue
+        if current and " ".join(current) not in groups:
+            groups.append(" ".join(current))
+        current = []
+    if groups:
+        return ", ".join(groups)
+
+    content = [
+        token for token in tokens
+        if token.lower() not in _STOPWORDS
+        and token.lower() not in _QUESTION_WORDS
+        and token.lower() not in _GENERIC_WORDS
+        and token.lower() not in _LEADING_VERBS
+    ]
+    return " ".join(content[:SUBJECT_MAX_WORDS]) or " ".join(question.split())
+
+
+def first_sentence(text: str) -> str:
+    """The opening statement of an earlier answer: its first line, then its first sentence,
+    capped in length. The answer's headline is what a follow-up refers back to; the detail
+    after it is what crowds the prompt."""
+    lines = [line.strip() for line in (text or "").splitlines() if line.strip()]
+    if not lines:
+        return ""
+    sentence = _SENTENCE_END_RE.split(lines[0], maxsplit=1)[0].strip()
+    if len(sentence) > FIRST_SENTENCE_MAX_CHARS:
+        sentence = sentence[: FIRST_SENTENCE_MAX_CHARS - 1].rstrip() + "…"
+    return sentence
+
+
+def _render_for_rewrite(history: list[tuple[str, str]], mode: str | None = None) -> str:
     """The dialogue as the rewriter sees it. Separate from rag_service's own history
     formatting on purpose: that block is tuned for answering, this one for one narrow
     extraction task, and tying them together would mean every change to the answer prompt
-    silently re-tunes the rewriter too."""
+    silently re-tunes the rewriter too.
+
+    "compact" (the default, see src/rag_config.py) reduces each earlier question to its
+    subject and each earlier answer to its first sentence; "full" passes both verbatim."""
+    mode = mode or rag_config.get().history_mode
     # A turn that found nothing has an empty answer: what was asked still says who or what
     # the conversation is about now, even though nothing came back.
+    if mode == "compact":
+        return "\n".join(
+            f"User asked about: {extract_subject(asked)}"
+            + (f"\nAssistant: {first_sentence(answered)}" if answered.strip() else "")
+            for asked, answered in history
+        )
     return "\n".join(
         f"User: {' '.join(asked.split())}"
         + (f"\nAssistant: {' '.join(answered.split())}" if answered.strip() else "")
